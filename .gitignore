@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment (managed by uv)
+.venv/
+venv/
+ENV/
+
+# uv
+uv.lock
+# Uncomment the line above if you want to exclude the lock file
+# Generally you SHOULD commit uv.lock for reproducible installs
+
+# Environment variables - NEVER commit this
+.env
+.env.local
+.env.*.local
+
+# VSCode
+.vscode/
+# Uncomment above to exclude VSCode settings from git
+# Or keep it to share settings with collaborators
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Data / outputs (adjust per project)
+data/
+outputs/
+*.db
+*.sqlite
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
