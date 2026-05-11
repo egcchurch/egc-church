@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sermons Archive | Emmanuel Gospel Centre</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+
+  <style>
+    .active-view {
+      background-color: #0A3D62;
+      color: white;
+      box-shadow: 0 2px 4px rgba(10, 61, 98, 0.2);
+    }
+    .resource-btn {
+      @apply px-4 py-1.5 text-xs font-medium rounded-xl flex items-center gap-1 transition hover:scale-105;
+    }
+  </style>
+</head>
+<body class="bg-zinc-50 font-sans">
+
+  <!-- Navigation (same as before) -->
+  <nav class="bg-white border-b sticky top-0 z-50 shadow-sm">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="flex justify-between items-center h-16">
+        <div class="flex items-center gap-x-3">
+          <div class="w-9 h-9 bg-amber-500 rounded-full flex items-center justify-center text-white text-2xl">✝</div>
+          <div class="leading-none">
+            <span class="font-bold text-xl tracking-tighter text-[#0A3D62]">EMMANUEL</span>
+            <span class="block text-[10px] text-amber-600 font-medium">GOSPEL CENTRE</span>
+          </div>
+        </div>
+
+        <div class="hidden md:flex items-center gap-x-8 text-sm font-medium">
+          <a href="index.html" class="hover:text-amber-600">HOME</a>
+          <a href="#" class="hover:text-amber-600">LIVE STREAM</a>
+          <a href="sermons.html" class="text-amber-600 font-semibold">SERMONS</a>
+          <a href="#" class="hover:text-amber-600">NOTICE BOARD</a>
+          <a href="#" class="hover:text-amber-600">CONTACT</a>
+        </div>
+
+        <button id="login-btn" class="hidden md:block bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium">
+          Member Login
+        </button>
+
+        <button id="mobile-btn" class="md:hidden text-3xl text-gray-700">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+    </div>
+
+    <div id="mobile-menu" class="hidden md:hidden bg-white border-t py-6">
+      <div class="flex flex-col px-6 space-y-6 text-base font-medium">
+        <a href="index.html" class="hover:text-amber-600">HOME</a>
+        <a href="#" class="hover:text-amber-600">LIVE STREAM</a>
+        <a href="sermons.html" class="text-amber-600 font-semibold">SERMONS</a>
+        <a href="#" class="hover:text-amber-600">NOTICE BOARD</a>
+        <a href="#" class="hover:text-amber-600">CONTACT</a>
+        <button id="mobile-login-btn" class="bg-amber-500 text-white py-4 rounded-full font-medium mt-4">
+          Member Login
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Header -->
+  <header class="bg-[#0A3D62] text-white py-16">
+    <div class="max-w-7xl mx-auto px-6 text-center">
+      <h1 class="text-5xl font-bold mb-4">Sermon Archive</h1>
+      <p class="text-amber-200 max-w-lg mx-auto">Faith comes by hearing the Word of God</p>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-6 py-10">
+    
+    <!-- Toggle + Search -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
+      <div class="flex bg-white rounded-3xl shadow-sm p-1 border border-gray-200">
+        <button onclick="setView('card')" id="card-btn" class="px-6 py-3 rounded-3xl flex items-center gap-2 font-medium">
+          <i class="fas fa-th-large"></i> Card View
+        </button>
+        <button onclick="setView('table')" id="table-btn" class="px-6 py-3 rounded-3xl flex items-center gap-2 font-medium active-view">
+          <i class="fas fa-list"></i> Table View
+        </button>
+      </div>
+
+      <input type="text" id="search-input" 
+             placeholder="Search by title or speaker..." 
+             class="flex-1 max-w-md px-6 py-4 border border-gray-300 rounded-3xl focus:outline-none focus:border-amber-500">
+    </div>
+
+    <!-- Card View -->
+    <div id="card-view" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
+    <!-- Table View (Default) -->
+    <div id="table-view">
+      <table class="w-full bg-white rounded-3xl shadow-sm overflow-hidden">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="text-left px-8 py-5 font-semibold">Date</th>
+            <th class="text-left px-8 py-5 font-semibold">Speaker</th>
+            <th class="text-left px-8 py-5 font-semibold">Title</th>
+            <th class="text-left px-8 py-5 font-semibold">Resources</th>
+          </tr>
+        </thead>
+        <tbody id="table-body" class="divide-y text-sm"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="firebase-config.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/sermons.js"></script>
+</body>
+</html>

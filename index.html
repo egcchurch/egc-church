@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emmanuel Gospel Centre | EGC Church</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Firebase SDK (needed for auth state check) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans overflow-x-hidden">
+
+  <!-- NAVIGATION -->
+  <nav class="bg-white border-b sticky top-0 z-50 shadow-sm">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="flex justify-between items-center h-16">
+        <!-- Logo -->
+        <div class="flex items-center gap-x-3">
+          <div class="w-9 h-9 bg-amber-500 rounded-full flex items-center justify-center text-white text-2xl">✝</div>
+          <div class="leading-none">
+            <span class="font-bold text-xl tracking-tighter text-[#0A3D62]">EMMANUEL</span>
+            <span class="block text-[10px] text-amber-600 font-medium">GOSPEL CENTRE</span>
+          </div>
+        </div>
+
+        <!-- Desktop Menu -->
+        <div class="hidden md:flex items-center gap-x-8 text-sm font-medium">
+          <a href="index.html" class="hover:text-amber-600 transition-colors">HOME</a>
+          <a href="#" class="hover:text-amber-600 transition-colors">LIVE STREAM</a>
+          <a href="sermons.html" class="hover:text-amber-600 transition-colors">SERMONS</a>
+          <a href="#" class="hover:text-amber-600 transition-colors">NOTICE BOARD</a>
+          <a href="#" class="hover:text-amber-600 transition-colors">CONTACT</a>
+        </div>
+
+        <!-- Member Login / Status -->
+        <button onclick="window.location.href='login.html'" 
+                id="login-btn"
+                class="hidden md:block bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          Member Login
+        </button>
+
+        <!-- Hamburger -->
+        <button id="mobile-btn" class="md:hidden text-3xl text-gray-700">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Menu -->
+    <div id="mobile-menu" class="hidden md:hidden bg-white border-t py-6">
+      <div class="flex flex-col px-6 space-y-6 text-base font-medium">
+        <a href="index.html" class="hover:text-amber-600">HOME</a>
+        <a href="#" class="hover:text-amber-600">LIVE STREAM</a>
+        <a href="sermons.html" class="hover:text-amber-600">SERMONS</a>
+        <a href="#" class="hover:text-amber-600">NOTICE BOARD</a>
+        <a href="#" class="hover:text-amber-600">CONTACT</a>
+        <button onclick="window.location.href='login.html'" 
+                id="mobile-login-btn"
+                class="bg-amber-500 text-white py-4 rounded-full font-medium mt-4">
+          Member Login
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO VIDEO -->
+  <header class="relative h-screen flex items-center justify-center text-center text-white overflow-hidden">
+    <video id="hero-video" 
+           class="absolute inset-0 w-full h-full object-cover" 
+           autoplay muted loop playsinline>
+      <source src="assets/videos/CloudVideo.mp4" type="video/mp4">
+    </video>
+    <div class="absolute inset-0 bg-black/65"></div>
+
+    <div class="relative z-10 max-w-5xl mx-auto px-6">
+      <p class="uppercase tracking-[4px] text-amber-200 text-sm mb-6">Welcome to</p>
+      <h1 class="text-5xl md:text-7xl font-bold leading-none tracking-tighter drop-shadow-2xl">
+        EMMANUEL<br>
+        <span class="text-4xl md:text-5xl block mt-4">- GOSPEL CENTRE -</span>
+      </h1>
+      <p class="mt-10 text-xl md:text-2xl max-w-md mx-auto text-amber-100">
+        May the Lord richly bless you
+      </p>
+    </div>
+  </header>
+
+  <script src="firebase-config.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
