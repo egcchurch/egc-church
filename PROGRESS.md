@@ -6,44 +6,56 @@
 
 ## Current Status
 
-**Status:** `Planning` <!-- Planning | Active | Paused | Complete -->
-**Last worked on:** <!-- YYYY-MM-DD -->
-**Current milestone:** <!-- What phase/milestone are you working towards? -->
+**Status:** `Active`
+**Last worked on:** 2026-05-12
+**Current milestone:** Foundation complete — PWA layer next
 
 ---
 
 ## Next Steps
 
-> These are the immediate next actions in priority order.
-
-1. <!-- First thing to do next session -->
-2. 
-3. 
+1. Add manifest.json and service-worker.js (PWA layer)
+2. Connect sermons to Firestore (replace hardcoded data)
+3. Build out homepage sections below the hero
+4. Notice board page
 
 ---
 
 ## Blockers
 
-> Things you are stuck on or waiting for.
-
-- <!-- None --> 
+- None
 
 ---
 
 ## Session Log
 
-### 2026-05-07
+### 2026-05-12
+
 **What was done:**
-- 
+
+- Audited old project (church-website-pwaold)
+- Set up clean new repo at https://github.com/egcchurch/egc-church
+- Removed Python scaffold, copied website files across
+- Configured GitHub Pages (main branch, root)
+- Fixed Firebase authorised domains (127.0.0.1, egcchurch.github.io)
+- Committed firebase-config.js (intentional — public-facing config)
+- Verified live site working at https://egcchurch.github.io/egc-church/
 
 **What worked:**
-- 
+
+- Clean git history from scratch
+- GitHub Pages deployment working
+- Firebase auth working locally and on live site
 
 **What didn't work / needs revisiting:**
-- 
+
+- Video hero may be slow on GitHub Pages (large file, no CDN)
 
 **Decisions made:**
-- 
+
+- Committed firebase-config.js rather than using GitHub Secrets (appropriate for public church site)
+- Tailwind CDN build acceptable for now (no build step complexity)
+- Serve from root of main branch (simplest GitHub Pages setup)
 
 ---
 
