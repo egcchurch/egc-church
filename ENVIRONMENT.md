@@ -4,89 +4,49 @@
 
 ---
 
-## Python
+## This is a static website — no build step required
 
-| Item | Detail |
-|---|---|
-| Python version | <!-- e.g. 3.11.x --> |
-| Package manager | uv |
-| Virtual env location | `.venv\` (inside project root) |
+No Python, no Node, no compiler. Just a browser and a local web server.
 
 ---
 
 ## Setup From Scratch
 
-```powershell
-# 1. Clone or navigate to project
-cd D:\coding\projects\church-website-pwa
+1. Clone the repo:
+   git clone https://github.com/egcchurch/egc-church.git
+   cd egc-church
 
-# 2. Install dependencies (creates .venv automatically)
-uv sync
+2. Open in VSCode:
+   code .
 
-# 3. Copy env file and fill in values
-copy .env.example .env
-# Edit .env with your values
+3. Install the Live Server extension if not already installed
 
-# 4. Run the project
-uv run python src/main.py
-```
+4. Click Go Live in the VSCode status bar
+   Site serves at http://127.0.0.1:5500
 
 ---
 
-## Dependencies
+## Dependencies (all CDN — nothing to install)
 
-> Managed by uv — do not edit pyproject.toml manually for adding packages.
-
-```powershell
-uv add package-name        # add a runtime dependency
-uv add --dev package-name  # add a dev-only dependency
-uv remove package-name     # remove a dependency
-```
-
-**Current key dependencies:**
-<!-- List the main ones here for quick reference, full list is in pyproject.toml -->
-
-| Package | Version | Purpose |
-|---|---|---|
-| <!-- package --> | <!-- version --> | <!-- what it does --> |
+| Dependency   | Version          | URL                  |
+| ------------ | ---------------- | -------------------- |
+| Tailwind CSS | v4 browser build | cdn.jsdelivr.net     |
+| Font Awesome | 6.5.1            | cdnjs.cloudflare.com |
+| Firebase SDK | 9.22.0           | gstatic.com          |
 
 ---
 
-## VSCode Setup
+## Firebase
 
-When you open this project in VSCode:
-1. Open the folder: `File > Open Folder > D:\coding\projects\church-website-pwa`
-2. Select Python interpreter: `Ctrl+Shift+P` → "Python: Select Interpreter" → choose `.venv\Scripts\python.exe`
-3. Settings are saved in `.vscode\settings.json`
-
----
-
-## Environment Variables
-
-Create a `.env` file in the project root (never commit this):
-
-```env
-# Copy this to .env and fill in values
-# API_KEY=your_key_here
-# DB_PATH=./data/database.db
-# MODEL_NAME=codellama
-```
-
----
-
-## WSL Notes
-
-<!-- Only fill in if this project interacts with WSL services -->
-
-| Service | URL | Notes |
-|---|---|---|
-| Open WebUI | http://localhost:3000 | Start with: `docker start open-webui` |
-| Ollama API | http://localhost:11434 | Start with: `sudo systemctl start ollama` |
+- Project ID: egc-church
+- Console: https://console.firebase.google.com
+- Auth providers: Google, Email/Password
+- Authorised domains: 127.0.0.1, egcchurch.github.io
 
 ---
 
 ## Known Issues / Quirks
 
-<!-- Document anything weird about this environment -->
-
-- 
+- firebase-config.js must contain the real Firebase config (not the fake key)
+- Firebase Auth requires http:// or https:// — cannot test via file://
+- Always use Live Server, never open HTML files directly in the browser
