@@ -8,7 +8,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-12
-**Current milestone:** Foundation complete — PWA layer next
+**Current milestone:** PWA manifest complete — service worker next
 
 ---
 
@@ -28,6 +28,31 @@
 ---
 
 ## Session Log
+
+### 2026-05-12 (Session 2)
+
+**What was done:**
+
+- Added PWA manifest.json
+- Generated icon set from EGC logo (8 sizes: 72 to 512px)
+- Added manifest link, theme-color, apple-touch-icon meta tags to all HTML pages
+- Committed and pushed — PWA now installable from live site
+
+**What worked:**
+
+- Icon generation via PowerShell System.Drawing script
+- PWA install prompt appearing on live site
+
+**What didn't work / needs revisiting:**
+
+- Initial logo.png was corrupt — had to re-save from browser before icons generated correctly
+
+**Decisions made:**
+
+- Used logo from egc.church as PWA icon source
+- manifest start_url and scope set to /egc-church/ to match GitHub Pages subdirectory
+
+---
 
 ### 2026-05-12
 

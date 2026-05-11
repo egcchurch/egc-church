@@ -85,7 +85,7 @@ church-website-pwa/
 
 ## Current Goal
 
-PWA layer next — manifest.json and service worker — then connect sermons to Firestore.
+Service worker next — offline caching strategy for static assets and pages.
 
 ---
 
