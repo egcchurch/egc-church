@@ -1,18 +1,18 @@
-const CACHE_NAME = 'egc-cache-v1';
+const CACHE_NAME = 'egc-cache-v2';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
-  '/egc-church/',
-  '/egc-church/index.html',
-  '/egc-church/sermons.html',
-  '/egc-church/login.html',
-  '/egc-church/firebase-config.js',
-  '/egc-church/js/main.js',
-  '/egc-church/js/auth.js',
-  '/egc-church/js/sermons.js',
-  '/egc-church/manifest.json',
-  '/egc-church/assets/images/icons/icon-192.png',
-  '/egc-church/assets/images/icons/icon-512.png',
+  '/',
+  '/index.html',
+  '/sermons.html',
+  '/login.html',
+  '/firebase-config.js',
+  '/js/main.js',
+  '/js/auth.js',
+  '/js/sermons.js',
+  '/manifest.json',
+  '/assets/images/icons/icon-192.png',
+  '/assets/images/icons/icon-512.png',
 ];
 
 // CDN origins to cache on first fetch (runtime caching)
@@ -113,6 +113,6 @@ async function networkFirst(request) {
     if (cached) return cached;
 
     // Fallback: serve the homepage if the specific page isn't cached
-    return caches.match('/egc-church/index.html');
+    return caches.match('/index.html');
   }
 }
