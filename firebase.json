@@ -1,0 +1,32 @@
+{
+  "hosting": [
+    {
+      "target": "staging",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**",
+        "functions/**",
+        "CLAUDE.md",
+        "PROGRESS.md",
+        "ENVIRONMENT.md",
+        "README.md"
+      ]
+    },
+    {
+      "target": "production",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**",
+        "functions/**",
+        "CLAUDE.md",
+        "PROGRESS.md",
+        "ENVIRONMENT.md",
+        "README.md"
+      ]
+    }
+  ]
+}

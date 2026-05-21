@@ -1,0 +1,18 @@
+{
+  "projects": {
+    "default": "egc-church"
+  },
+  "targets": {
+    "egc-church": {
+      "hosting": {
+        "staging": [
+          "egc-staging777"
+        ],
+        "production": [
+          "egc-app777"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
