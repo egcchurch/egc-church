@@ -1,20 +1,73 @@
 # Progress: church-website-pwa
 
-> Update this file at the end of every coding session. Paste it with AI_CONTEXT.md to resume quickly.
+> Update this file at the end of every coding session. Paste it with CLAUDE.md to resume quickly.
+> **Rule:** Newest sessions at the TOP. Agent appends an entry on every PR.
 
 ---
 
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-05-12
-**Current milestone:** Architecture and planning complete — ready to begin Phase 1 build
+**Last worked on:** 2026-05-21
+**Current milestone:** CI/CD pipeline setup — paused at Step 4 (DNS)
+
+---
+
+## Session: Environment & CI/CD Setup (Session 8)
+
+**Date:** 2026-05-21
+**Status:** Paused — resuming at Step 4
+
+### What was done
+
+- Installed Firebase CLI (v14.11.0) via winget on Windows
+- Ran `firebase init hosting` — linked to egc-church project
+- Created two Firebase Hosting sites: `egc-staging777` (pre-prod), `egc-app777` (prod)
+- Configured `firebase.json` multi-site config (staging + production targets)
+- Updated `.firebaserc` with site target mappings
+- Applied hosting targets via `firebase target:apply`
+- Test deploy to `egc-staging777.web.app` succeeded (113 files)
+- Fixed `/egc-church/` → `/` paths in `service-worker.js` (cache bumped v1 → v2) and `manifest.json`
+- Confirmed `staging.egc.church` and `app.egc.church` already in Firebase authorised domains
+- Renamed `AI_CONTEXT.md` → `CLAUDE.md` and committed
+- All changes committed and pushed
+
+### Architecture decisions made
+
+| #   | Decision                                                                     | Rationale                                                                    |
+| --- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| 1   | Move hosting from GitHub Pages → Firebase Hosting (multi-site)               | Per-PR preview channels, CDN, official GH Action, SSL, same Firebase project |
+| 2   | Hosting sites: `egc-staging777` (pre-prod) + `egc-app777` (prod)             | Clean environment separation; PR previews use auto-URLs                      |
+| 3   | `main` = protected branch; merge = human approval gate                       | Nothing reaches prod without explicit reviewer action                        |
+| 4   | Every prod release deploys static site + Firebase Functions together         | Keeps hosting and functions in sync                                          |
+| 5   | DNS: only add `staging.egc.church` + `app.egc.church` subdomains now         | `www`/apex stay on AWS until full cutover decision is made                   |
+| 6   | Fix `/egc-church/` → `/` in SW + manifest                                    | Firebase Hosting serves from root `/`, not a subpath                         |
+| 7   | `AI_CONTEXT.md` renamed to `CLAUDE.md`                                       | Repo-aware agents auto-load `CLAUDE.md`                                      |
+| 8   | CI gates: Firestore rules tests, HTML/link check, Lighthouse, SW cache check | All must pass before merge unlocks                                           |
+| 9   | Firestore security rules tests are highest-value CI check                    | JS role checks are UX only; rules are real enforcement                       |
+
+### Setup sequence status
+
+- [x] Step 1 — Rename `AI_CONTEXT.md` → `CLAUDE.md`; keep `PROGRESS.md` committed
+- [x] Step 2 — `firebase.json` multi-site config + `firebase init hosting`
+- [x] Step 3 — Fix `/egc-church/` → `/` in `service-worker.js` and `manifest.json`; update authorised domains
+- [ ] Step 4 — _(Human)_ Add custom domains in Firebase Console + DNS records at domains.co.za
+- [ ] Step 5 — GitHub Actions: PR preview deploy + security-rules tests + link/Lighthouse/SW-cache checks; branch protection on `main`
+- [ ] Step 6 — Firestore security-rules test scaffold
+- [ ] Step 7 — Run Phase 1–5 build through this pipeline
+
+### Notes
+
+- `firebase-config.js` is gitignored — will be injected at deploy time via GitHub Actions secret
+- Claude GitHub integration (`@claude` mentions in issues/PRs) confirmed working via `anthropics/claude-code-action`
+- Long-term DNS cutover (repointing apex + www) deferred until new stack is trusted — one reversible change when ready
 
 ---
 
 ## Build Phases
 
 ### Phase 1 — Foundation (current)
+
 - [ ] Firestore security rules (all collections)
 - [ ] Storage security rules
 - [ ] Auth guard + role system (membership + adminRole)
@@ -30,6 +83,7 @@
 - [ ] Update service-worker.js cache list with new pages and bump cache version
 
 ### Phase 2 — Core Public Site
+
 - [ ] `/events.html` — church calendar (public events) with cover images
 - [ ] `/blog.html` — announcements with featured images
 - [ ] `/connect.html` — visitor connect form
@@ -45,6 +99,7 @@
 - [ ] Update service-worker.js cache list with new pages and bump cache version
 
 ### Phase 3 — Members Area
+
 - [ ] `/members/live.html` — live stream (member-gated)
 - [ ] `/members/prayer.html` — prayer request submission and listing
 - [ ] `/members/groups.html` — browse and join groups, leader-only sections for managing own group
@@ -57,6 +112,7 @@
 - [ ] Update service-worker.js cache list and bump cache version
 
 ### Phase 4 — Notifications & Messaging
+
 - [ ] FCM token registration on login
 - [ ] In-app notification bell (nav, real-time Firestore listener)
 - [ ] `/admin/notifications.html` — compose and send broadcasts
@@ -68,6 +124,7 @@
 - [ ] `/members/messages.html` — direct messaging between members
 
 ### Phase 5 — Polish
+
 - [ ] Homepage dynamic content pulled from Firestore
 - [ ] `/admin/homepage.html` — manage homepage content blocks
 - [ ] Podcast RSS feed
@@ -78,304 +135,112 @@
 
 ---
 
-## Next Steps (immediate)
-
-1. Write Firestore security rules covering all planned collections
-2. Write Firebase Storage security rules
-3. Build `js/admin-auth.js` — shared role-checking guard for admin pages
-4. Build `js/member-auth.js` — shared membership-checking guard for member pages
-5. Set up Firebase Cloud Functions project (`firebase init functions`)
-6. Build `onUserCreate` function to auto-provision `/users/{uid}` docs
-7. Build `/admin/users.html` — pending approvals queue, set membership and adminRole
-8. Build `/admin/sermons.html` — YouTube URL paste, metadata form, Firebase Storage upload
-9. Update `/sermons.html` to pull from Firestore
-10. Build `/profile.html` — user self-service settings with verification resend
-11. Update service-worker.js cache list with new Phase 1 pages
-
----
-
-## Blockers
-
-- None
-
----
-
 ## Architecture Decisions Log
+
+### 2026-05-21 (Session 8) — CI/CD pipeline and Firebase Hosting migration
+
+See session entry above.
 
 ### 2026-05-12 (Session 7) — Sanity fixes for consistency
 
-**Decisions made:**
+- Added `"admins"` to the `/notifications/{notificationId}` audience enum
+- Group leader permissions: leaders manage their own group from `/members/groups.html`, NOT `/admin/groups.html`
+- Added `pendingMembers: [uid array]` field to /groups for "approval" joinPolicy flow
+- Defined Firestore security rule pattern for groups
+- Email verification edge case: /profile.html includes "resend verification email" for `emailVerified: false`
+- Cloud Functions setup moved into Phase 1 (just `onUserCreate`)
+- ENVIRONMENT.md rewritten with correct Cloud Functions timing and emulator instructions
+- Service worker cache update task added to Phase 1
+- /functions/ folder structure clarified: includes package.json and .eslintrc.js
+- /team and /users explicitly noted as independent
 
-- Added `"admins"` to the `/notifications/{notificationId}` audience enum — was missing despite Connect form alert targeting admins
-- Group leader permissions resolved: leaders manage their own group from `/members/groups.html`, NOT from `/admin/groups.html`. The admin guard checks `adminRole` only — no special cases for leaders.
-- Added `pendingMembers: [uid array]` field to /groups for the "approval" joinPolicy flow
-- Defined Firestore security rule pattern for groups: editors write any field; leaders write only members/pendingMembers on their own group; members add/remove their own UID
-- Email verification edge case handled: /profile.html includes a "resend verification email" action for any user with `emailVerified: false`
-- Cloud Functions setup moved into Phase 1 (just `onUserCreate`) — was incorrectly documented as Phase 4 in ENVIRONMENT.md
-- ENVIRONMENT.md rewritten to clarify Cloud Functions timing across phases and include emulator instructions
-- Service worker cache update task added to Phase 1 (new pages introduced: admin/users, admin/sermons, profile)
-- /functions/ folder structure clarified: includes package.json and .eslintrc.js, not just index.js
-- /team and /users explicitly noted as independent — team members are content records, not user accounts
-- Architecture decision logged: group leaders manage from members area, not admin area
+### 2026-05-12 (Session 6) — Privacy, self-service, alert triggers, account deletion
 
-### 2026-05-12 (Session 6) — Privacy, self-service, alert triggers, and account deletion
-
-**Decisions made:**
-
-- Added `/profile.html` for user self-service (display name, photo, password, privacy controls) — any logged-in user
-- Added image fields to events (`imageUrl`) and blog (`imageUrl`) schemas with corresponding Storage paths
-- Added `coverArtUrl` to music schema for optional album/track artwork
-- Member directory privacy: opt-out for visibility, opt-in for email/phone — protects contact details by default
+- Added `/profile.html` for user self-service
+- Added image fields to events (`imageUrl`) and blog (`imageUrl`) schemas
+- Added `coverArtUrl` to music schema
+- Member directory privacy: opt-out visibility, opt-in contact details
 - Added directory privacy fields to /users: `directoryVisible`, `directoryShowEmail`, `directoryShowPhone`
 - Added `phone` and `photoUrl` to /users schema
-- Email verification required before member approval — uses Firebase Auth built-in
-- Group join policy made per-group via `joinPolicy: "open" | "approval" | "invite-only"` field
-- Direct messaging confirmed as 1-on-1 initially, but `participants` is an array allowing group chat expansion later without schema change
-- Cloud Functions architecture expanded — not just admin broadcasts:
-  - `onUserCreate` — auto-provision user doc on registration
-  - `onNewMessage` — push FCM for direct messages
-  - `onNewPrayerRequest` — alert members (public) or admins (private)
-  - `onNewConnectForm` — alert admins of new visitor submissions
-  - `sendBroadcast` — admin-triggered broadcast fan-out
-  - `weeklyDigest` — scheduled Sunday digest
-  - `deleteUserAccount` — GDPR-compliant account deletion
-- Account deletion strategy defined: remove personal data, anonymise content authorship as "deleted-user"
-- Added "Connect form alert" as new broadcast type (in-app only, audience: admins)
-- Storage rules added as Phase 1 task — was implicit before
-- Service worker cache list maintenance flagged in Phases 2 and 3
+- Email verification required before member approval
+- Group join policy: per-group `joinPolicy: "open" | "approval" | "invite-only"`
+- Direct messaging: 1-on-1 initially, `participants` array allows group chat later
+- Cloud Functions architecture expanded (onUserCreate, onNewMessage, onNewPrayerRequest, onNewConnectForm, sendBroadcast, weeklyDigest, deleteUserAccount)
+- Account deletion: remove personal data, anonymise content authorship as "deleted-user"
 
-### 2026-05-12 (Session 5) — Galleries, music, and admin moderation pages added
+### 2026-05-12 (Session 5) — Galleries, music, admin moderation pages
 
-**Decisions made:**
-
-- Galleries use a single `/gallery` collection with an `audience` field ("public" | "members" | "youth") rather than separate collections — simpler admin UX and one moderation flow
-- Youth gallery is member-gated (not a separate user role — just a content tag)
-- Music is fully public — anyone can stream and download, no login required
+- Galleries: single `/gallery` collection with `audience` field ("public" | "members" | "youth")
+- Youth gallery is member-gated (content tag, not a separate role)
+- Music is fully public — stream and download, no login required
 - Music categories: worship, choir, original, instrumental
-- Music files stored in Firebase Storage; flagged Cloudflare R2 migration path when library approaches 5GB free tier
-- Added `/admin/connect.html` to view visitor form submissions (previously orphaned collection)
-- Added `/admin/prayer.html` to moderate prayer requests (private ones need a review surface)
-- Moved gallery from Phase 5 to Phase 2 — user prioritised it as core public content
-- Music admin and public pages also placed in Phase 2 alongside galleries
+- Added `/admin/connect.html` and `/admin/prayer.html`
+- Gallery moved from Phase 5 to Phase 2
 
-### 2026-05-12 (Session 4) — Full site architecture designed
+### 2026-05-12 (Session 4) — Full site architecture
 
-**Decisions made:**
-
-- Role model split into two dimensions: `membership` (content access) and `adminRole` (content management)
+- Role model: `membership` (content access) + `adminRole` (content management) — two independent dimensions
 - Membership tiers: `pending`, `public`, `member`
 - Admin roles: `null`, `editor`, `superadmin`
-- New registrations default to `pending` — manual superadmin approval required (intentional for congregation context)
-- Live stream restricted to `member` tier — not visible to public or pending users
-- Admin section is separate from members area — a member is not automatically an editor
-- Sermon video delivery via YouTube (youtubeId stored in Firestore) — not self-hosted
-- Audio files and PDFs stored in Firebase Storage
+- New registrations default to `pending` — manual superadmin approval required
+- Live stream restricted to `member` tier
+- Sermon video via YouTube (youtubeId in Firestore) — not self-hosted
+- Audio + PDFs in Firebase Storage
 - YouTube thumbnail fetched client-side via public URL — no API key needed
-- FCM (Firebase Cloud Messaging) confirmed for push notifications
-- Cloud Functions confirmed for FCM fan-out and scheduled weekly digest — minimal usage
+- FCM confirmed for push notifications
 - Firestore Security Rules are the enforcement layer — JS role checks are UX only
-- `published` flag on all content types — supports draft workflow
-- Cloudflare R2 or Internet Archive as long-term backup for sermon media (YouTube redundancy)
+- `published` flag on all content types (draft workflow)
 
 ---
 
 ## Session Log
 
+### 2026-05-21 (Session 8)
+
+See session entry at top of file.
+
 ### 2026-05-12 (Session 7)
 
-**What was done:**
-
-- Sanity pass on the full spec — looking for logical inconsistencies and contradictions rather than missing features
-- Found and fixed: notifications audience missing "admins"; ENVIRONMENT.md contradicted PROGRESS.md on Cloud Functions timing; Phase 1 missing SW cache update; group leader permission model created edge case in admin guard; email verification edge case unhandled
-- Moved group-leader-of-own-group management out of `/admin/groups.html` and into `/members/groups.html` — admin guard stays clean
-- Added `pendingMembers` array to /groups for the "approval" join policy flow
-- Documented Firestore security rule pattern for groups
-- Rewrote ENVIRONMENT.md with correct Cloud Functions timing and Firebase emulator setup
-- Added "Logged-In Pages" tier with /profile.html in site map
-- Clarified /functions/ folder structure (includes package.json, .eslintrc.js)
-- Explicitly noted /team entries are independent of /users — team members may not have user accounts
-
-**What worked:**
-
-- Planning session — gap analysis at this stage prevents painful retrofits when building begins
-
-**What didn't work / needs revisiting:**
-
-- Nothing — clean planning session
-
-**Decisions made:**
-
-- See Architecture Decisions Log above
-
----
+- Sanity pass on full spec — gap analysis, no code written
+- Fixed: notifications audience missing "admins"; ENVIRONMENT.md contradicted PROGRESS.md on Functions timing; Phase 1 missing SW cache update; group leader edge case in admin guard
+- Moved group-leader management to /members/groups.html
+- Added `pendingMembers` array to /groups
+- Rewrote ENVIRONMENT.md
 
 ### 2026-05-12 (Session 6)
 
-**What was done:**
-
-- Gap analysis identified missing pieces: no image fields on events/blog, no user self-service page, no directory privacy controls, incomplete Cloud Functions architecture, no group join flow, no music cover art, no account deletion path
-- Added `/profile.html` for user self-service
-- Added `imageUrl` to events and blog schemas; added Storage paths
-- Added `coverArtUrl` to music schema
-- Expanded /users schema: phone, photoUrl, emailVerified, directoryVisible, directoryShowEmail, directoryShowPhone
-- Defined member directory privacy model (opt-out visibility, opt-in contact details)
-- Added `joinPolicy` field to groups
-- Added new Cloud Functions section listing all triggers: HTTP, Firestore, scheduled, auth
-- Documented account deletion / GDPR flow
-- Added new "Connect form alert" broadcast type
-- Added "Logged-In Pages" tier to site map for /profile.html
-- Updated build phases — added Storage rules to Phase 1, added cache list maintenance to Phases 2 and 3, added account deletion to Phase 5
-
-**What worked:**
-
-- Planning session — surfaced gaps that would have caused painful retrofits later
-
-**What didn't work / needs revisiting:**
-
-- Nothing — clean planning session
-
-**Decisions made:**
-
-- See Architecture Decisions Log above
-
----
+- Gap analysis: missing image fields, no user self-service, no directory privacy, incomplete Functions architecture
+- Added /profile.html, expanded /users schema, defined directory privacy model
+- Added `joinPolicy` to groups, documented all Cloud Functions, GDPR account deletion flow
 
 ### 2026-05-12 (Session 5)
 
-**What was done:**
-
-- Added galleries: single collection with `audience` field (public, members, youth)
-- Added music: new `/music` collection, public access with streaming + downloads, four categories
-- Added `/admin/connect.html` to view visitor form submissions
-- Added `/admin/prayer.html` to moderate prayer requests
-- Updated Firestore schema, Firebase Storage paths, site map, project structure
-- Added Music & Gallery Strategy section to AI_CONTEXT.md
-- Resequenced build phases — galleries and music moved up to Phase 2
-
-**What worked:**
-
-- Planning session — gap analysis surfaced missing admin pages for orphaned collections
-
-**What didn't work / needs revisiting:**
-
-- Music storage will need migration plan to Cloudflare R2 once library grows past ~5GB
-
-**Decisions made:**
-
-- See Architecture Decisions Log above
-
----
+- Added galleries (single collection + audience field) and music (public, streaming)
+- Added /admin/connect.html and /admin/prayer.html
+- Resequenced build phases — galleries and music moved to Phase 2
 
 ### 2026-05-12 (Session 4)
 
-**What was done:**
-
 - Full site architecture planned and documented
-- Complete site map defined (public, member, admin pages)
-- Role and permission model designed (membership tier + adminRole, independent dimensions)
-- Member approval flow designed (pending → approved by superadmin)
-- Notification and messaging architecture designed (FCM push + Firestore real-time)
-- Full Firestore schema defined for all collections
-- Firebase Storage path structure defined
-- Sermon media strategy finalised (YouTube primary, Storage for audio/PDF, backup TBD)
-- Build phases 1-5 sequenced
-- AI_CONTEXT.md and PROGRESS.md fully updated
-
-**What worked:**
-
-- Planning session — no code written
-
-**What didn't work / needs revisiting:**
-
-- Nothing — clean planning session
-
-**Decisions made:**
-
-- See Architecture Decisions Log above
-
----
+- Complete site map, role/permission model, notification architecture, Firestore schema, Storage paths, build phases 1-5
 
 ### 2026-05-12 (Session 3)
 
-**What was done:**
-
-- Added service-worker.js at project root
-- Implemented cache-first strategy for static assets and CDN resources
-- Implemented network-first strategy for HTML pages with offline fallback
-- Excluded hero video from caching (too large for Cache Storage)
-- Excluded Firebase auth/API calls from SW interception
-- Added SW registration to js/main.js
-
-**What worked:**
-
-- SW registration pattern using /egc-church/ scope to match GitHub Pages subdirectory
-
-**What didn't work / needs revisiting:**
-
-- Nothing — straightforward implementation
-
-**Decisions made:**
-
-- Cache name set to egc-cache-v1 — bump version string on each deploy with breaking changes
-- Video excluded by URL pattern match on 'CloudVideo' filename
-- CDN origins (jsdelivr, cdnjs, gstatic) cached at runtime on first fetch
-
----
+- Added service-worker.js — cache-first for static/CDN, network-first for HTML
+- Excluded hero video and Firebase auth calls from SW
+- Added SW registration to main.js
+- Cache name: egc-cache-v1 (now v2 after path fix in Session 8)
 
 ### 2026-05-12 (Session 2)
 
-**What was done:**
-
 - Added PWA manifest.json
-- Generated icon set from EGC logo (8 sizes: 72 to 512px)
-- Added manifest link, theme-color, apple-touch-icon meta tags to all HTML pages
-- Committed and pushed — PWA now installable from live site
-
-**What worked:**
-
-- Icon generation via PowerShell System.Drawing script
-- PWA install prompt appearing on live site
-
-**What didn't work / needs revisiting:**
-
-- Initial logo.png was corrupt — had to re-save from browser before icons generated correctly
-
-**Decisions made:**
-
-- Used logo from egc.church as PWA icon source
-- manifest start_url and scope set to /egc-church/ to match GitHub Pages subdirectory
-
----
+- Generated icon set (8 sizes: 72–512px) from EGC logo
+- Added manifest link, theme-color, apple-touch-icon to all HTML pages
+- PWA installable from live site
 
 ### 2026-05-12 (Session 1)
 
-**What was done:**
-
-- Audited old project (church-website-pwaold)
-- Set up clean new repo at https://github.com/egcchurch/egc-church
-- Removed Python scaffold, copied website files across
+- Audited old project, set up clean repo at github.com/egcchurch/egc-church
 - Configured GitHub Pages (main branch, root)
-- Fixed Firebase authorised domains (127.0.0.1, egcchurch.github.io)
-- Committed firebase-config.js (intentional — public-facing config)
-- Verified live site working at https://egcchurch.github.io/egc-church/
-
-**What worked:**
-
-- Clean git history from scratch
-- GitHub Pages deployment working
-- Firebase auth working locally and on live site
-
-**What didn't work / needs revisiting:**
-
-- Video hero may be slow on GitHub Pages (large file, no CDN)
-
-**Decisions made:**
-
-- Committed firebase-config.js rather than using GitHub Secrets (appropriate for public church site)
-- Tailwind CDN build acceptable for now (no build step complexity)
-- Serve from root of main branch (simplest GitHub Pages setup)
-
----
-
-<!-- Copy the session block above for each new session -->
-<!-- Most recent session should always be at the TOP -->
+- Fixed Firebase authorised domains
+- Verified live site at egcchurch.github.io/egc-church/
