@@ -21,7 +21,7 @@ jobs:
       - name: Check SW cache list matches HTML pages
         run: |
           HTML_PAGES=$(find . -maxdepth 1 -name "*.html" ! -name "404.html" | sed 's|^\./||' | sort)
-          SW_PAGES=$(grep -oP "'/\K[^']+" service-worker.js | grep '\.html' | sort -u)
+          SW_PAGES=$(grep -oP "'/\K[^']+" service-worker.js | grep '\.html' | grep -v '/' | sort -u)
           diff <(echo "$HTML_PAGES") <(echo "$SW_PAGES") && echo "SW cache list is up to date" || (echo "SW cache list is out of sync" && exit 1)
 
   security-rules:
