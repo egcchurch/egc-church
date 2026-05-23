@@ -1,5 +1,5 @@
 // functions/index.js
-const { beforeUserCreated } = require('firebase-functions/v2/identity');
+const functions = require('firebase-functions/v1');
 const admin = require('firebase-admin');
 
 admin.initializeApp();
@@ -8,8 +8,7 @@ admin.initializeApp();
 // Triggered when a new user registers via Firebase Auth.
 // Auto-provisions a /users/{uid} document with default membership = 'pending'.
 
-exports.onUserCreate = beforeUserCreated(async (event) => {
-  const user = event.data;
+exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
   const { uid, email, displayName, photoURL, emailVerified } = user;
 
   try {
