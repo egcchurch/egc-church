@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>User Management | EGC Admin</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans overflow-x-hidden">
+
+  <!-- NAVIGATION -->
+  <nav class="bg-white border-b sticky top-0 z-50 shadow-sm">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="flex justify-between items-center h-16">
+        <div class="flex items-center gap-x-3">
+          <div class="w-9 h-9 bg-amber-500 rounded-full flex items-center justify-center text-white text-2xl">✝</div>
+          <div class="leading-none">
+            <span class="font-bold text-xl tracking-tighter text-[#0A3D62]">EMMANUEL</span>
+            <span class="block text-[10px] text-amber-600 font-medium">GOSPEL CENTRE</span>
+          </div>
+        </div>
+
+        <div class="hidden md:flex items-center gap-x-8 text-sm font-medium">
+          <a href="/index.html" class="hover:text-amber-600 transition-colors">HOME</a>
+          <a href="/admin/users.html" class="text-amber-600 font-semibold">USERS</a>
+          <a href="/admin/sermons.html" class="hover:text-amber-600 transition-colors">SERMONS</a>
+        </div>
+
+        <button id="login-btn"
+                class="hidden md:block bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          Member Login
+        </button>
+
+        <button id="mobile-btn" class="md:hidden text-3xl text-gray-700">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+    </div>
+
+    <div id="mobile-menu" class="hidden md:hidden bg-white border-t py-6">
+      <div class="flex flex-col px-6 space-y-6 text-base font-medium">
+        <a href="/index.html" class="hover:text-amber-600">HOME</a>
+        <a href="/admin/users.html" class="text-amber-600">USERS</a>
+        <a href="/admin/sermons.html" class="hover:text-amber-600">SERMONS</a>
+        <button id="mobile-login-btn"
+                class="bg-amber-500 text-white py-4 rounded-full font-medium mt-4">
+          Member Login
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-7xl mx-auto">
+      <h1 class="text-3xl font-bold tracking-tight">User Management</h1>
+      <p class="text-blue-200 mt-1">Manage member approvals and roles</p>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <main class="max-w-7xl mx-auto px-6 py-10">
+
+    <!-- Tabs -->
+    <div class="flex gap-4 mb-8 border-b">
+      <button onclick="setTab('pending')" id="tab-pending"
+              class="tab-btn pb-3 px-1 text-sm font-semibold border-b-2 border-amber-500 text-amber-600">
+        Pending Approval
+      </button>
+      <button onclick="setTab('members')" id="tab-members"
+              class="tab-btn pb-3 px-1 text-sm font-semibold border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+        All Members
+      </button>
+    </div>
+
+    <!-- User List -->
+    <div id="user-list" class="space-y-4">
+      <div class="text-center py-12 text-gray-400">
+        <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+        <p>Loading users...</p>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="/firebase-config.js"></script>
+  <script src="/js/main.js"></script>
+  <script src="/js/admin-auth.js"></script>
+  <script>
+    const db = firebase.firestore();
+    let currentTab = 'pending';
+
+    function setTab(tab) {
+      currentTab = tab;
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('border-amber-500', 'text-amber-600');
+        btn.classList.add('border-transparent', 'text-gray-500');
+      });
+
+      const active = document.getElementById(`tab-${tab}`);
+      active.classList.add('border-amber-500', 'text-amber-600');
+      active.classList.remove('border-transparent', 'text-gray-500');
+
+      loadUsers();
+    }
+
+    function loadUsers() {
+      const list = document.getElementById('user-list');
+      list.innerHTML = `<div class="text-center py-12 text-gray-400">
+        <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+        <p>Loading...</p>
+      </div>`;
+
+      let query = db.collection('users');
+      if (currentTab === 'pending') {
+        query = query.where('membership', '==', 'pending');
+      }
+      query = query.orderBy('createdAt', 'desc');
+
+      query.get().then((snapshot) => {
+        if (snapshot.empty) {
+          list.innerHTML = `<div class="text-center py-12 text-gray-400">
+            <i class="fas fa-users text-3xl mb-3"></i>
+            <p>No users found</p>
+          </div>`;
+          return;
+        }
+
+        list.innerHTML = '';
+        snapshot.forEach(doc => {
+          const u = doc.data();
+          list.innerHTML += renderUserCard(doc.id, u);
+        });
+      }).catch(err => {
+        console.error(err);
+        list.innerHTML = `<div class="text-center py-12 text-red-400">
+          <p>Error loading users. Are you an admin?</p>
+        </div>`;
+      });
+    }
+
+    function renderUserCard(uid, u) {
+      const joined = u.createdAt?.toDate().toLocaleDateString() || 'Unknown';
+      const membershipBadge = {
+        pending: 'bg-yellow-100 text-yellow-700',
+        member: 'bg-green-100 text-green-700',
+        public: 'bg-gray-100 text-gray-700',
+      }[u.membership] || 'bg-gray-100 text-gray-600';
+
+      const roleBadge = u.adminRole
+        ? `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">${u.adminRole}</span>`
+        : '';
+
+      return `
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col md:flex-row md:items-center gap-4">
+          <div class="flex items-center gap-4 flex-1">
+            ${u.photoURL
+              ? `<img src="${u.photoURL}" class="w-12 h-12 rounded-full object-cover">`
+              : `<div class="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-lg">
+                  ${(u.displayName || u.email || '?')[0].toUpperCase()}
+                </div>`
+            }
+            <div>
+              <p class="font-semibold text-gray-900">${u.displayName || '(no name)'}</p>
+              <p class="text-sm text-gray-500">${u.email}</p>
+              <p class="text-xs text-gray-400 mt-1">Joined ${joined}</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs px-3 py-1 rounded-full font-medium ${membershipBadge}">${u.membership}</span>
+            ${roleBadge}
+          </div>
+
+          <div class="flex gap-2 flex-wrap">
+            ${u.membership === 'pending' ? `
+              <button onclick="approveMember('${uid}')"
+                      class="bg-green-500 hover:bg-green-600 text-white text-sm px-4 py-2 rounded-full transition">
+                Approve
+              </button>` : ''}
+            ${u.membership === 'member' ? `
+              <button onclick="setMembership('${uid}', 'pending')"
+                      class="bg-yellow-400 hover:bg-yellow-500 text-white text-sm px-4 py-2 rounded-full transition">
+                Revoke
+              </button>` : ''}
+            ${!u.adminRole ? `
+              <button onclick="setRole('${uid}', 'editor')"
+                      class="bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-2 rounded-full transition">
+                Make Editor
+              </button>` : ''}
+            ${u.adminRole === 'editor' ? `
+              <button onclick="setRole('${uid}', 'superadmin')"
+                      class="bg-purple-500 hover:bg-purple-600 text-white text-sm px-4 py-2 rounded-full transition">
+                Make Superadmin
+              </button>
+              <button onclick="setRole('${uid}', null)"
+                      class="bg-gray-300 hover:bg-gray-400 text-gray-700 text-sm px-4 py-2 rounded-full transition">
+                Remove Role
+              </button>` : ''}
+            ${u.adminRole === 'superadmin' ? `
+              <button onclick="setRole('${uid}', null)"
+                      class="bg-gray-300 hover:bg-gray-400 text-gray-700 text-sm px-4 py-2 rounded-full transition">
+                Remove Role
+              </button>` : ''}
+          </div>
+        </div>`;
+    }
+
+    function approveMember(uid) {
+      setMembership(uid, 'member');
+    }
+
+    function setMembership(uid, membership) {
+      db.collection('users').doc(uid).update({ membership, updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
+        .then(() => loadUsers())
+        .catch(err => alert('Error: ' + err.message));
+    }
+
+    function setRole(uid, role) {
+      db.collection('users').doc(uid).update({ adminRole: role, updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
+        .then(() => loadUsers())
+        .catch(err => alert('Error: ' + err.message));
+    }
+
+    document.addEventListener('DOMContentLoaded', () => loadUsers());
+  </script>
+</body>
+</html>
