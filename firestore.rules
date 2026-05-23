@@ -1,0 +1,112 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isMember() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.membership == 'member';
+    }
+
+    function isEditor() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.adminRole in ['editor', 'superadmin'];
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.adminRole == 'superadmin';
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ── Users ─────────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isEditor();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) || isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // ── Sermons ───────────────────────────────────────────────────────────
+    match /sermons/{id} {
+      allow read: if true;
+      allow write: if isEditor();
+    }
+
+    // ── Events ────────────────────────────────────────────────────────────
+    match /events/{id} {
+      allow read: if true;
+      allow write: if isEditor();
+    }
+
+    // ── Blog ──────────────────────────────────────────────────────────────
+    match /blog/{id} {
+      allow read: if true;
+      allow write: if isEditor();
+    }
+
+    // ── Gallery ───────────────────────────────────────────────────────────
+    match /gallery/{id} {
+      allow read: if resource.data.audience == 'public' || isMember();
+      allow write: if isEditor();
+    }
+
+    // ── Music ─────────────────────────────────────────────────────────────
+    match /music/{id} {
+      allow read: if true;
+      allow write: if isEditor();
+    }
+
+    // ── Prayer Requests ───────────────────────────────────────────────────
+    match /prayer/{id} {
+      allow read: if isMember();
+      allow create: if isMember();
+      allow update: if isOwner(resource.data.uid) || isEditor();
+      allow delete: if isEditor();
+    }
+
+    // ── Groups ────────────────────────────────────────────────────────────
+    match /groups/{id} {
+      allow read: if isMember();
+      allow create: if isEditor();
+      allow update: if isSuperAdmin() ||
+        (isEditor()) ||
+        (isSignedIn() && request.auth.uid in resource.data.leaders &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['members', 'pendingMembers']));
+      allow delete: if isSuperAdmin();
+    }
+
+    // ── Notifications ─────────────────────────────────────────────────────
+    match /notifications/{id} {
+      allow read: if isSignedIn() &&
+        (resource.data.audience == 'all' ||
+         resource.data.audience == 'members' && isMember() ||
+         resource.data.audience == 'admins' && isEditor());
+      allow write: if isEditor();
+    }
+
+    // ── Connect Forms ─────────────────────────────────────────────────────
+    match /connect/{id} {
+      allow create: if true;
+      allow read: if isEditor();
+      allow delete: if isEditor();
+    }
+
+    // ── Messages ──────────────────────────────────────────────────────────
+    match /messages/{id} {
+      allow read: if isSignedIn() &&
+        request.auth.uid in resource.data.participants;
+      allow create: if isMember();
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}
