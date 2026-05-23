@@ -96,7 +96,7 @@ function logoutUser() {
 // Register service worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/egc-church/service-worker.js')
+    navigator.serviceWorker.register('/service-worker.js')
       .then((reg) => console.log('SW registered:', reg.scope))
       .catch((err) => console.error('SW registration failed:', err));
   });
