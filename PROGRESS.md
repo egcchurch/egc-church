@@ -8,8 +8,55 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-05-21
-**Current milestone:** CI/CD pipeline setup — paused at Step 4 (DNS)
+**Last worked on:** 2026-05-24
+**Current milestone:** Phase 1 complete — ready to begin Phase 2
+
+---
+
+## Session: Phase 1 Build & Testing (Session 9)
+
+**Date:** 2026-05-24
+**Status:** Complete
+
+### What was done
+
+- Built `storage.rules` — file type and size validation for all storage paths
+- Built `js/admin-auth.js` — admin page guard (editor/superadmin only)
+- Built `js/member-auth.js` — member page guard (member tier only)
+- Set up Firebase Cloud Functions (`firebase init functions`)
+- Built `onUserCreate` Cloud Function — auto-provisions /users/{uid} on registration
+- Built `/admin/users.html` — pending approvals queue + role management
+- Built `/admin/sermons.html` — add/edit/delete sermons with YouTube + audio + PDF
+- Updated `/sermons.html` to pull from Firestore (replaced hardcoded array)
+- Updated `js/sermons.js` — Firestore-driven, YouTube thumbnails, card + table views
+- Built `/profile.html` — display name, phone, password change, directory privacy, email verification resend
+- Updated SW cache list to v3 with all new pages
+- Upgraded Firebase Functions to v1 auth trigger (v2 blocking functions require GCIP paid upgrade)
+- Deployed Cloud Functions to Firebase (Blaze plan required and activated)
+- Created Firestore database (nam5, production mode)
+- Deployed Firestore security rules
+- Fixed SW registration path `/egc-church/` → `/`
+- Fixed `admin-auth.js` to wait for Firestore to initialize before running guard
+- Manually created superadmin user doc in Firestore for egcstreaming@gmail.com
+- Created Firestore composite index for users query
+- End-to-end tested: admin guard, user management page, role display all working
+
+### Issues encountered and resolved
+
+| Issue                                                     | Fix                                                   |
+| --------------------------------------------------------- | ----------------------------------------------------- |
+| `firebase-functions v2` `beforeUserCreated` requires GCIP | Switched to `v1` `auth.user().onCreate`               |
+| Cloud Build missing permissions                           | Added Logs Writer role to compute service account     |
+| Firestore not yet created                                 | Created database via Firebase Console                 |
+| SW registration using old `/egc-church/` path             | Fixed in `main.js`                                    |
+| Admin auth guard redirecting before Firestore ready       | Added `firebase.firestore` check to `waitForFirebase` |
+| Users not showing — missing `createdAt` field             | Added timestamp field manually to user doc            |
+| Query requires composite index                            | Created index via Firebase Console link in error      |
+
+### Current status
+
+- [x] Phase 1 complete and tested on production (app.egc.church)
+- [ ] Phase 2 — Core Public Site (next)
 
 ---
 
