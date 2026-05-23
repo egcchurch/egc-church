@@ -8,12 +8,14 @@
   const REDIRECT_URL = '/index.html';
 
   function waitForFirebase(callback) {
-    if (typeof firebase !== 'undefined' && typeof auth !== 'undefined') {
-      callback();
-    } else {
-      setTimeout(() => waitForFirebase(callback), 50);
+      if (typeof firebase !== 'undefined' && 
+          typeof auth !== 'undefined' &&
+          typeof firebase.firestore === 'function') {
+        callback();
+      } else {
+        setTimeout(() => waitForFirebase(callback), 50);
+      }
     }
-  }
 
   waitForFirebase(() => {
     auth.onAuthStateChanged((user) => {
