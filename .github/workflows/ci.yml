@@ -1,0 +1,25 @@
+name: CI Checks
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for broken links
+        uses: lycheeverse/lychee-action@v1
+        with:
+          args: --offline --include-verbatim '*.html'
+
+  sw-cache-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check SW cache list matches HTML pages
+        run: |
+          HTML_PAGES=$(find . -maxdepth 1 -name "*.html" | sed 's|./||' | sort)
+          SW_PAGES=$(grep -oP "'/\K[^']+" service-worker.js | grep '\.html' | sort)
+          diff <(echo "$HTML_PAGES") <(echo "$SW_PAGES") && echo "SW cache list is up to date" || (echo "SW cache list is out of sync" && exit 1)
