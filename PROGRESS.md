@@ -9,7 +9,30 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-24
-**Current milestone:** Phase 3 Members Area — branch pushed, awaiting PR review
+**Current milestone:** Phase 4 — Notifications & Messaging (not yet started)
+
+---
+
+## Session: Nav User Dropdown (Session 19)
+
+**Date:** 2026-05-24
+**Branch:** `fix/nav-user-dropdown`
+**Status:** Branch pushed, awaiting PR review
+
+### What was done
+
+- **`nav.html`** — wrapped desktop `#login-btn` in a `relative` container (`#user-menu-wrapper`) with a hidden `#user-dropdown` div for the dropdown. Added `#mobile-user-links` div after the mobile login button to hold role-aware links when logged in.
+- **`js/main.js`** — `updateLoginButtons` made async; fetches `/users/{uid}` Firestore doc on auth state change to read `membership` and `adminRole`. When logged in:
+  - Desktop: button changes to `[Name] ▾` (navy) and toggles a dropdown with role-aware links
+  - Mobile: login button hidden, replaced with inline links in the hamburger menu
+  - Dropdown/links: My Profile (always), Members Area (membership == member or admin), Admin Dashboard (adminRole == editor or superadmin), Sign Out (always)
+  - Outside-click handler closes desktop dropdown
+- No new pages — no SW cache changes needed.
+
+### Notes / decisions
+
+- Previously the logged-in button just showed "Welcome, [Name]" and clicking it triggered logout — no way to reach `/profile`, `/members/`, or `/admin/` from the UI without typing the URL manually.
+- Firestore read is best-effort — if it fails, the dropdown still renders with just Profile + Sign Out (safe fallback).
 
 ---
 
