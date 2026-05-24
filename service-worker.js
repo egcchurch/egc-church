@@ -1,10 +1,11 @@
-const CACHE_NAME = 'egc-cache-v3';
+const CACHE_NAME = 'egc-cache-v4';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
   '/',
   '/index.html',
   '/sermons.html',
+  '/events.html',
   '/login.html',
   '/profile.html',
   '/admin/users.html',
@@ -13,6 +14,7 @@ const PRECACHE_URLS = [
   '/js/main.js',
   '/js/auth.js',
   '/js/sermons.js',
+  '/js/events.js',
   '/js/admin-auth.js',
   '/js/member-auth.js',
   '/manifest.json',
