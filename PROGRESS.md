@@ -9,7 +9,39 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-24
-**Current milestone:** Phase 2 in progress — admin events page built, pending review
+**Current milestone:** Phase 2 in progress — blog (public + admin) built, pending review
+
+---
+
+## Session: Blog Page (Session 12)
+
+**Date:** 2026-05-24
+**Status:** In progress — branch pushed, awaiting PR review
+
+### What was done
+
+- Built `/blog.html` — public Notice Board page listing published `/blog` posts, sorted by publishedAt descending, card grid mirroring events.html (navy header, amber accents, image-or-gradient cover)
+- Added `js/blog.js` — Firestore-driven rendering (waitForFirebase, published filter, excerpt cards) mirroring js/events.js
+- Built `/admin/blog.html` — full CRUD for the `/blog` collection, mirroring admin/events.html: admin-auth guard, inline add/edit form (title, body, author, publish date, imageUrl, published toggle), list with published/draft badge, edit/delete with confirm(), toast notifications
+- publishDate stored as a Firestore Timestamp (publishedAt); split back to a date input on edit; defaults to today for new posts
+- Wired public NOTICE BOARD nav links to `/blog.html` in index.html, sermons.html, events.html (were `href="#"`)
+- Added BLOG to admin nav (after EVENTS, before USERS) in sermons.html, events.html, users.html — order now HOME | SERMONS | EVENTS | BLOG | USERS
+- Added `/blog.html`, `/admin/blog.html`, `/js/blog.js` to SW precache; bumped cache version v5 -> v6
+
+### Note
+
+- Public nav on index.html and sermons.html is still missing an EVENTS link (pre-existing — the events build only added EVENTS to events.html's public nav). Not addressed here to keep scope to blog.
+
+### Phase 2 progress
+
+- [x] `/events.html` — public events page
+- [x] `/admin/events.html` — manage events
+- [x] `/blog.html` — public announcements page
+- [x] `/admin/blog.html` — manage announcements
+- [ ] `/connect.html` + `/admin/connect.html`
+- [ ] `/about.html` + `/admin/team.html`
+- [ ] `/gallery.html` + `/admin/gallery.html`
+- [ ] `/music.html` + `/admin/music.html`
 
 ---
 
@@ -206,13 +238,13 @@
 ### Phase 2 — Core Public Site (IN PROGRESS)
 
 - [x] `/events.html` — church calendar (public events) with cover images
-- [ ] `/blog.html` — announcements with featured images
+- [x] `/blog.html` — announcements with featured images
 - [ ] `/connect.html` — visitor connect form
 - [ ] `/about.html` — leadership team from Firestore
 - [ ] `/gallery.html` — public gallery page
 - [ ] `/music.html` — public music library (stream + download)
 - [x] `/admin/events.html`
-- [ ] `/admin/blog.html`
+- [x] `/admin/blog.html`
 - [ ] `/admin/team.html`
 - [ ] `/admin/gallery.html` — manage galleries (with audience selector)
 - [ ] `/admin/music.html` — upload and manage music tracks
