@@ -728,7 +728,7 @@ The agentic-style local workflow:
 ## Current Phase
 
 - [x] **Phase 1 — Foundation** — complete and deployed
-- [ ] **Phase 2 — Core Public Site** — in progress (events page done)
-- [ ] Phase 3 — Members Area
-- [ ] Phase 4 — Notifications & Messaging
+- [x] **Phase 2 — Core Public Site** — complete and deployed
+- [x] **Phase 3 — Members Area** — complete and deployed
+- [ ] **Phase 4 — Notifications & Messaging** — next
 - [ ] Phase 5 — Polish
