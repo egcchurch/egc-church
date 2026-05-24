@@ -1,0 +1,52 @@
+<!-- Shared members navigation. Injected by js/nav.js into #nav-placeholder on /members/ pages. -->
+<!-- To add or rename a members link, edit it here once. -->
+<nav class="bg-white border-b sticky top-0 z-50 shadow-sm">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="flex justify-between items-center h-16">
+      <div class="flex items-center gap-x-3">
+        <div class="w-9 h-9 bg-amber-500 rounded-full flex items-center justify-center text-white text-2xl">&#10013;</div>
+        <div class="leading-none">
+          <span class="font-bold text-xl tracking-tighter text-[#0A3D62]">EMMANUEL</span>
+          <span class="block text-[10px] text-amber-600 font-medium">GOSPEL CENTRE</span>
+        </div>
+      </div>
+
+      <div class="hidden md:flex items-center gap-x-8 text-sm font-medium">
+        <a href="/index.html" class="hover:text-amber-600 transition-colors"><i class="fas fa-arrow-left mr-1"></i>Back to Site</a>
+        <a href="/members/index.html" class="hover:text-amber-600 transition-colors">HOME</a>
+        <a href="/members/directory.html" class="hover:text-amber-600 transition-colors">DIRECTORY</a>
+        <a href="/members/groups.html" class="hover:text-amber-600 transition-colors">GROUPS</a>
+        <a href="/members/prayer.html" class="hover:text-amber-600 transition-colors">PRAYER</a>
+        <a href="/members/devotional.html" class="hover:text-amber-600 transition-colors">DEVOTIONAL</a>
+        <a href="/members/gallery.html" class="hover:text-amber-600 transition-colors">GALLERY</a>
+        <a href="/members/live.html" class="hover:text-amber-600 transition-colors">LIVE</a>
+      </div>
+
+      <button id="login-btn"
+              class="hidden md:block bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+        Member Login
+      </button>
+
+      <button id="mobile-btn" class="md:hidden text-3xl text-gray-700">
+        <i class="fas fa-bars"></i>
+      </button>
+    </div>
+  </div>
+
+  <div id="mobile-menu" class="hidden md:hidden bg-white border-t py-6">
+    <div class="flex flex-col px-6 space-y-6 text-base font-medium">
+      <a href="/index.html" class="hover:text-amber-600"><i class="fas fa-arrow-left mr-1"></i>Back to Site</a>
+      <a href="/members/index.html" class="hover:text-amber-600">HOME</a>
+      <a href="/members/directory.html" class="hover:text-amber-600">DIRECTORY</a>
+      <a href="/members/groups.html" class="hover:text-amber-600">GROUPS</a>
+      <a href="/members/prayer.html" class="hover:text-amber-600">PRAYER</a>
+      <a href="/members/devotional.html" class="hover:text-amber-600">DEVOTIONAL</a>
+      <a href="/members/gallery.html" class="hover:text-amber-600">GALLERY</a>
+      <a href="/members/live.html" class="hover:text-amber-600">LIVE</a>
+      <button id="mobile-login-btn"
+              class="bg-amber-500 text-white py-4 rounded-full font-medium mt-4">
+        Member Login
+      </button>
+    </div>
+  </div>
+</nav>

@@ -7,8 +7,15 @@
     const placeholder = document.getElementById('nav-placeholder');
     if (!placeholder) return;
 
-    const isAdmin = window.location.pathname.includes('/admin/');
-    const navFile = isAdmin ? '/admin-nav.html' : '/nav.html';
+    const path = window.location.pathname;
+    let navFile;
+    if (path.includes('/admin/')) {
+      navFile = '/admin-nav.html';
+    } else if (path.includes('/members/')) {
+      navFile = '/members-nav.html';
+    } else {
+      navFile = '/nav.html';
+    }
 
     // Request as text/html so the service worker's network-first HTML strategy
     // handles it — that's what serves the partial from cache when offline.
