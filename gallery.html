@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="EGC">
+  <link rel="apple-touch-icon" href="assets/images/icons/icon-192.png">
+  <title>Gallery | Emmanuel Gospel Centre</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans">
+
+  <!-- Navigation (shared — see nav.html, injected by js/nav.js) -->
+  <div id="nav-placeholder"></div>
+
+  <!-- Header -->
+  <header class="bg-[#0A3D62] text-white py-16">
+    <div class="max-w-7xl mx-auto px-6 text-center">
+      <h1 class="text-5xl font-bold mb-4">Gallery</h1>
+      <p class="text-amber-200 max-w-lg mx-auto">Moments from the life of our church family</p>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-6 py-10">
+
+    <!-- Gallery grid -->
+    <div id="gallery-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
+    <!-- Empty state -->
+    <p id="gallery-empty" class="hidden text-gray-500 text-center py-16">
+      <i class="fas fa-images text-3xl mb-3 block text-gray-300"></i>
+      No galleries yet. Check back soon.
+    </p>
+
+    <!-- Loading state -->
+    <div id="loading" class="text-center py-16 text-gray-400">
+      <i class="fas fa-spinner fa-spin text-3xl mb-3 block"></i>
+      Loading galleries...
+    </div>
+
+    <!-- Error state -->
+    <div id="error-msg" class="hidden text-center py-16 text-red-400">
+      <i class="fas fa-exclamation-circle text-3xl mb-3 block"></i>
+      Failed to load galleries. Please try again later.
+    </div>
+
+  </div>
+
+  <!-- Lightbox modal -->
+  <div id="lightbox" class="hidden fixed inset-0 z-[60] bg-black/80 overflow-y-auto">
+    <div class="min-h-full flex items-start justify-center p-4 md:p-10">
+      <div class="bg-white rounded-3xl max-w-4xl w-full overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white">
+          <div>
+            <h2 id="lightbox-title" class="text-lg font-bold text-[#0A3D62]"></h2>
+            <p id="lightbox-meta" class="text-sm text-gray-400"></p>
+          </div>
+          <button onclick="closeLightbox()" class="text-gray-400 hover:text-gray-700 text-2xl px-2">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div id="lightbox-images" class="p-6 space-y-4"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="firebase-config.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/gallery.js"></script>
+</body>
+</html>
