@@ -1,4 +1,4 @@
-const CACHE_NAME = 'egc-cache-v5';
+const CACHE_NAME = 'egc-cache-v6';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -6,16 +6,19 @@ const PRECACHE_URLS = [
   '/index.html',
   '/sermons.html',
   '/events.html',
+  '/blog.html',
   '/login.html',
   '/profile.html',
   '/admin/users.html',
   '/admin/sermons.html',
   '/admin/events.html',
+  '/admin/blog.html',
   '/firebase-config.js',
   '/js/main.js',
   '/js/auth.js',
   '/js/sermons.js',
   '/js/events.js',
+  '/js/blog.js',
   '/js/admin-auth.js',
   '/js/member-auth.js',
   '/manifest.json',
