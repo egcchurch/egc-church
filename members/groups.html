@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>Small Groups | Emmanuel Gospel Centre</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="/js/member-auth.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans">
+
+  <div id="nav-placeholder"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-7xl mx-auto">
+      <h1 class="text-3xl font-bold tracking-tight">Small Groups</h1>
+      <p class="text-blue-200 mt-1">Browse groups, join one, or manage your own</p>
+    </div>
+  </div>
+
+  <!-- GROUPS LIST -->
+  <main class="max-w-7xl mx-auto px-6 py-8">
+    <div id="loading" class="text-center py-16 text-zinc-400">
+      <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+      <p>Loading groups...</p>
+    </div>
+    <div id="empty" class="hidden text-center py-16 text-zinc-400">
+      <i class="fas fa-people-group text-5xl mb-4 opacity-30"></i>
+      <p class="text-lg font-medium">No groups available</p>
+    </div>
+    <div id="group-list" class="space-y-6"></div>
+  </main>
+
+  <!-- PENDING APPROVAL MODAL (leader view) -->
+  <div id="pending-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-[#0A3D62]">Pending Requests</h3>
+        <button onclick="closePendingModal()" class="text-zinc-400 hover:text-zinc-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <div id="pending-list" class="space-y-3 max-h-80 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    const db = firebase.firestore();
+    let currentUser = null;
+    let userNames = {};
+
+    auth.onAuthStateChanged((user) => { currentUser = user; });
+
+    async function fetchDisplayName(uid) {
+      if (userNames[uid]) return userNames[uid];
+      try {
+        const doc = await db.collection('users').doc(uid).get();
+        const name = doc.exists ? (doc.data().displayName || 'Member') : 'Member';
+        userNames[uid] = name;
+        return name;
+      } catch { return 'Member'; }
+    }
+
+    function joinPolicyLabel(policy) {
+      if (policy === 'open') return { text: 'Open', cls: 'bg-green-100 text-green-700' };
+      if (policy === 'approval') return { text: 'Approval Required', cls: 'bg-amber-100 text-amber-700' };
+      return { text: 'Invite Only', cls: 'bg-zinc-100 text-zinc-600' };
+    }
+
+    function renderGroups(groups) {
+      const list = document.getElementById('group-list');
+      const empty = document.getElementById('empty');
+      list.innerHTML = '';
+
+      if (!groups.length) {
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+
+      groups.forEach((g) => {
+        const uid = currentUser?.uid;
+        const isMember = uid && (g.members || []).includes(uid);
+        const isLeader = uid && (g.leaders || []).includes(uid);
+        const isPending = uid && (g.pendingMembers || []).includes(uid);
+        const policy = joinPolicyLabel(g.joinPolicy);
+        const memberCount = (g.members || []).length;
+        const pendingCount = (g.pendingMembers || []).length;
+
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-2xl border border-zinc-200 shadow-sm p-6';
+        card.innerHTML = `
+          <div class="flex flex-col sm:flex-row sm:items-start gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex flex-wrap items-center gap-2 mb-2">
+                <h2 class="font-bold text-xl text-[#0A3D62]">${escapeHtml(g.name)}</h2>
+                <span class="text-xs font-medium px-2 py-0.5 rounded-full ${policy.cls}">${policy.text}</span>
+                ${isLeader ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Your Group</span>' : ''}
+                ${isMember && !isLeader ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Joined</span>' : ''}
+              </div>
+              <p class="text-zinc-600 text-sm leading-relaxed mb-3">${escapeHtml(g.description || '')}</p>
+              <div class="flex flex-wrap gap-4 text-xs text-zinc-400">
+                ${g.meetingDay ? `<span><i class="fas fa-calendar-days mr-1"></i>${escapeHtml(g.meetingDay)}${g.meetingTime ? ' at ' + escapeHtml(g.meetingTime) : ''}</span>` : ''}
+                ${g.location ? `<span><i class="fas fa-location-dot mr-1"></i>${escapeHtml(g.location)}</span>` : ''}
+                <span><i class="fas fa-users mr-1"></i>${memberCount} member${memberCount !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
+            <div class="flex flex-col gap-2 sm:items-end flex-shrink-0">
+              ${renderActionButton(g, isMember, isLeader, isPending)}
+              ${isLeader && pendingCount > 0 ? `<button onclick="openPendingModal('${g.id}')" class="text-xs text-amber-600 hover:underline font-medium">${pendingCount} pending request${pendingCount !== 1 ? 's' : ''}</button>` : ''}
+            </div>
+          </div>
+          ${isLeader ? renderLeaderSection(g) : ''}
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    function renderActionButton(g, isMember, isLeader, isPending) {
+      if (isLeader || isMember) {
+        return `<button onclick="leaveGroup('${g.id}')"
+                        class="border border-zinc-200 hover:border-red-200 hover:text-red-500 text-zinc-500 px-4 py-2 rounded-full text-xs font-medium transition-all">
+                  Leave Group
+                </button>`;
+      }
+      if (isPending) {
+        return `<button onclick="cancelRequest('${g.id}')"
+                        class="border border-amber-200 text-amber-600 px-4 py-2 rounded-full text-xs font-medium cursor-default">
+                  <i class="fas fa-clock mr-1"></i>Request Pending
+                </button>`;
+      }
+      if (g.joinPolicy === 'invite-only') {
+        return `<span class="text-xs text-zinc-400 italic">Invite only</span>`;
+      }
+      const label = g.joinPolicy === 'approval' ? 'Request to Join' : 'Join Group';
+      return `<button onclick="joinGroup('${g.id}', '${g.joinPolicy}')"
+                      class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-full text-xs font-medium transition-all">
+                ${label}
+              </button>`;
+    }
+
+    function renderLeaderSection(g) {
+      return `
+        <div class="mt-5 pt-5 border-t border-zinc-100">
+          <h3 class="text-sm font-semibold text-zinc-600 mb-3">Group Members</h3>
+          <div id="members-${g.id}" class="flex flex-wrap gap-2">
+            <span class="text-xs text-zinc-400">Loading...</span>
+          </div>
+        </div>
+      `;
+    }
+
+    async function populateLeaderSections(groups) {
+      for (const g of groups) {
+        const uid = currentUser?.uid;
+        if (!uid || !(g.leaders || []).includes(uid)) continue;
+        const container = document.getElementById(`members-${g.id}`);
+        if (!container) continue;
+        container.innerHTML = '';
+        for (const muid of (g.members || [])) {
+          const name = await fetchDisplayName(muid);
+          const chip = document.createElement('div');
+          chip.className = 'flex items-center gap-1.5 bg-zinc-100 rounded-full px-3 py-1 text-xs text-zinc-600';
+          chip.innerHTML = `
+            <span>${escapeHtml(name)}</span>
+            ${muid !== uid ? `<button onclick="removeMember('${g.id}', '${muid}')" class="text-zinc-400 hover:text-red-500 transition-colors ml-1"><i class="fas fa-times text-xs"></i></button>` : ''}
+          `;
+          container.appendChild(chip);
+        }
+        if (!(g.members || []).length) {
+          container.innerHTML = '<span class="text-xs text-zinc-400">No members yet</span>';
+        }
+      }
+    }
+
+    let pendingGroupId = null;
+    async function openPendingModal(groupId) {
+      pendingGroupId = groupId;
+      const modal = document.getElementById('pending-modal');
+      const list = document.getElementById('pending-list');
+      modal.classList.remove('hidden');
+      list.innerHTML = '<p class="text-sm text-zinc-400">Loading...</p>';
+
+      const snap = await db.collection('groups').doc(groupId).get();
+      const pendingUids = snap.data()?.pendingMembers || [];
+      list.innerHTML = '';
+
+      if (!pendingUids.length) {
+        list.innerHTML = '<p class="text-sm text-zinc-400">No pending requests</p>';
+        return;
+      }
+
+      for (const uid of pendingUids) {
+        const name = await fetchDisplayName(uid);
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between py-2';
+        row.innerHTML = `
+          <span class="text-sm font-medium text-zinc-700">${escapeHtml(name)}</span>
+          <div class="flex gap-2">
+            <button onclick="approveRequest('${groupId}', '${uid}')"
+                    class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-full text-xs font-medium transition-all">
+              Approve
+            </button>
+            <button onclick="denyRequest('${groupId}', '${uid}')"
+                    class="border border-zinc-200 hover:border-red-200 text-zinc-500 hover:text-red-500 px-3 py-1 rounded-full text-xs font-medium transition-all">
+              Deny
+            </button>
+          </div>
+        `;
+        list.appendChild(row);
+      }
+    }
+
+    function closePendingModal() {
+      document.getElementById('pending-modal').classList.add('hidden');
+      pendingGroupId = null;
+    }
+
+    async function approveRequest(groupId, uid) {
+      const ref = db.collection('groups').doc(groupId);
+      await ref.update({
+        members: firebase.firestore.FieldValue.arrayUnion(uid),
+        pendingMembers: firebase.firestore.FieldValue.arrayRemove(uid),
+      });
+      openPendingModal(groupId);
+    }
+
+    async function denyRequest(groupId, uid) {
+      const ref = db.collection('groups').doc(groupId);
+      await ref.update({ pendingMembers: firebase.firestore.FieldValue.arrayRemove(uid) });
+      openPendingModal(groupId);
+    }
+
+    async function removeMember(groupId, uid) {
+      if (!confirm('Remove this member from the group?')) return;
+      await db.collection('groups').doc(groupId).update({
+        members: firebase.firestore.FieldValue.arrayRemove(uid),
+      });
+    }
+
+    async function joinGroup(groupId, policy) {
+      if (!currentUser) return;
+      const ref = db.collection('groups').doc(groupId);
+      const field = policy === 'approval' ? 'pendingMembers' : 'members';
+      try {
+        await ref.update({ [field]: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) });
+      } catch (err) {
+        console.error('Join failed:', err);
+        alert('Failed to join group. Please try again.');
+      }
+    }
+
+    async function cancelRequest(groupId) {
+      if (!currentUser) return;
+      try {
+        await db.collection('groups').doc(groupId).update({
+          pendingMembers: firebase.firestore.FieldValue.arrayRemove(currentUser.uid),
+        });
+      } catch (err) {
+        console.error('Cancel failed:', err);
+      }
+    }
+
+    async function leaveGroup(groupId) {
+      if (!currentUser) return;
+      if (!confirm('Leave this group?')) return;
+      try {
+        await db.collection('groups').doc(groupId).update({
+          members: firebase.firestore.FieldValue.arrayRemove(currentUser.uid),
+          leaders: firebase.firestore.FieldValue.arrayRemove(currentUser.uid),
+        });
+      } catch (err) {
+        console.error('Leave failed:', err);
+        alert('Failed to leave group.');
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function loadGroups() {
+      db.collection('groups')
+        .where('isPublic', '==', true)
+        .onSnapshot((snap) => {
+          document.getElementById('loading').classList.add('hidden');
+          const groups = snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          renderGroups(groups);
+          populateLeaderSections(groups);
+        }, (err) => {
+          console.error('Groups load failed:', err);
+          document.getElementById('loading').innerHTML =
+            '<p class="text-red-500">Failed to load groups.</p>';
+        });
+    }
+
+    document.addEventListener('nav-loaded', loadGroups);
+  </script>
+</body>
+</html>

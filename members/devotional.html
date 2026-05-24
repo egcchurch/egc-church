@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>Daily Devotional | Emmanuel Gospel Centre</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="/js/member-auth.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans">
+
+  <div id="nav-placeholder"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-7xl mx-auto">
+      <h1 class="text-3xl font-bold tracking-tight">Daily Devotional</h1>
+      <p class="text-blue-200 mt-1" id="today-date"></p>
+    </div>
+  </div>
+
+  <main class="max-w-3xl mx-auto px-6 py-10">
+
+    <!-- TODAY'S DEVOTIONAL -->
+    <div id="loading" class="text-center py-16 text-zinc-400">
+      <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+      <p>Loading devotional...</p>
+    </div>
+
+    <div id="no-devotional" class="hidden text-center py-16 text-zinc-400">
+      <i class="fas fa-book-open text-5xl mb-4 opacity-30"></i>
+      <p class="text-lg font-medium">No devotional for today</p>
+      <p class="text-sm mt-1">Check back later or browse past devotionals below.</p>
+    </div>
+
+    <article id="devotional-card" class="hidden bg-white rounded-2xl border border-zinc-200 shadow-sm p-8 mb-10">
+      <div class="mb-6">
+        <span id="dev-date" class="text-xs font-medium text-amber-600 uppercase tracking-wider"></span>
+        <h2 id="dev-title" class="text-2xl font-bold text-[#0A3D62] mt-1 leading-snug"></h2>
+      </div>
+      <blockquote id="dev-scripture-text" class="border-l-4 border-amber-400 pl-5 italic text-zinc-600 text-base leading-relaxed mb-2"></blockquote>
+      <p id="dev-scripture-ref" class="text-xs text-zinc-400 mb-6 pl-5 font-medium"></p>
+      <div id="dev-body" class="prose prose-zinc max-w-none text-zinc-700 leading-relaxed whitespace-pre-wrap text-base"></div>
+    </article>
+
+    <!-- PAST DEVOTIONALS -->
+    <div id="past-section" class="hidden">
+      <h2 class="text-lg font-bold text-[#0A3D62] mb-4">Past Devotionals</h2>
+      <div id="past-list" class="space-y-3"></div>
+    </div>
+
+  </main>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    const db = firebase.firestore();
+
+    function todayString() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function formatDate(str) {
+      if (!str) return '';
+      const d = new Date(str + 'T00:00:00');
+      return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function showDevotional(data) {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('no-devotional').classList.add('hidden');
+      const card = document.getElementById('devotional-card');
+      card.classList.remove('hidden');
+
+      document.getElementById('dev-date').textContent = formatDate(data.date);
+      document.getElementById('dev-title').textContent = data.title || '';
+      document.getElementById('dev-scripture-text').textContent = data.scriptureText || '';
+      document.getElementById('dev-scripture-ref').textContent = data.scripture || '';
+      document.getElementById('dev-body').textContent = data.body || '';
+    }
+
+    function renderPastList(docs) {
+      const list = document.getElementById('past-list');
+      const section = document.getElementById('past-section');
+      if (!docs.length) return;
+      section.classList.remove('hidden');
+      docs.forEach((d) => {
+        const row = document.createElement('a');
+        row.href = '#';
+        row.className = 'block bg-white rounded-xl border border-zinc-200 px-5 py-3 hover:border-amber-300 transition-all';
+        row.innerHTML = `
+          <div class="flex justify-between items-center">
+            <div>
+              <span class="text-xs text-amber-600 font-medium">${escapeHtml(formatDate(d.date))}</span>
+              <p class="font-semibold text-zinc-800 text-sm leading-tight">${escapeHtml(d.title)}</p>
+            </div>
+            <i class="fas fa-chevron-right text-zinc-300 text-sm"></i>
+          </div>
+        `;
+        row.addEventListener('click', (e) => {
+          e.preventDefault();
+          showDevotional(d);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        list.appendChild(row);
+      });
+    }
+
+    function loadDevotional() {
+      const today = todayString();
+      document.getElementById('today-date').textContent = formatDate(today);
+
+      db.collection('devotionals')
+        .orderBy('date', 'desc')
+        .limit(30)
+        .get()
+        .then((snap) => {
+          document.getElementById('loading').classList.add('hidden');
+          const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          const todayDoc = all.find((d) => d.date === today);
+          if (todayDoc) {
+            showDevotional(todayDoc);
+          } else {
+            document.getElementById('no-devotional').classList.remove('hidden');
+          }
+          const past = all.filter((d) => d.date !== today);
+          renderPastList(past);
+        })
+        .catch((err) => {
+          console.error('Devotional load failed:', err);
+          document.getElementById('loading').innerHTML =
+            '<p class="text-red-500">Failed to load devotional.</p>';
+        });
+    }
+
+    document.addEventListener('nav-loaded', loadDevotional);
+  </script>
+</body>
+</html>

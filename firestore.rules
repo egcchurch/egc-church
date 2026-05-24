@@ -28,7 +28,9 @@ service cloud.firestore {
 
     // ── Users ─────────────────────────────────────────────────────────────
     match /users/{uid} {
-      allow read: if isOwner(uid) || isEditor();
+      // Members can read directory entries where the user has opted in
+      allow read: if isOwner(uid) || isEditor() ||
+        (isMember() && resource.data.directoryVisible == true);
       allow create: if isOwner(uid);
       allow update: if isOwner(uid) || isSuperAdmin();
       allow delete: if isSuperAdmin();
@@ -76,12 +78,22 @@ service cloud.firestore {
     match /groups/{id} {
       allow read: if isMember();
       allow create: if isEditor();
-      allow update: if isSuperAdmin() ||
-        (isEditor()) ||
+      allow update: if isEditor() ||
+        // Group leaders can manage their own group's members/pendingMembers
         (isSignedIn() && request.auth.uid in resource.data.leaders &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['members', 'pendingMembers'])) ||
+        // Members can join/leave (add/remove their own UID from members or pendingMembers)
+        (isMember() &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['members', 'pendingMembers']));
       allow delete: if isSuperAdmin();
+    }
+
+    // ── Devotionals ───────────────────────────────────────────────────────
+    match /devotionals/{id} {
+      allow read: if isMember();
+      allow write: if isEditor();
     }
 
     // ── Notifications ─────────────────────────────────────────────────────

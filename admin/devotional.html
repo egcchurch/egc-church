@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>Devotional Management | EGC Admin</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="/js/admin-auth.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans overflow-x-hidden">
+
+  <div id="nav-placeholder"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <div>
+        <h1 class="text-3xl font-bold tracking-tight">Devotional Management</h1>
+        <p class="text-blue-200 mt-1">Write and publish daily devotionals</p>
+      </div>
+      <button onclick="openForm()"
+              class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+        <i class="fas fa-plus mr-2"></i>New Devotional
+      </button>
+    </div>
+  </div>
+
+  <!-- CREATE / EDIT FORM -->
+  <div id="dev-form" class="hidden bg-white border-b shadow-sm">
+    <div class="max-w-3xl mx-auto px-6 py-8">
+      <h2 class="text-xl font-bold text-[#0A3D62] mb-6" id="form-title">New Devotional</h2>
+      <div class="space-y-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div>
+            <label class="block text-sm font-medium text-zinc-700 mb-1">Date *</label>
+            <input id="f-date" type="date" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-zinc-700 mb-1">Scripture Reference</label>
+            <input id="f-scripture" type="text" placeholder="e.g. John 3:16" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Title *</label>
+          <input id="f-title" type="text" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Scripture Text</label>
+          <textarea id="f-scripture-text" rows="3" placeholder="Paste the scripture verse(s) here..."
+                    class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Devotional Body *</label>
+          <textarea id="f-body" rows="8" placeholder="Write the devotional message here..."
+                    class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"></textarea>
+        </div>
+        <div class="flex gap-3">
+          <button onclick="saveDevotional()"
+                  class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+            Save Devotional
+          </button>
+          <button onclick="closeForm()"
+                  class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+            Cancel
+          </button>
+        </div>
+        <p id="form-msg" class="hidden text-sm font-medium"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- DEVOTIONAL LIST -->
+  <main class="max-w-7xl mx-auto px-6 py-8">
+    <div id="loading" class="text-center py-16 text-zinc-400">
+      <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+      <p>Loading devotionals...</p>
+    </div>
+    <div id="empty" class="hidden text-center py-16 text-zinc-400">
+      <i class="fas fa-book-open text-5xl mb-4 opacity-30"></i>
+      <p class="text-lg font-medium">No devotionals yet</p>
+    </div>
+    <div id="dev-list" class="space-y-3"></div>
+  </main>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    const db = firebase.firestore();
+    let currentUser = null;
+    let editingId = null;
+
+    auth.onAuthStateChanged((user) => { currentUser = user; });
+
+    function openForm(dev) {
+      editingId = dev?.id || null;
+      document.getElementById('form-title').textContent = dev ? 'Edit Devotional' : 'New Devotional';
+      document.getElementById('f-date').value = dev?.date || new Date().toISOString().slice(0, 10);
+      document.getElementById('f-title').value = dev?.title || '';
+      document.getElementById('f-scripture').value = dev?.scripture || '';
+      document.getElementById('f-scripture-text').value = dev?.scriptureText || '';
+      document.getElementById('f-body').value = dev?.body || '';
+      document.getElementById('form-msg').classList.add('hidden');
+      document.getElementById('dev-form').classList.remove('hidden');
+      document.getElementById('dev-form').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function closeForm() {
+      document.getElementById('dev-form').classList.add('hidden');
+      editingId = null;
+    }
+
+    async function saveDevotional() {
+      const title = document.getElementById('f-title').value.trim();
+      const date = document.getElementById('f-date').value;
+      const body = document.getElementById('f-body').value.trim();
+      const msg = document.getElementById('form-msg');
+
+      if (!title || !date || !body) {
+        msg.textContent = 'Date, title, and body are required.';
+        msg.className = 'text-sm font-medium text-red-500';
+        msg.classList.remove('hidden');
+        return;
+      }
+
+      const data = {
+        date,
+        title,
+        scripture: document.getElementById('f-scripture').value.trim() || null,
+        scriptureText: document.getElementById('f-scripture-text').value.trim() || null,
+        body,
+        publishedBy: currentUser?.uid || null,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      };
+
+      try {
+        if (editingId) {
+          await db.collection('devotionals').doc(editingId).update(data);
+        } else {
+          await db.collection('devotionals').add({
+            ...data,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+        closeForm();
+      } catch (err) {
+        console.error('Save failed:', err);
+        msg.textContent = 'Failed to save. Please try again.';
+        msg.className = 'text-sm font-medium text-red-500';
+        msg.classList.remove('hidden');
+      }
+    }
+
+    async function deleteDevotional(id) {
+      if (!confirm('Delete this devotional? This cannot be undone.')) return;
+      try {
+        await db.collection('devotionals').doc(id).delete();
+      } catch (err) {
+        console.error('Delete failed:', err);
+        alert('Failed to delete.');
+      }
+    }
+
+    function formatDate(str) {
+      if (!str) return '';
+      const d = new Date(str + 'T00:00:00');
+      return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function renderList(docs) {
+      const list = document.getElementById('dev-list');
+      const empty = document.getElementById('empty');
+      list.innerHTML = '';
+
+      if (!docs.length) {
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+
+      const today = new Date().toISOString().slice(0, 10);
+
+      docs.forEach((d) => {
+        const isToday = d.date === today;
+        const row = document.createElement('div');
+        row.className = `bg-white rounded-2xl border shadow-sm px-6 py-4 flex items-center gap-4 ${isToday ? 'border-amber-300' : 'border-zinc-200'}`;
+        row.innerHTML = `
+          <div class="flex-1 min-w-0">
+            ${isToday ? '<span class="text-xs font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full mr-2">Today</span>' : ''}
+            <span class="text-xs text-zinc-400">${escapeHtml(formatDate(d.date))}</span>
+            <p class="font-semibold text-zinc-800 text-sm leading-tight mt-0.5">${escapeHtml(d.title)}</p>
+            ${d.scripture ? `<p class="text-xs text-zinc-400 mt-0.5">${escapeHtml(d.scripture)}</p>` : ''}
+          </div>
+          <div class="flex gap-2 flex-shrink-0">
+            <button onclick="openForm(${JSON.stringify(d).replace(/"/g, '&quot;')})"
+                    class="border border-zinc-200 hover:border-amber-300 text-zinc-600 hover:text-amber-600 px-3 py-1.5 rounded-full text-xs font-medium transition-all">
+              <i class="fas fa-pen mr-1"></i>Edit
+            </button>
+            <button onclick="deleteDevotional('${d.id}')"
+                    class="border border-zinc-200 hover:border-red-200 text-zinc-500 hover:text-red-500 px-3 py-1.5 rounded-full text-xs font-medium transition-all">
+              <i class="fas fa-trash mr-1"></i>Delete
+            </button>
+          </div>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    function loadDevotionals() {
+      db.collection('devotionals')
+        .orderBy('date', 'desc')
+        .onSnapshot((snap) => {
+          document.getElementById('loading').classList.add('hidden');
+          const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          renderList(docs);
+        }, (err) => {
+          console.error('Devotional load failed:', err);
+          document.getElementById('loading').innerHTML =
+            '<p class="text-red-500">Failed to load devotionals.</p>';
+        });
+    }
+
+    document.addEventListener('nav-loaded', loadDevotionals);
+  </script>
+</body>
+</html>

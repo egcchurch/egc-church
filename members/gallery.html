@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>Members Gallery | Emmanuel Gospel Centre</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="/js/member-auth.js"></script>
+
+  <style>
+    .audience-btn.active {
+      background-color: #0A3D62;
+      color: white;
+    }
+  </style>
+</head>
+<body class="bg-zinc-50 font-sans">
+
+  <div id="nav-placeholder"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-7xl mx-auto">
+      <h1 class="text-3xl font-bold tracking-tight">Members Gallery</h1>
+      <p class="text-blue-200 mt-1">Members and youth photo galleries</p>
+    </div>
+  </div>
+
+  <!-- AUDIENCE FILTER -->
+  <div class="bg-white border-b px-6 py-4">
+    <div class="max-w-7xl mx-auto flex flex-wrap gap-2">
+      <button onclick="setAudience('all')" id="btn-all"
+              class="audience-btn active px-4 py-2 rounded-full text-sm font-medium border border-zinc-200 transition-all">
+        All
+      </button>
+      <button onclick="setAudience('members')" id="btn-members"
+              class="audience-btn px-4 py-2 rounded-full text-sm font-medium border border-zinc-200 text-zinc-600 hover:border-zinc-300 transition-all">
+        Members
+      </button>
+      <button onclick="setAudience('youth')" id="btn-youth"
+              class="audience-btn px-4 py-2 rounded-full text-sm font-medium border border-zinc-200 text-zinc-600 hover:border-zinc-300 transition-all">
+        Youth
+      </button>
+    </div>
+  </div>
+
+  <!-- GALLERY GRID -->
+  <main class="max-w-7xl mx-auto px-6 py-8">
+    <div id="loading" class="text-center py-16 text-zinc-400">
+      <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+      <p>Loading galleries...</p>
+    </div>
+    <div id="empty" class="hidden text-center py-16 text-zinc-400">
+      <i class="fas fa-images text-5xl mb-4 opacity-30"></i>
+      <p class="text-lg font-medium">No galleries found</p>
+    </div>
+    <div id="gallery-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+  </main>
+
+  <!-- LIGHTBOX -->
+  <div id="lightbox" class="hidden fixed inset-0 bg-black/90 z-50 flex flex-col">
+    <div class="flex justify-between items-center px-6 py-4 text-white">
+      <div>
+        <h3 id="lb-title" class="font-semibold text-lg"></h3>
+        <p id="lb-counter" class="text-sm text-white/60"></p>
+      </div>
+      <button onclick="closeLightbox()" class="text-white/70 hover:text-white text-3xl leading-none">&times;</button>
+    </div>
+    <div class="flex-1 flex items-center justify-center px-4 min-h-0">
+      <button onclick="prevImage()" class="text-white/70 hover:text-white text-4xl px-4 flex-shrink-0">&#8249;</button>
+      <img id="lb-img" src="" alt="" class="max-h-full max-w-full object-contain rounded-lg">
+      <button onclick="nextImage()" class="text-white/70 hover:text-white text-4xl px-4 flex-shrink-0">&#8250;</button>
+    </div>
+    <div class="py-4"></div>
+  </div>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    const db = firebase.firestore();
+    let allGalleries = [];
+    let currentAudience = 'all';
+    let lbImages = [];
+    let lbIndex = 0;
+
+    function setAudience(audience) {
+      currentAudience = audience;
+      ['all', 'members', 'youth'].forEach((a) => {
+        const btn = document.getElementById(`btn-${a}`);
+        if (a === audience) {
+          btn.classList.add('active');
+          btn.classList.remove('text-zinc-600', 'hover:border-zinc-300');
+        } else {
+          btn.classList.remove('active');
+          btn.classList.add('text-zinc-600', 'hover:border-zinc-300');
+        }
+      });
+      renderGalleries();
+    }
+
+    function renderGalleries() {
+      const grid = document.getElementById('gallery-grid');
+      const empty = document.getElementById('empty');
+      grid.innerHTML = '';
+
+      const filtered = currentAudience === 'all'
+        ? allGalleries
+        : allGalleries.filter((g) => g.audience === currentAudience);
+
+      if (!filtered.length) {
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+
+      filtered.forEach((g) => {
+        const audienceLabel = g.audience === 'youth' ? 'Youth' : 'Members';
+        const labelCls = g.audience === 'youth'
+          ? 'bg-purple-100 text-purple-700'
+          : 'bg-blue-100 text-blue-700';
+        const count = (g.imageUrls || []).length;
+        const dateStr = g.date
+          ? new Date(g.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+          : '';
+
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden cursor-pointer group hover:shadow-md transition-all';
+        card.onclick = () => openLightbox(g);
+        card.innerHTML = `
+          <div class="aspect-video overflow-hidden bg-zinc-100">
+            <img src="${g.thumbnailUrl || ''}" alt="${escapeHtml(g.title)}"
+                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+          </div>
+          <div class="p-4">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-xs font-medium px-2 py-0.5 rounded-full ${labelCls}">${audienceLabel}</span>
+            </div>
+            <h2 class="font-semibold text-[#0A3D62] leading-tight">${escapeHtml(g.title)}</h2>
+            <div class="flex gap-3 mt-1 text-xs text-zinc-400">
+              ${dateStr ? `<span>${dateStr}</span>` : ''}
+              <span>${count} photo${count !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function openLightbox(gallery) {
+      lbImages = gallery.imageUrls || [];
+      lbIndex = 0;
+      document.getElementById('lb-title').textContent = gallery.title || '';
+      document.getElementById('lightbox').classList.remove('hidden');
+      showImage();
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.add('hidden');
+      lbImages = [];
+    }
+
+    function showImage() {
+      document.getElementById('lb-img').src = lbImages[lbIndex] || '';
+      document.getElementById('lb-counter').textContent = `${lbIndex + 1} / ${lbImages.length}`;
+    }
+
+    function prevImage() {
+      lbIndex = (lbIndex - 1 + lbImages.length) % lbImages.length;
+      showImage();
+    }
+
+    function nextImage() {
+      lbIndex = (lbIndex + 1) % lbImages.length;
+      showImage();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (document.getElementById('lightbox').classList.contains('hidden')) return;
+      if (e.key === 'ArrowLeft') prevImage();
+      if (e.key === 'ArrowRight') nextImage();
+      if (e.key === 'Escape') closeLightbox();
+    });
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function loadGalleries() {
+      db.collection('gallery')
+        .where('audience', 'in', ['members', 'youth'])
+        .where('published', '==', true)
+        .get()
+        .then((snap) => {
+          document.getElementById('loading').classList.add('hidden');
+          allGalleries = snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+          renderGalleries();
+        })
+        .catch((err) => {
+          console.error('Gallery load failed:', err);
+          document.getElementById('loading').innerHTML =
+            '<p class="text-red-500">Failed to load galleries.</p>';
+        });
+    }
+
+    document.addEventListener('nav-loaded', loadGalleries);
+  </script>
+</body>
+</html>
