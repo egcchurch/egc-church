@@ -13,6 +13,25 @@
 
 ---
 
+## Session: Admin Dashboard + Nav Dropdown Fixes (Session 20)
+
+**Date:** 2026-05-24
+**Branch:** `fix/admin-dashboard`
+**Status:** Branch pushed, awaiting PR review
+
+### What was done
+
+- **`admin/index.html`** — created the missing admin dashboard (was 404). Card grid linking to all 11 admin sections: Sermons, Events, Blog, Team, Gallery, Music, Prayer, Groups, Devotional, Connect, Users. Gated by `admin-auth.js`. Loads `nav.js` + `main.js` for the dropdown.
+- **`admin-nav.html`** — added `#user-menu-wrapper` / `#user-dropdown` / `#mobile-user-links` slots (same pattern as `nav.html` and `members-nav.html`). The dropdown was missing from the admin nav entirely.
+- **`service-worker.js`** — added `/admin/index.html` to precache; bumped cache version v12 → v13.
+
+### Notes
+
+- `admin/index.html` was referenced in CLAUDE.md and linked from the nav dropdown but was never built.
+- All three nav partials (`nav.html`, `members-nav.html`, `admin-nav.html`) now have the full dropdown structure.
+
+---
+
 ## Session: Nav User Dropdown (Session 19)
 
 **Date:** 2026-05-24
