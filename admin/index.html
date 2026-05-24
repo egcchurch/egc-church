@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="EGC">
+  <link rel="apple-touch-icon" href="/assets/images/icons/icon-192.png">
+  <title>Admin Dashboard | Emmanuel Gospel Centre</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="/js/admin-auth.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans">
+
+  <div id="nav-placeholder"></div>
+
+  <div class="bg-[#0A3D62] text-white py-12 px-6">
+    <div class="max-w-7xl mx-auto">
+      <h1 class="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
+      <p class="text-blue-200 mt-2">Manage content for Emmanuel Gospel Centre</p>
+    </div>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-6 py-10">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+
+      <a href="/admin/sermons.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-amber-200 transition-colors">
+          <i class="fas fa-microphone text-amber-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Sermons</h2>
+        <p class="text-sm text-zinc-500">Add and manage sermon recordings, notes, and metadata.</p>
+      </a>
+
+      <a href="/admin/events.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-blue-200 transition-colors">
+          <i class="fas fa-calendar-days text-blue-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Events</h2>
+        <p class="text-sm text-zinc-500">Create and manage church calendar events.</p>
+      </a>
+
+      <a href="/admin/blog.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
+          <i class="fas fa-newspaper text-green-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Blog</h2>
+        <p class="text-sm text-zinc-500">Write and publish announcements and news posts.</p>
+      </a>
+
+      <a href="/admin/team.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-colors">
+          <i class="fas fa-people-group text-purple-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Leadership Team</h2>
+        <p class="text-sm text-zinc-500">Manage the leadership profiles shown on the About page.</p>
+      </a>
+
+      <a href="/admin/gallery.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-rose-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-rose-200 transition-colors">
+          <i class="fas fa-images text-rose-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Gallery</h2>
+        <p class="text-sm text-zinc-500">Upload and manage photo galleries for public, members, and youth.</p>
+      </a>
+
+      <a href="/admin/music.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-indigo-200 transition-colors">
+          <i class="fas fa-music text-indigo-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Music</h2>
+        <p class="text-sm text-zinc-500">Upload and manage the church music library.</p>
+      </a>
+
+      <a href="/admin/prayer.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-sky-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-sky-200 transition-colors">
+          <i class="fas fa-hands-praying text-sky-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Prayer Requests</h2>
+        <p class="text-sm text-zinc-500">Moderate and manage member prayer requests.</p>
+      </a>
+
+      <a href="/admin/groups.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-teal-200 transition-colors">
+          <i class="fas fa-users text-teal-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Small Groups</h2>
+        <p class="text-sm text-zinc-500">Create and manage all small groups and their leaders.</p>
+      </a>
+
+      <a href="/admin/devotional.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-orange-200 transition-colors">
+          <i class="fas fa-book-open text-orange-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Devotional</h2>
+        <p class="text-sm text-zinc-500">Write and schedule daily devotional content.</p>
+      </a>
+
+      <a href="/admin/connect.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-lime-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-lime-200 transition-colors">
+          <i class="fas fa-envelope text-lime-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Connect Forms</h2>
+        <p class="text-sm text-zinc-500">View and manage visitor connect form submissions.</p>
+      </a>
+
+      <a href="/admin/users.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-red-200 transition-colors">
+          <i class="fas fa-user-shield text-red-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">User Management</h2>
+        <p class="text-sm text-zinc-500">Approve new members and manage user roles. Superadmin only.</p>
+      </a>
+
+    </div>
+  </main>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+</body>
+</html>
