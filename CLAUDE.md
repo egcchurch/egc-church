@@ -444,6 +444,35 @@ Functions are organised by trigger type:
 
 ---
 
+## Media Storage — Designed for Migration
+
+ALL media files (gallery images, music, sermon audio, blog/event covers, profile
+photos, etc.) follow this pattern so that migrating to Cloudflare R2 (or any other
+host) is a zero-schema-change operation:
+
+1. **Firestore stores URLs as plain strings** — never Storage SDK references or
+   `gs://` URIs. Always the public HTTPS URL returned by `getDownloadURL()`.
+2. **Render code is host-agnostic** — `<img src={url}>` / `<audio src={url}>` works
+   with any public URL (Firebase, R2, CDN). Public pages never load the Storage SDK.
+3. **Upload is the only swappable layer** — only `js/storage-upload.js`
+   (`uploadMedia(path, file)` → HTTPS URL, and `deleteMedia(url)`) knows about Firebase
+   Storage. Admin pages call it and store the returned string. To migrate hosts, rewrite
+   that one module — no Firestore documents, rendering code, or admin form logic change.
+
+### Migration trigger
+
+Monitor Firebase Storage usage monthly. Migrate to Cloudflare R2 when approaching
+**4GB used** OR when bandwidth (egress) charges first appear on the bill:
+
+- R2: 10GB free storage, **zero egress (bandwidth) fees**
+- Migration: copy files to R2 → update the URL strings in Firestore → done
+- Existing rendering code requires no changes
+
+Sermon video stays on YouTube (primary) — `youtubeId` in Firestore, thumbnails/embeds
+via YouTube public URLs.
+
+---
+
 ## Sermon Media Strategy
 
 - **Video delivery:** YouTube (primary) — store `youtubeId` in Firestore
@@ -475,7 +504,7 @@ Functions are organised by trigger type:
 - HTML5 `<audio>` player on the public music page for inline streaming
 - Direct download link beside each track
 - Optional album grouping via `albumName` and `trackNumber` fields
-- **Storage cost note:** music libraries grow quickly. If approaching the 5GB Firebase Storage free tier, migrate to Cloudflare R2 (10GB free, no egress fees) and store the R2 public URL in Firestore instead.
+- **Storage cost note:** music libraries grow quickly. See [Media Storage — Designed for Migration](#media-storage--designed-for-migration) — migrate to Cloudflare R2 when approaching 4GB used or when egress charges appear; store the R2 public URL string in Firestore (no schema change).
 
 ### Galleries
 

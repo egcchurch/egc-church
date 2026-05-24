@@ -9,7 +9,39 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-24
-**Current milestone:** Phase 2 in progress — Connect form built, pending review
+**Current milestone:** Phase 2 in progress — Gallery built + migration-ready media storage, pending review
+
+---
+
+## Session: Gallery + Media Storage Pattern (Session 16)
+
+**Date:** 2026-05-24
+**Status:** In progress — branch pushed, awaiting PR review
+
+### What was done
+
+- **CLAUDE.md:** added a "Media Storage — Designed for Migration" section (Firestore stores plain HTTPS URL strings, host-agnostic rendering, a single swappable upload module, no `gs://`). Fixed the migration trigger from 5GB to 4GB / first egress charge.
+- **`js/storage-upload.js`** — the ONLY module that touches Firebase Storage. Exposes `uploadMedia(path, file)` (returns the `getDownloadURL()` HTTPS string) and `deleteMedia(url)` (via `refFromURL`, safely ignores non-Firebase URLs). Migrating hosts = rewrite this one file.
+- **`/gallery.html` + `js/gallery.js`** — public gallery: grid of published `audience: "public"` galleries (cover, title, date, image count); clicking opens a lightbox of the gallery's images. Pure URL rendering — **no Storage SDK on the public page**. Query uses a single equality filter (`audience == 'public'`) with published-filter + date-sort client-side, so no composite index is needed.
+- **`/admin/gallery.html`** — full CRUD for all audiences (public/members/youth). Multi-image upload via `uploadMedia` to `gallery/{galleryId}/{file}`; stores `imageUrls[]` + `thumbnailUrl` (first image) as strings. Edit adds/removes images (removed ones cleaned from Storage via `deleteMedia`); delete removes the doc + all its Storage images. Save button shows a Saving... state during upload.
+- Added GALLERY to the public nav and admin nav.
+- Added the new pages + `js/gallery.js` + `js/storage-upload.js` to the SW precache; bumped cache version v9 -> v10. CI sw-cache-check passes.
+
+### Notes / decisions
+
+- This is the project's **first real Firebase Storage usage** — everything before stored pasted URL strings. The `uploadMedia`/`deleteMedia` module is now the template for Music and any future uploads.
+- Storage rules already allowed `gallery/{galleryId}/{fileName}` (editor write, image/* ≤5MB, public read) — no storage.rules change needed.
+- Gallery `date` stored as a Firestore Timestamp (consistent with events/blog).
+- Members/youth galleries are created here but only surface publicly on `/members/gallery.html` (Phase 3); the public page intentionally shows `public` only.
+
+### Phase 2 progress
+
+- [x] `/events.html` + `/admin/events.html`
+- [x] `/blog.html` + `/admin/blog.html`
+- [x] `/about.html` + `/admin/team.html`
+- [x] `/connect.html` + `/admin/connect.html`
+- [x] `/gallery.html` + `/admin/gallery.html`
+- [ ] `/music.html` + `/admin/music.html`
 
 ---
 
@@ -329,12 +361,12 @@
 - [x] `/blog.html` — announcements with featured images
 - [x] `/connect.html` — visitor connect form
 - [x] `/about.html` — leadership team from Firestore
-- [ ] `/gallery.html` — public gallery page
+- [x] `/gallery.html` — public gallery page
 - [ ] `/music.html` — public music library (stream + download)
 - [x] `/admin/events.html`
 - [x] `/admin/blog.html`
 - [x] `/admin/team.html`
-- [ ] `/admin/gallery.html` — manage galleries (with audience selector)
+- [x] `/admin/gallery.html` — manage galleries (with audience selector)
 - [ ] `/admin/music.html` — upload and manage music tracks
 - [x] `/admin/connect.html` — view visitor connect form submissions
 - [ ] Update service-worker.js cache list with new pages and bump cache version
