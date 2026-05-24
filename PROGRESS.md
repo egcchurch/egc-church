@@ -9,7 +9,37 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-24
-**Current milestone:** Phase 2 in progress — events page complete, admin pages next
+**Current milestone:** Phase 2 in progress — admin events page built, pending review
+
+---
+
+## Session: Admin Events Page (Session 11)
+
+**Date:** 2026-05-24
+**Status:** In progress — branch pushed, awaiting PR review
+
+### What was done
+
+- Built `/admin/events.html` — full CRUD management for the `/events` Firestore collection
+- Inline add/edit form (matching admin/sermons.html pattern) with all schema fields:
+  title, description, location, startDate + startTime, endDate + endTime, audience, category, imageUrl, published
+- Firestore Timestamps split into separate date/time inputs on edit; recombined on save
+- Events list sorted by startDate descending — each row shows title, formatted date, location, category badge, audience badge, published/draft badge
+- Edit button loads event into form via in-memory cache (avoids JSON.stringify Timestamp issue)
+- Delete button uses `confirm()` dialog then removes the Firestore document
+- Toast notifications for save success, save error, and delete success
+- Updated admin nav in sermons.html and users.html — added EVENTS link; reordered to HOME | SERMONS | EVENTS | USERS
+- Added `/admin/events.html` to SW precache list; bumped cache version v4 → v5
+
+### Phase 2 progress
+
+- [x] `/events.html` — public events page
+- [x] `/admin/events.html` — manage events
+- [ ] `/blog.html` + `/admin/blog.html`
+- [ ] `/connect.html` + `/admin/connect.html`
+- [ ] `/about.html` + `/admin/team.html`
+- [ ] `/gallery.html` + `/admin/gallery.html`
+- [ ] `/music.html` + `/admin/music.html`
 
 ---
 
@@ -181,7 +211,7 @@
 - [ ] `/about.html` — leadership team from Firestore
 - [ ] `/gallery.html` — public gallery page
 - [ ] `/music.html` — public music library (stream + download)
-- [ ] `/admin/events.html`
+- [x] `/admin/events.html`
 - [ ] `/admin/blog.html`
 - [ ] `/admin/team.html`
 - [ ] `/admin/gallery.html` — manage galleries (with audience selector)
