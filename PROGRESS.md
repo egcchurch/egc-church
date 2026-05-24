@@ -9,7 +9,61 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-24
-**Current milestone:** Phase 2 Core Public Site complete (Music built, pending review)
+**Current milestone:** Phase 3 Members Area — branch pushed, awaiting PR review
+
+---
+
+## Session: Phase 3 Members Area (Session 18)
+
+**Date:** 2026-05-24
+**Branch:** `phase3/members-foundation`
+**Status:** Branch pushed, awaiting PR review
+
+### What was done
+
+**Navigation & foundation:**
+- `members-nav.html` — shared partial for /members/ pages (Back to Site, HOME, DIRECTORY, GROUPS, PRAYER, DEVOTIONAL, GALLERY, LIVE)
+- `js/nav.js` — updated to detect `/members/` path and load `members-nav.html` (alongside existing `/admin/` detection)
+- `members/index.html` — dashboard with icon cards linking to all member features; personalises welcome message via auth state
+
+**Member pages (all gated by member-auth.js):**
+- `members/directory.html` — searchable member grid querying `membership==member && directoryVisible==true`; shows email/phone only if user has opted in; client-side name search
+- `members/prayer.html` — real-time prayer feed (onSnapshot); submit with anonymous + private toggles; pray-for button (arrayUnion/Remove); own-request delete; filter My Requests/All
+- `members/groups.html` — browse public groups with join/request/leave actions per joinPolicy; leader section shows current members with remove buttons; pending-requests modal for leaders to approve/deny
+- `members/devotional.html` — loads today's devotional by date string; past-devotionals archive list (click to switch display); shows scripture blockquote + body
+- `members/gallery.html` — audience filter (All/Members/Youth); queries `audience in ['members','youth'] && published==true`; lightbox with keyboard navigation (same pattern as public gallery.html)
+- `members/live.html` — reads `/config/liveStream` Firestore doc for `youtubeId`, `isLive`, title, description; shows static service-times card if no stream configured
+
+**Admin pages:**
+- `admin/prayer.html` — moderate all prayer requests including private; filter tabs (All/Public/Private); delete with confirm
+- `admin/groups.html` — full CRUD: create/edit groups with name, description, join policy, meeting day/time, location, leader UIDs, visibility; real-time list
+- `admin/devotional.html` — write/edit/delete devotionals; date, title, scripture ref, scripture text, body; "Today" badge on current date; real-time list
+
+**Infrastructure:**
+- `admin-nav.html` — added PRAYER, GROUPS, DEVOTIONAL links (desktop + mobile)
+- `firestore.rules` — three changes: (1) users read now allows `isMember() && directoryVisible==true`; (2) groups update now allows members to change only members/pendingMembers (join/leave); (3) new `/devotionals/{id}` block (isMember read, isEditor write)
+- `tests/firestore.rules.test.js` — 11 new tests covering groups join, prayer CRUD, devotional CRUD, directory visibility. 23 total, all passing
+- `service-worker.js` — cache bumped to v12 (done in first commit on this branch); all new pages added to PRECACHE_URLS
+
+### Notes / decisions
+
+- Live stream page reads from `/config/liveStream` Firestore doc — admin sets `youtubeId` and `isLive` directly in Firestore Console for now; a dedicated admin/livestream.html page could be added in Phase 5 if needed
+- Groups member query uses `isPublic==true` filter; admin/groups.html queries all groups (no filter) so admins see hidden groups too
+- `members/gallery.html` uses `audience in ['members','youth']` — Firestore `in` operator, no composite index needed (published filter client-side)
+- Prayer real-time listener excludes private requests from the member feed (JS filter); admin sees all including private
+
+### Phase 3 — Members Area
+
+- [x] `members-nav.html` + nav.js routing
+- [x] `members/index.html` — dashboard
+- [x] `members/directory.html` — member directory
+- [x] `members/prayer.html` + `admin/prayer.html`
+- [x] `members/groups.html` + `admin/groups.html`
+- [x] `members/devotional.html` + `admin/devotional.html`
+- [x] `members/gallery.html` — members + youth galleries
+- [x] `members/live.html` — live stream
+
+Next milestone: Phase 4 — Notifications & Messaging (`members/messages.html`, `admin/notifications.html`, Cloud Functions for FCM broadcasts and DM push).
 
 ---
 

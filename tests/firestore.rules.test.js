@@ -105,11 +105,11 @@ describe('Firestore Security Rules', () => {
   });
 
   describe('Groups collection', () => {
-    it('group leader can update members but not title', async () => {
+    it('group leader can update members but not name', async () => {
       await seedUser('member-uid', { membership: 'member', adminRole: null });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'groups', 'g1'), {
-          title: 'Youth',
+          name: 'Youth',
           leaders: ['member-uid'],
           members: [],
           pendingMembers: []
@@ -117,7 +117,110 @@ describe('Firestore Security Rules', () => {
       });
       const db = memberUser().firestore();
       await assertSucceeds(updateDoc(doc(db, 'groups', 'g1'), { members: ['member-uid'] }));
-      await assertFails(updateDoc(doc(db, 'groups', 'g1'), { title: 'Hacked' }));
+      await assertFails(updateDoc(doc(db, 'groups', 'g1'), { name: 'Hacked' }));
+    });
+
+    it('member (non-leader) can join an open group', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'groups', 'g1'), {
+          name: 'Open Group',
+          leaders: ['other-uid'],
+          members: [],
+          pendingMembers: [],
+          joinPolicy: 'open'
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'groups', 'g1'), { members: ['member-uid'] }));
+    });
+
+    it('member cannot change group name', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'groups', 'g1'), {
+          name: 'Group',
+          leaders: ['other-uid'],
+          members: [],
+          pendingMembers: []
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(updateDoc(doc(db, 'groups', 'g1'), { name: 'Hacked' }));
+    });
+  });
+
+  describe('Prayer collection', () => {
+    it('member can submit a prayer request', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      const db = memberUser().firestore();
+      await assertSucceeds(setDoc(doc(db, 'prayer', 'p1'), {
+        uid: 'member-uid', body: 'Please pray for me', isAnonymous: false, isPrivate: false, prayedFor: []
+      }));
+    });
+
+    it('unauthenticated user cannot read prayer requests', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), { uid: 'member-uid', body: 'Prayer' });
+      });
+      const db = unauthUser().firestore();
+      await assertFails(getDoc(doc(db, 'prayer', 'p1')));
+    });
+
+    it('member can read prayer requests', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), { uid: 'other-uid', body: 'Prayer', isPrivate: false });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'prayer', 'p1')));
+    });
+  });
+
+  describe('Devotionals collection', () => {
+    it('member can read devotionals', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'devotionals', 'd1'), { date: '2026-05-24', title: 'Test', body: 'Content' });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'devotionals', 'd1')));
+    });
+
+    it('unauthenticated user cannot read devotionals', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'devotionals', 'd1'), { date: '2026-05-24', title: 'Test' });
+      });
+      const db = unauthUser().firestore();
+      await assertFails(getDoc(doc(db, 'devotionals', 'd1')));
+    });
+
+    it('member cannot write devotionals', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      const db = memberUser().firestore();
+      await assertFails(setDoc(doc(db, 'devotionals', 'd1'), { date: '2026-05-24', title: 'Hack' }));
+    });
+
+    it('editor can write devotionals', async () => {
+      await seedUser('editor-uid', { membership: 'public', adminRole: 'editor' });
+      const db = editorUser().firestore();
+      await assertSucceeds(setDoc(doc(db, 'devotionals', 'd1'), { date: '2026-05-24', title: 'Devotional', body: 'Content' }));
+    });
+  });
+
+  describe('Users directory', () => {
+    it('member can read a directory-visible member profile', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('other-uid', { membership: 'member', adminRole: null, directoryVisible: true });
+      const db = memberUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'users', 'other-uid')));
+    });
+
+    it('member cannot read a profile with directoryVisible false', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('other-uid', { membership: 'member', adminRole: null, directoryVisible: false });
+      const db = memberUser().firestore();
+      await assertFails(getDoc(doc(db, 'users', 'other-uid')));
     });
   });
 

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>Group Management | EGC Admin</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="/js/admin-auth.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans overflow-x-hidden">
+
+  <div id="nav-placeholder"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <div>
+        <h1 class="text-3xl font-bold tracking-tight">Group Management</h1>
+        <p class="text-blue-200 mt-1">Create and manage all small groups</p>
+      </div>
+      <button onclick="openForm()"
+              class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+        <i class="fas fa-plus mr-2"></i>New Group
+      </button>
+    </div>
+  </div>
+
+  <!-- CREATE / EDIT FORM -->
+  <div id="group-form" class="hidden bg-white border-b shadow-sm">
+    <div class="max-w-7xl mx-auto px-6 py-8">
+      <h2 class="text-xl font-bold text-[#0A3D62] mb-6" id="form-title">New Group</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Group Name *</label>
+          <input id="f-name" type="text" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Join Policy</label>
+          <select id="f-policy" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+            <option value="open">Open — anyone can join</option>
+            <option value="approval">Approval required</option>
+            <option value="invite-only">Invite only</option>
+          </select>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Description</label>
+          <textarea id="f-description" rows="3" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Meeting Day</label>
+          <input id="f-day" type="text" placeholder="e.g. Thursdays" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Meeting Time</label>
+          <input id="f-time" type="text" placeholder="e.g. 7:00 PM" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Location</label>
+          <input id="f-location" type="text" placeholder="e.g. Church Hall" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Leader UIDs (comma separated)</label>
+          <input id="f-leaders" type="text" placeholder="uid1, uid2" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="f-public" class="w-4 h-4 accent-amber-500" checked>
+          <label for="f-public" class="text-sm text-zinc-700">Visible to members</label>
+        </div>
+      </div>
+      <div class="mt-6 flex gap-3">
+        <button onclick="saveGroup()"
+                class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          Save Group
+        </button>
+        <button onclick="closeForm()"
+                class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          Cancel
+        </button>
+      </div>
+      <p id="form-msg" class="hidden mt-3 text-sm font-medium"></p>
+    </div>
+  </div>
+
+  <!-- GROUPS LIST -->
+  <main class="max-w-7xl mx-auto px-6 py-8">
+    <div id="loading" class="text-center py-16 text-zinc-400">
+      <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+      <p>Loading groups...</p>
+    </div>
+    <div id="empty" class="hidden text-center py-16 text-zinc-400">
+      <i class="fas fa-people-group text-5xl mb-4 opacity-30"></i>
+      <p class="text-lg font-medium">No groups yet</p>
+    </div>
+    <div id="group-list" class="space-y-4"></div>
+  </main>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    const db = firebase.firestore();
+    let editingId = null;
+    let allGroups = [];
+
+    function openForm(group) {
+      editingId = group?.id || null;
+      document.getElementById('form-title').textContent = group ? 'Edit Group' : 'New Group';
+      document.getElementById('f-name').value = group?.name || '';
+      document.getElementById('f-description').value = group?.description || '';
+      document.getElementById('f-policy').value = group?.joinPolicy || 'open';
+      document.getElementById('f-day').value = group?.meetingDay || '';
+      document.getElementById('f-time').value = group?.meetingTime || '';
+      document.getElementById('f-location').value = group?.location || '';
+      document.getElementById('f-leaders').value = (group?.leaders || []).join(', ');
+      document.getElementById('f-public').checked = group ? group.isPublic !== false : true;
+      document.getElementById('form-msg').classList.add('hidden');
+      document.getElementById('group-form').classList.remove('hidden');
+      document.getElementById('group-form').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function closeForm() {
+      document.getElementById('group-form').classList.add('hidden');
+      editingId = null;
+    }
+
+    async function saveGroup() {
+      const name = document.getElementById('f-name').value.trim();
+      const msg = document.getElementById('form-msg');
+      if (!name) {
+        msg.textContent = 'Group name is required.';
+        msg.className = 'text-sm font-medium text-red-500';
+        msg.classList.remove('hidden');
+        return;
+      }
+
+      const leadersRaw = document.getElementById('f-leaders').value;
+      const leaders = leadersRaw.split(',').map((s) => s.trim()).filter(Boolean);
+
+      const data = {
+        name,
+        description: document.getElementById('f-description').value.trim() || null,
+        joinPolicy: document.getElementById('f-policy').value,
+        meetingDay: document.getElementById('f-day').value.trim() || null,
+        meetingTime: document.getElementById('f-time').value.trim() || null,
+        location: document.getElementById('f-location').value.trim() || null,
+        leaders,
+        isPublic: document.getElementById('f-public').checked,
+      };
+
+      try {
+        if (editingId) {
+          await db.collection('groups').doc(editingId).update(data);
+        } else {
+          await db.collection('groups').add({ ...data, members: [], pendingMembers: [] });
+        }
+        closeForm();
+      } catch (err) {
+        console.error('Save failed:', err);
+        msg.textContent = 'Failed to save. Please try again.';
+        msg.className = 'text-sm font-medium text-red-500';
+        msg.classList.remove('hidden');
+      }
+    }
+
+    async function deleteGroup(id) {
+      if (!confirm('Delete this group? This cannot be undone.')) return;
+      try {
+        await db.collection('groups').doc(id).delete();
+      } catch (err) {
+        console.error('Delete failed:', err);
+        alert('Failed to delete group.');
+      }
+    }
+
+    function policyLabel(policy) {
+      if (policy === 'open') return { text: 'Open', cls: 'bg-green-100 text-green-700' };
+      if (policy === 'approval') return { text: 'Approval', cls: 'bg-amber-100 text-amber-700' };
+      return { text: 'Invite Only', cls: 'bg-zinc-100 text-zinc-600' };
+    }
+
+    function renderGroups(groups) {
+      const list = document.getElementById('group-list');
+      const empty = document.getElementById('empty');
+      list.innerHTML = '';
+
+      if (!groups.length) {
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+
+      groups.forEach((g) => {
+        const p = policyLabel(g.joinPolicy);
+        const memberCount = (g.members || []).length;
+        const pendingCount = (g.pendingMembers || []).length;
+
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-2xl border border-zinc-200 shadow-sm p-6';
+        card.innerHTML = `
+          <div class="flex flex-col sm:flex-row sm:items-start gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex flex-wrap items-center gap-2 mb-1">
+                <h2 class="font-bold text-lg text-[#0A3D62]">${escapeHtml(g.name)}</h2>
+                <span class="text-xs font-medium px-2 py-0.5 rounded-full ${p.cls}">${p.text}</span>
+                ${!g.isPublic ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500">Hidden</span>' : ''}
+              </div>
+              ${g.description ? `<p class="text-sm text-zinc-600 mb-2">${escapeHtml(g.description)}</p>` : ''}
+              <div class="flex flex-wrap gap-4 text-xs text-zinc-400">
+                ${g.meetingDay ? `<span><i class="fas fa-calendar-days mr-1"></i>${escapeHtml(g.meetingDay)}${g.meetingTime ? ' at ' + escapeHtml(g.meetingTime) : ''}</span>` : ''}
+                ${g.location ? `<span><i class="fas fa-location-dot mr-1"></i>${escapeHtml(g.location)}</span>` : ''}
+                <span><i class="fas fa-users mr-1"></i>${memberCount} member${memberCount !== 1 ? 's' : ''}</span>
+                ${pendingCount > 0 ? `<span class="text-amber-600"><i class="fas fa-clock mr-1"></i>${pendingCount} pending</span>` : ''}
+              </div>
+            </div>
+            <div class="flex gap-2 flex-shrink-0">
+              <button onclick="openForm(${JSON.stringify(g).replace(/"/g, '&quot;')})"
+                      class="border border-zinc-200 hover:border-amber-300 text-zinc-600 hover:text-amber-600 px-4 py-2 rounded-full text-xs font-medium transition-all">
+                <i class="fas fa-pen mr-1"></i>Edit
+              </button>
+              <button onclick="deleteGroup('${g.id}')"
+                      class="border border-zinc-200 hover:border-red-200 text-zinc-500 hover:text-red-500 px-4 py-2 rounded-full text-xs font-medium transition-all">
+                <i class="fas fa-trash mr-1"></i>Delete
+              </button>
+            </div>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function loadGroups() {
+      db.collection('groups')
+        .onSnapshot((snap) => {
+          document.getElementById('loading').classList.add('hidden');
+          allGroups = snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          renderGroups(allGroups);
+        }, (err) => {
+          console.error('Groups load failed:', err);
+          document.getElementById('loading').innerHTML =
+            '<p class="text-red-500">Failed to load groups.</p>';
+        });
+    }
+
+    document.addEventListener('nav-loaded', loadGroups);
+  </script>
+</body>
+</html>
