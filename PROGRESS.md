@@ -33,6 +33,8 @@
 
 - Previously the logged-in button just showed "Welcome, [Name]" and clicking it triggered logout — no way to reach `/profile`, `/members/`, or `/admin/` from the UI without typing the URL manually.
 - Firestore read is best-effort — if it fails, the dropdown still renders with just Profile + Sign Out (safe fallback).
+- Fixed 404 on Admin Dashboard link — `firebase.json` has no `cleanUrls`, so `/admin/` and `/members/` don't auto-resolve; switched to explicit `/admin/index.html` and `/members/index.html`.
+- Fixed dropdown not appearing on members area pages — `members-nav.html` was missing the wrapper div and dropdown slot; applied the same structure as `nav.html`.
 
 ---
 

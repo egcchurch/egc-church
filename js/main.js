@@ -119,14 +119,14 @@ function buildDropdownHTML(isMember, isAdmin) {
 
   if (isMember) {
     html += `
-    <a href="/members/" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 transition-colors">
+    <a href="/members/index.html" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 transition-colors">
       <i class="fas fa-users text-gray-400 w-4 text-center"></i> Members Area
     </a>`;
   }
 
   if (isAdmin) {
     html += `
-    <a href="/admin/" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 transition-colors">
+    <a href="/admin/index.html" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 transition-colors">
       <i class="fas fa-shield-alt text-gray-400 w-4 text-center"></i> Admin Dashboard
     </a>`;
   }
@@ -150,14 +150,14 @@ function buildMobileHTML(displayName, isMember, isAdmin) {
 
   if (isMember) {
     html += `
-      <a href="/members/" class="flex items-center gap-3 py-2.5 text-gray-700 hover:text-amber-600 transition-colors">
+      <a href="/members/index.html" class="flex items-center gap-3 py-2.5 text-gray-700 hover:text-amber-600 transition-colors">
         <i class="fas fa-users w-5 text-center text-gray-400"></i> Members Area
       </a>`;
   }
 
   if (isAdmin) {
     html += `
-      <a href="/admin/" class="flex items-center gap-3 py-2.5 text-gray-700 hover:text-amber-600 transition-colors">
+      <a href="/admin/index.html" class="flex items-center gap-3 py-2.5 text-gray-700 hover:text-amber-600 transition-colors">
         <i class="fas fa-shield-alt w-5 text-center text-gray-400"></i> Admin Dashboard
       </a>`;
   }
