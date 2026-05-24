@@ -22,10 +22,15 @@
         <a href="/members/live.html" class="hover:text-amber-600 transition-colors">LIVE</a>
       </div>
 
-      <button id="login-btn"
-              class="hidden md:block bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
-        Member Login
-      </button>
+      <div id="user-menu-wrapper" class="hidden md:block relative">
+        <button id="login-btn"
+                class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          Member Login
+        </button>
+        <div id="user-dropdown"
+             class="hidden absolute right-0 top-full mt-2 w-52 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50">
+        </div>
+      </div>
 
       <button id="mobile-btn" class="md:hidden text-3xl text-gray-700">
         <i class="fas fa-bars"></i>
@@ -47,6 +52,7 @@
               class="bg-amber-500 text-white py-4 rounded-full font-medium mt-4">
         Member Login
       </button>
+      <div id="mobile-user-links" class="hidden"></div>
     </div>
   </div>
 </nav>
