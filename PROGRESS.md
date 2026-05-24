@@ -453,20 +453,20 @@ Next milestone: Phase 3 — Members Area.
 - [x] `/admin/gallery.html` — manage galleries (with audience selector)
 - [x] `/admin/music.html` — upload and manage music tracks
 - [x] `/admin/connect.html` — view visitor connect form submissions
-- [ ] Update service-worker.js cache list with new pages and bump cache version
+- [x] Update service-worker.js cache list with new pages and bump cache version
 
 ### Phase 3 — Members Area
 
-- [ ] `/members/live.html` — live stream (member-gated)
-- [ ] `/members/prayer.html` — prayer request submission and listing
-- [ ] `/members/groups.html` — browse and join groups, leader-only sections for managing own group
-- [ ] `/members/directory.html` — membership directory (respects privacy flags)
-- [ ] `/members/devotional.html` — daily devotional
-- [ ] `/members/gallery.html` — members + youth galleries
-- [ ] `/admin/prayer.html` — moderate prayer requests
-- [ ] `/admin/groups.html` — full group management (editor/superadmin only)
-- [ ] `/admin/devotional.html`
-- [ ] Update service-worker.js cache list and bump cache version
+- [x] `/members/live.html` — live stream (member-gated)
+- [x] `/members/prayer.html` — prayer request submission and listing
+- [x] `/members/groups.html` — browse and join groups, leader-only sections for managing own group
+- [x] `/members/directory.html` — membership directory (respects privacy flags)
+- [x] `/members/devotional.html` — daily devotional
+- [x] `/members/gallery.html` — members + youth galleries
+- [x] `/admin/prayer.html` — moderate prayer requests
+- [x] `/admin/groups.html` — full group management (editor/superadmin only)
+- [x] `/admin/devotional.html`
+- [x] Update service-worker.js cache list and bump cache version (v12)
 
 ### Phase 4 — Notifications & Messaging
 
