@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>Music Management | EGC Admin</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans overflow-x-hidden">
+
+  <!-- Navigation (shared — see admin-nav.html, injected by js/nav.js) -->
+  <div id="nav-placeholder"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <div>
+        <h1 class="text-3xl font-bold tracking-tight">Music Management</h1>
+        <p class="text-blue-200 mt-1">Upload and manage the public music library</p>
+      </div>
+      <button onclick="openForm()"
+              class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+        <i class="fas fa-plus mr-2"></i>Add Track
+      </button>
+    </div>
+  </div>
+
+  <!-- ADD/EDIT FORM -->
+  <div id="track-form" class="hidden bg-white border-b shadow-sm">
+    <div class="max-w-7xl mx-auto px-6 py-8">
+      <h2 class="text-xl font-bold text-[#0A3D62] mb-6" id="form-title">Add New Track</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- Title -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+          <input id="f-title" type="text" placeholder="Track title"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+
+        <!-- Artist -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Artist / Performer</label>
+          <input id="f-artist" type="text" placeholder="e.g. EGC Worship Team"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+
+        <!-- Description -->
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <textarea id="f-description" rows="2" placeholder="Optional notes about the track..."
+                    class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"></textarea>
+        </div>
+
+        <!-- Category -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+          <select id="f-category"
+                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
+            <option value="worship">Worship</option>
+            <option value="choir">Choir</option>
+            <option value="original">Original</option>
+            <option value="instrumental">Instrumental</option>
+          </select>
+        </div>
+
+        <!-- Release Date -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Release Date</label>
+          <input id="f-release-date" type="date"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+
+        <!-- Album -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Album (optional)</label>
+          <input id="f-album" type="text" placeholder="Album name"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+
+        <!-- Track number -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Track # (optional)</label>
+          <input id="f-track-number" type="number" min="1" step="1" placeholder="1"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+
+        <!-- Audio file -->
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Audio file *</label>
+          <div id="current-audio" class="hidden mb-2"></div>
+          <input id="f-audio" type="file" accept="audio/*"
+                 class="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-amber-100 file:text-amber-700 hover:file:bg-amber-200">
+          <p class="text-xs text-gray-400 mt-1">MP3, etc. Max 100MB. On edit, leave empty to keep the current file.</p>
+        </div>
+
+        <!-- Cover art -->
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Cover art (optional)</label>
+          <div id="current-cover" class="flex items-center gap-3 mb-2"></div>
+          <input id="f-cover" type="file" accept="image/*"
+                 class="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-amber-100 file:text-amber-700 hover:file:bg-amber-200">
+          <p class="text-xs text-gray-400 mt-1">Image, max 5MB.</p>
+        </div>
+
+        <!-- Published toggle -->
+        <div class="flex items-center gap-3">
+          <input id="f-published" type="checkbox" class="w-4 h-4 accent-amber-500">
+          <label for="f-published" class="text-sm font-medium text-gray-700">Published (visible on site)</label>
+        </div>
+
+      </div>
+      <div class="flex gap-3 mt-6">
+        <button id="save-btn" onclick="saveTrack()"
+                class="bg-amber-500 hover:bg-amber-600 text-white px-8 py-3 rounded-full text-sm font-medium transition-all">
+          Save Track
+        </button>
+        <button onclick="closeForm()"
+                class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-8 py-3 rounded-full text-sm font-medium transition-all">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRACK LIST -->
+  <main class="max-w-7xl mx-auto px-6 py-10">
+    <div id="track-list" class="space-y-4">
+      <div class="text-center py-12 text-gray-400">
+        <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+        <p>Loading tracks...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- TOAST -->
+  <div id="toast"
+       class="fixed bottom-6 right-6 z-50 hidden px-6 py-3 rounded-2xl text-white text-sm font-medium shadow-lg transition-all">
+  </div>
+
+  <script src="/firebase-config.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script src="/js/storage-upload.js"></script>
+  <script src="/js/admin-auth.js"></script>
+  <script>
+    const db = firebase.firestore();
+    let editingId = null;
+    const tracksCache = {};
+
+    // ─── Toast ───────────────────────────────────────────────────────────────────
+    function showToast(message, type) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = 'fixed bottom-6 right-6 z-50 px-6 py-3 rounded-2xl text-white text-sm font-medium shadow-lg transition-all '
+        + (type === 'error' ? 'bg-red-600' : 'bg-green-600');
+      setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
+
+    // ─── Form ─────────────────────────────────────────────────────────────────
+    function openForm(id) {
+      editingId = id || null;
+      const t = id ? tracksCache[id] : null;
+
+      document.getElementById('form-title').textContent = id ? 'Edit Track' : 'Add New Track';
+      document.getElementById('f-title').value        = t?.title       || '';
+      document.getElementById('f-artist').value       = t?.artist      || '';
+      document.getElementById('f-description').value   = t?.description || '';
+      document.getElementById('f-category').value      = t?.category    || 'worship';
+      document.getElementById('f-album').value         = t?.albumName   || '';
+      document.getElementById('f-track-number').value  = t?.trackNumber ?? '';
+      document.getElementById('f-release-date').value  = splitDate(t?.releaseDate) || today();
+      document.getElementById('f-published').checked   = t?.published   ?? true;
+      document.getElementById('f-audio').value         = '';
+      document.getElementById('f-cover').value         = '';
+
+      // Current audio / cover indicators (edit)
+      const audioBox = document.getElementById('current-audio');
+      if (t?.audioUrl) {
+        audioBox.innerHTML = `<p class="text-xs text-gray-500 mb-1">Current audio:</p>
+          <audio controls preload="none" src="${t.audioUrl}" class="w-full"></audio>`;
+        audioBox.classList.remove('hidden');
+      } else {
+        audioBox.innerHTML = '';
+        audioBox.classList.add('hidden');
+      }
+
+      const coverBox = document.getElementById('current-cover');
+      coverBox.innerHTML = t?.coverArtUrl
+        ? `<img src="${t.coverArtUrl}" class="w-16 h-16 object-cover rounded-xl border border-gray-200">
+           <span class="text-xs text-gray-400">Current cover</span>`
+        : '';
+
+      document.getElementById('track-form').classList.remove('hidden');
+      document.getElementById('track-form').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function closeForm() {
+      editingId = null;
+      document.getElementById('track-form').classList.add('hidden');
+    }
+
+    function setSaving(isSaving) {
+      const btn = document.getElementById('save-btn');
+      btn.disabled = isSaving;
+      btn.textContent = isSaving ? 'Saving...' : 'Save Track';
+      btn.classList.toggle('opacity-60', isSaving);
+      btn.classList.toggle('cursor-not-allowed', isSaving);
+    }
+
+    async function saveTrack() {
+      const title = document.getElementById('f-title').value.trim();
+      const audioFile = document.getElementById('f-audio').files[0] || null;
+      const coverFile = document.getElementById('f-cover').files[0] || null;
+
+      if (!title) {
+        showToast('Title is required.', 'error');
+        return;
+      }
+      if (!editingId && !audioFile) {
+        showToast('An audio file is required for a new track.', 'error');
+        return;
+      }
+
+      setSaving(true);
+
+      try {
+        const ref = editingId
+          ? db.collection('music').doc(editingId)
+          : db.collection('music').doc();
+        const trackId = ref.id;
+        const existing = editingId ? tracksCache[editingId] : null;
+
+        let audioUrl = existing?.audioUrl || null;
+        let durationSeconds = existing?.durationSeconds ?? null;
+        let oldAudioToDelete = null;
+
+        if (audioFile) {
+          const path = `music/${trackId}_${Date.now()}_${safeName(audioFile.name)}`;
+          audioUrl = await uploadMedia(path, audioFile);
+          durationSeconds = await getAudioDuration(audioFile);
+          if (existing?.audioUrl) oldAudioToDelete = existing.audioUrl;
+        }
+
+        let coverArtUrl = existing?.coverArtUrl || null;
+        let oldCoverToDelete = null;
+
+        if (coverFile) {
+          const path = `music/covers/${trackId}_${Date.now()}_${safeName(coverFile.name)}`;
+          coverArtUrl = await uploadMedia(path, coverFile);
+          if (existing?.coverArtUrl) oldCoverToDelete = existing.coverArtUrl;
+        }
+
+        const trackNumberVal = document.getElementById('f-track-number').value;
+        const releaseVal = document.getElementById('f-release-date').value;
+
+        const data = {
+          title,
+          artist      : document.getElementById('f-artist').value.trim(),
+          description : document.getElementById('f-description').value.trim(),
+          category    : document.getElementById('f-category').value,
+          albumName   : document.getElementById('f-album').value.trim() || null,
+          trackNumber : trackNumberVal === '' ? null : parseInt(trackNumberVal, 10),
+          releaseDate : releaseVal ? buildTimestamp(releaseVal) : null,
+          audioUrl,
+          coverArtUrl,
+          durationSeconds,
+          downloadable: true,
+          published   : document.getElementById('f-published').checked,
+          updatedAt   : firebase.firestore.FieldValue.serverTimestamp(),
+        };
+
+        if (!editingId) {
+          data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+          data.createdBy = firebase.auth().currentUser ? firebase.auth().currentUser.uid : null;
+        }
+
+        await ref.set(data, { merge: true });
+
+        // Clean up replaced files (safe no-op for non-Firebase URLs).
+        if (oldAudioToDelete) await deleteMedia(oldAudioToDelete);
+        if (oldCoverToDelete) await deleteMedia(oldCoverToDelete);
+
+        closeForm();
+        showToast('Track saved.', 'success');
+        loadTracks();
+      } catch (err) {
+        console.error(err);
+        showToast('Error saving track: ' + err.message, 'error');
+        setSaving(false);
+      }
+    }
+
+    async function deleteTrack(id, title) {
+      if (!confirm('Delete "' + title + '" and its files? This cannot be undone.')) return;
+      const t = tracksCache[id];
+      try {
+        await db.collection('music').doc(id).delete();
+        if (t?.audioUrl) await deleteMedia(t.audioUrl);
+        if (t?.coverArtUrl) await deleteMedia(t.coverArtUrl);
+        showToast('Track deleted.', 'success');
+        loadTracks();
+      } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+      }
+    }
+
+    // ─── List ─────────────────────────────────────────────────────────────────
+    function loadTracks() {
+      const list = document.getElementById('track-list');
+      list.innerHTML = `<div class="text-center py-12 text-gray-400">
+        <i class="fas fa-spinner fa-spin text-3xl mb-3"></i><p>Loading...</p>
+      </div>`;
+
+      db.collection('music').orderBy('createdAt', 'desc').get()
+        .then((snapshot) => {
+          if (snapshot.empty) {
+            list.innerHTML = `<div class="text-center py-12 text-gray-400">
+              <i class="fas fa-music text-3xl mb-3"></i>
+              <p>No tracks yet. Click Add Track to get started.</p>
+            </div>`;
+            return;
+          }
+
+          list.innerHTML = '';
+          snapshot.forEach(doc => {
+            const t = doc.data();
+            tracksCache[doc.id] = t;
+
+            const cover = t.coverArtUrl
+              ? `<img src="${t.coverArtUrl}" class="w-16 h-16 object-cover rounded-xl shrink-0">`
+              : `<div class="w-16 h-16 rounded-xl bg-gradient-to-br from-[#0A3D62] to-amber-500 flex items-center justify-center shrink-0">
+                   <i class="fas fa-music text-white"></i>
+                 </div>`;
+            const pubBadge = t.published
+              ? '<span class="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">Published</span>'
+              : '<span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500">Draft</span>';
+            const catBadge = `<span class="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">${escHtml(cap(t.category))}</span>`;
+
+            list.innerHTML += `
+              <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col md:flex-row md:items-center gap-4">
+                ${cover}
+                <div class="flex-1 min-w-0">
+                  <div class="flex flex-wrap items-center gap-2 mb-2">
+                    ${pubBadge}
+                    ${catBadge}
+                  </div>
+                  <p class="font-semibold text-gray-900 truncate">${escHtml(t.title)}</p>
+                  <div class="flex flex-wrap gap-x-4 mt-1 text-sm text-gray-500">
+                    ${t.artist ? `<span><i class="fas fa-user text-amber-400 mr-1"></i>${escHtml(t.artist)}</span>` : ''}
+                    ${t.albumName ? `<span><i class="fas fa-compact-disc text-amber-400 mr-1"></i>${escHtml(t.albumName)}</span>` : ''}
+                    ${t.durationSeconds ? `<span><i class="fas fa-clock text-amber-400 mr-1"></i>${formatDuration(t.durationSeconds)}</span>` : ''}
+                  </div>
+                </div>
+                <div class="flex gap-2 shrink-0">
+                  <button onclick="openForm('${doc.id}')"
+                          class="bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm px-4 py-2 rounded-full transition">
+                    <i class="fas fa-edit mr-1"></i>Edit
+                  </button>
+                  <button onclick="deleteTrack('${doc.id}', '${escAttr(t.title)}')"
+                          class="bg-red-50 hover:bg-red-100 text-red-600 text-sm px-4 py-2 rounded-full transition">
+                    <i class="fas fa-trash mr-1"></i>Delete
+                  </button>
+                </div>
+              </div>`;
+          });
+        })
+        .catch((err) => {
+          list.innerHTML = `<div class="text-center py-12 text-red-400"><p>Error loading tracks.</p></div>`;
+          console.error(err);
+        });
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    function getAudioDuration(file) {
+      return new Promise((resolve) => {
+        try {
+          const url = URL.createObjectURL(file);
+          const audio = document.createElement('audio');
+          audio.preload = 'metadata';
+          audio.onloadedmetadata = () => {
+            URL.revokeObjectURL(url);
+            const d = Math.round(audio.duration);
+            resolve(Number.isFinite(d) && d > 0 ? d : null);
+          };
+          audio.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+          audio.src = url;
+        } catch {
+          resolve(null);
+        }
+      });
+    }
+
+    function safeName(name) {
+      return String(name).replace(/[^a-zA-Z0-9._-]/g, '_');
+    }
+
+    function cap(str) {
+      return str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
+    }
+
+    function today() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function buildTimestamp(dateStr) {
+      return firebase.firestore.Timestamp.fromDate(new Date(dateStr + 'T00:00:00'));
+    }
+
+    function splitDate(ts) {
+      if (!ts) return '';
+      const d = typeof ts.toDate === 'function' ? ts.toDate() : new Date(ts);
+      return d.toISOString().slice(0, 10);
+    }
+
+    function formatDuration(seconds) {
+      const s = Math.round(Number(seconds) || 0);
+      const m = Math.floor(s / 60);
+      const rem = s % 60;
+      return `${m}:${String(rem).padStart(2, '0')}`;
+    }
+
+    function escHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function escAttr(str) {
+      return String(str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => loadTracks());
+  </script>
+</body>
+</html>
