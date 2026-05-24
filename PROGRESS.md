@@ -9,7 +9,32 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-24
-**Current milestone:** Phase 2 in progress — blog (public + admin) built, pending review
+**Current milestone:** Phase 2 in progress — navigation refactored into shared partials, pending review
+
+---
+
+## Session: Shared Navigation Refactor (Session 13)
+
+**Date:** 2026-05-24
+**Status:** In progress — branch pushed, awaiting PR review
+
+### What was done
+
+- Refactored the duplicated per-page nav into shared partials so a new link is edited in ONE place instead of ~26 nav blocks
+- Created `/nav.html` — public nav markup only (HOME, SERMONS, EVENTS, BLOG; LIVE STREAM, NOTICE BOARD, CONTACT commented out until those pages exist). Absolute paths so it works from root, /admin/, and future /members/
+- Created `/admin-nav.html` — admin nav markup (Back to Site, SERMONS, EVENTS, BLOG, USERS)
+- Created `js/nav.js` — fetches the right partial (admin-nav.html when path contains /admin/, else nav.html), injects it into `#nav-placeholder`, highlights the active link by pathname, and dispatches a `nav-loaded` event. Fetches with `Accept: text/html` so the SW network-first HTML strategy serves it offline. Fails gracefully (logs, doesn't crash) if the partial can't load
+- Updated `js/main.js` — moved the mobile-menu toggle and `checkAuthState()` into a `nav-loaded` listener (registered at top level) so they bind only after the nav DOM exists; hero video stays on DOMContentLoaded, SW registration on window load
+- Replaced the full nav+mobile-menu block with `<div id="nav-placeholder"></div>` and added `<script src="/js/nav.js"></script>` before main.js on: index, profile, sermons, events, blog, admin/users, admin/sermons, admin/events, admin/blog
+- Added `/nav.html`, `/admin-nav.html`, `/js/nav.js` to the SW precache; bumped cache version v6 -> v7
+- Verified the CI sw-cache-check passes (nav.html + admin-nav.html are root-level HTML, so they must be precached — they are)
+
+### Decisions / notes
+
+- **login.html was intentionally skipped** — it has no nav (full-screen login card), no main.js, and no login-btn. Injecting the shared nav would add a nav bar that wasn't there before. Flagged for the reviewer to decide.
+- Branch `refactor/shared-nav` is stacked on `phase2/blog-page` (the blog pages aren't on main yet), so until the blog PR merges, this PR will also show the blog commit.
+- profile.html previously had a unique "MY PROFILE" nav link; the shared nav doesn't include it, so profile now shows the standard public nav with no active item (profile is reached via the login/welcome button, not a top-nav link).
+- Pre-existing, not addressed: login.html still references the old `/egc-church/manifest.json` path; public nav on index/sermons lacked an EVENTS link before this refactor (the shared nav now gives every public page the same links, which fixes that as a side effect).
 
 ---
 

@@ -1,24 +1,27 @@
 // js/main.js
 
 document.addEventListener('DOMContentLoaded', () => {
-  
+  // Hero video — page content, not part of the injected nav
+  const video = document.getElementById('hero-video');
+  if (video) {
+    video.play().catch(() => console.log("Video autoplay prevented"));
+  }
+});
+
+// The nav is injected asynchronously by js/nav.js, so anything that touches
+// nav elements (mobile toggle, login buttons) must wait for the nav-loaded event.
+document.addEventListener('nav-loaded', () => {
   // Mobile menu toggle
   const mobileBtn = document.getElementById('mobile-btn');
   const mobileMenu = document.getElementById('mobile-menu');
-  
+
   if (mobileBtn && mobileMenu) {
     mobileBtn.addEventListener('click', () => {
       mobileMenu.classList.toggle('hidden');
     });
   }
 
-  // Hero video
-  const video = document.getElementById('hero-video');
-  if (video) {
-    video.play().catch(() => console.log("Video autoplay prevented"));
-  }
-
-  // Check login state
+  // Check login state (swaps the login button for a welcome/logout button)
   checkAuthState();
 });
 
