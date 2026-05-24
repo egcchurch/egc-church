@@ -9,7 +9,38 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-24
-**Current milestone:** Phase 2 in progress — navigation refactored into shared partials, pending review
+**Current milestone:** Phase 2 in progress — About + Team built, pending review
+
+---
+
+## Session: About + Team (Session 14)
+
+**Date:** 2026-05-24
+**Status:** In progress — branch pushed, awaiting PR review
+
+### What was done
+
+- Built `/about.html` — public About page: shared nav, navy header, short static "Who We Are" intro, and a leadership grid loaded from `/team` sorted by `order` ascending (photo or gradient-avatar fallback, name, role, bio)
+- Added `js/about.js` — Firestore-driven rendering mirroring js/blog.js
+- Built `/admin/team.html` — full CRUD for `/team`, mirroring admin/blog.html: shared admin nav, admin-auth guard, inline add/edit form (name, role, bio, photoUrl, order), list sorted by order asc with avatar + order badge, edit/delete with confirm(), toasts
+- Added ABOUT to the public nav (`nav.html`) and TEAM to the admin nav (`admin-nav.html`) — one-line edits each, the payoff of the Session 13 shared-nav refactor
+- Added `/about.html`, `/admin/team.html`, `/js/about.js` to the SW precache; bumped cache version v7 -> v8
+- Verified the CI sw-cache-check passes
+
+### Notes
+
+- Followed the events/blog convention: team photos use a `photoUrl` text field (not a Storage upload). Storage-backed uploads are deferred to the gallery/music work.
+- `/team` has no `published` flag in the schema, so the public page shows all team entries (no draft state).
+- Branch `phase2/about-team` is stacked on `refactor/shared-nav` (which is stacked on `phase2/blog-page`). Merge order for the PRs: blog -> shared-nav -> about-team.
+
+### Phase 2 progress
+
+- [x] `/events.html` + `/admin/events.html`
+- [x] `/blog.html` + `/admin/blog.html`
+- [x] `/about.html` + `/admin/team.html`
+- [ ] `/connect.html` + `/admin/connect.html`
+- [ ] `/gallery.html` + `/admin/gallery.html`
+- [ ] `/music.html` + `/admin/music.html`
 
 ---
 
@@ -265,12 +296,12 @@
 - [x] `/events.html` — church calendar (public events) with cover images
 - [x] `/blog.html` — announcements with featured images
 - [ ] `/connect.html` — visitor connect form
-- [ ] `/about.html` — leadership team from Firestore
+- [x] `/about.html` — leadership team from Firestore
 - [ ] `/gallery.html` — public gallery page
 - [ ] `/music.html` — public music library (stream + download)
 - [x] `/admin/events.html`
 - [x] `/admin/blog.html`
-- [ ] `/admin/team.html`
+- [x] `/admin/team.html`
 - [ ] `/admin/gallery.html` — manage galleries (with audience selector)
 - [ ] `/admin/music.html` — upload and manage music tracks
 - [ ] `/admin/connect.html` — view visitor connect form submissions
