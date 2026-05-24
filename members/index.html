@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="EGC">
+  <link rel="apple-touch-icon" href="/assets/images/icons/icon-192.png">
+  <title>Members Area | Emmanuel Gospel Centre</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="/js/member-auth.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans">
+
+  <!-- Navigation (shared — see members-nav.html, injected by js/nav.js) -->
+  <div id="nav-placeholder"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-12 px-6">
+    <div class="max-w-7xl mx-auto">
+      <h1 class="text-3xl font-bold tracking-tight">Members Area</h1>
+      <p class="text-blue-200 mt-2" id="welcome-msg">Welcome to Emmanuel Gospel Centre</p>
+    </div>
+  </div>
+
+  <!-- DASHBOARD CARDS -->
+  <main class="max-w-7xl mx-auto px-6 py-10">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+
+      <!-- Directory -->
+      <a href="/members/directory.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-amber-200 transition-colors">
+          <i class="fas fa-address-book text-amber-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Member Directory</h2>
+        <p class="text-sm text-zinc-500">Browse the congregation directory and connect with fellow members.</p>
+      </a>
+
+      <!-- Groups -->
+      <a href="/members/groups.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-blue-200 transition-colors">
+          <i class="fas fa-people-group text-blue-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Small Groups</h2>
+        <p class="text-sm text-zinc-500">Browse and join small groups, or manage your own group.</p>
+      </a>
+
+      <!-- Prayer -->
+      <a href="/members/prayer.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-colors">
+          <i class="fas fa-hands-praying text-purple-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Prayer Requests</h2>
+        <p class="text-sm text-zinc-500">Submit prayer requests and pray for fellow members.</p>
+      </a>
+
+      <!-- Devotional -->
+      <a href="/members/devotional.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
+          <i class="fas fa-book-open text-green-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Daily Devotional</h2>
+        <p class="text-sm text-zinc-500">Read today's devotional message and scripture reflection.</p>
+      </a>
+
+      <!-- Gallery -->
+      <a href="/members/gallery.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-rose-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-rose-200 transition-colors">
+          <i class="fas fa-images text-rose-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Members Gallery</h2>
+        <p class="text-sm text-zinc-500">View members-only and youth photo galleries.</p>
+      </a>
+
+      <!-- Live Stream -->
+      <a href="/members/live.html"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-red-200 transition-colors">
+          <i class="fas fa-circle-play text-red-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Live Stream</h2>
+        <p class="text-sm text-zinc-500">Watch live services and past recordings.</p>
+      </a>
+
+    </div>
+  </main>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    // Personalise the welcome message once auth resolves
+    document.addEventListener('nav-loaded', () => {
+      if (typeof auth !== 'undefined') {
+        auth.onAuthStateChanged((user) => {
+          if (user && user.displayName) {
+            const first = user.displayName.split(' ')[0];
+            document.getElementById('welcome-msg').textContent =
+              `Welcome back, ${first}!`;
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>
