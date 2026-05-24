@@ -97,6 +97,7 @@ service cloud.firestore {
     match /connect/{id} {
       allow create: if true;
       allow read: if isEditor();
+      allow update: if isEditor();
       allow delete: if isEditor();
     }
 

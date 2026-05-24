@@ -135,4 +135,40 @@ describe('Firestore Security Rules', () => {
     });
   });
 
+  describe('Connect collection', () => {
+    it('anyone (unauthenticated) can submit a connect form', async () => {
+      const db = unauthUser().firestore();
+      await assertSucceeds(setDoc(doc(db, 'connect', 'c1'), {
+        name: 'Visitor', email: 'v@example.com', message: 'Hello', read: false
+      }));
+    });
+
+    it('unauthenticated user cannot read submissions', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'connect', 'c1'), { name: 'Visitor', read: false });
+      });
+      const db = unauthUser().firestore();
+      await assertFails(getDoc(doc(db, 'connect', 'c1')));
+    });
+
+    it('editor can read and mark a submission read', async () => {
+      await seedUser('editor-uid', { membership: 'public', adminRole: 'editor' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'connect', 'c1'), { name: 'Visitor', read: false });
+      });
+      const db = editorUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'connect', 'c1')));
+      await assertSucceeds(updateDoc(doc(db, 'connect', 'c1'), { read: true }));
+    });
+
+    it('member cannot read submissions', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'connect', 'c1'), { name: 'Visitor', read: false });
+      });
+      const db = memberUser().firestore();
+      await assertFails(getDoc(doc(db, 'connect', 'c1')));
+    });
+  });
+
 });

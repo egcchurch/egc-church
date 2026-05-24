@@ -9,7 +9,39 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-24
-**Current milestone:** Phase 2 in progress — About + Team built, pending review
+**Current milestone:** Phase 2 in progress — Connect form built, pending review
+
+---
+
+## Session: Connect Form (Session 15)
+
+**Date:** 2026-05-24
+**Status:** In progress — branch pushed, awaiting PR review
+
+### What was done
+
+- Built `/connect.html` — public visitor connect form (shared nav, navy header). Fields: name (required), email (required), phone (optional), message (required). On submit writes `{name, email, phone, message, read: false, submittedAt}` to `/connect`, then shows a thank-you state with a "send another" reset
+- Added `js/connect.js` — form validation, submit-to-Firestore, disabled/sending button state, error handling
+- Built `/admin/connect.html` — admin triage view (no add form): lists `/connect` newest-first, unread submissions highlighted (amber ring + Unread badge), Mark-read and Delete actions, clickable mailto/tel links, toasts, Refresh button
+- **Firestore rules:** added `allow update: if isEditor();` to `/connect` so admins can mark submissions read (previously only create/read/delete were allowed). Added a "Connect collection" describe block to tests/firestore.rules.test.js (public create ok, unauth read denied, editor read+update ok, member read denied)
+- **Ran the security-rules suite locally against the emulator — all 12 tests pass** (4 new Connect tests included)
+- Added CONNECT to the public nav (`nav.html`, replacing the commented CONTACT placeholder) and to the admin nav (`admin-nav.html`, after TEAM)
+- Added `/connect.html`, `/admin/connect.html`, `/js/connect.js` to the SW precache; bumped cache version v8 -> v9
+- Verified the CI sw-cache-check passes
+
+### Notes / decisions
+
+- Collection is `/connect` (matches the Firestore Data Structure section and firestore.rules). The `onNewConnectForm` Cloud Function in CLAUDE.md references `/connectForms` — that's an inconsistency in the doc; flagged, using `/connect`.
+- Public create rule is `allow create: if true` (unauthenticated). This is by design but is spam-exposed — a future hardening option is field validation in rules and/or a Cloud Function with abuse protection.
+
+### Phase 2 progress
+
+- [x] `/events.html` + `/admin/events.html`
+- [x] `/blog.html` + `/admin/blog.html`
+- [x] `/about.html` + `/admin/team.html`
+- [x] `/connect.html` + `/admin/connect.html`
+- [ ] `/gallery.html` + `/admin/gallery.html`
+- [ ] `/music.html` + `/admin/music.html`
 
 ---
 
@@ -295,7 +327,7 @@
 
 - [x] `/events.html` — church calendar (public events) with cover images
 - [x] `/blog.html` — announcements with featured images
-- [ ] `/connect.html` — visitor connect form
+- [x] `/connect.html` — visitor connect form
 - [x] `/about.html` — leadership team from Firestore
 - [ ] `/gallery.html` — public gallery page
 - [ ] `/music.html` — public music library (stream + download)
@@ -304,7 +336,7 @@
 - [x] `/admin/team.html`
 - [ ] `/admin/gallery.html` — manage galleries (with audience selector)
 - [ ] `/admin/music.html` — upload and manage music tracks
-- [ ] `/admin/connect.html` — view visitor connect form submissions
+- [x] `/admin/connect.html` — view visitor connect form submissions
 - [ ] Update service-worker.js cache list with new pages and bump cache version
 
 ### Phase 3 — Members Area
