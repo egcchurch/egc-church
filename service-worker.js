@@ -1,4 +1,4 @@
-const CACHE_NAME = 'egc-cache-v10';
+const CACHE_NAME = 'egc-cache-v11';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -10,6 +10,7 @@ const PRECACHE_URLS = [
   '/about.html',
   '/connect.html',
   '/gallery.html',
+  '/music.html',
   '/login.html',
   '/profile.html',
   '/nav.html',
@@ -21,6 +22,7 @@ const PRECACHE_URLS = [
   '/admin/team.html',
   '/admin/connect.html',
   '/admin/gallery.html',
+  '/admin/music.html',
   '/firebase-config.js',
   '/js/nav.js',
   '/js/main.js',
@@ -31,6 +33,7 @@ const PRECACHE_URLS = [
   '/js/about.js',
   '/js/connect.js',
   '/js/gallery.js',
+  '/js/music.js',
   '/js/storage-upload.js',
   '/js/admin-auth.js',
   '/js/member-auth.js',

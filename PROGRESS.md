@@ -9,7 +9,37 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-24
-**Current milestone:** Phase 2 in progress — Gallery built + migration-ready media storage, pending review
+**Current milestone:** Phase 2 Core Public Site complete (Music built, pending review)
+
+---
+
+## Session: Music Library (Session 17)
+
+**Date:** 2026-05-24
+**Status:** In progress — branch pushed, awaiting PR review
+
+### What was done
+
+- **`/music.html` + `js/music.js`** — public music library: shared nav, category filters (worship/choir/original/instrumental), track cards with cover art, title, artist, album/duration, an inline HTML5 `<audio>` player, and a download link (all tracks downloadable per policy). No Storage SDK on the public page. Query `published == true` (single equality, no composite index), sorted client-side by releaseDate desc, category filtered client-side.
+- **`/admin/music.html`** — full CRUD reusing `js/storage-upload.js`. Form: title, artist, description, category, album, track #, release date, published; audio upload (required for new) + optional cover art. Audio goes to `music/{trackId}_{file}`, cover to `music/covers/{trackId}_{file}` (matching the deployed storage.rules layout). Best-effort `durationSeconds` read from the audio file's metadata before upload. Edit replaces audio/cover (old files cleaned via `deleteMedia`); delete removes the doc + both files. `downloadable: true` stored per policy.
+- Added MUSIC to the public nav and admin nav (admin order now Gallery → Music → Connect, matching CLAUDE.md).
+- Added the new pages + `js/music.js` to the SW precache; bumped cache version v10 -> v11. CI sw-cache-check passes.
+
+### Notes / decisions
+
+- **Storage path mismatch flagged:** CLAUDE.md's "Firebase Storage Paths" list shows `/music/{trackId}/audio.mp3` and `/music/{trackId}/cover.jpg`, but the deployed `storage.rules` only allow `music/{fileName}` (audio) and `music/covers/{fileName}` (image) — single-segment paths. I followed the rules (enforcement layer) and used `music/{trackId}_{ts}_{name}` + `music/covers/{trackId}_{ts}_{name}`. The CLAUDE.md path list should be reconciled to match (or the rules changed) — did not touch deployed rules.
+- Reused the migration-ready `uploadMedia`/`deleteMedia` module from the gallery work — no new Storage knowledge added outside it.
+
+### Phase 2 — Core Public Site: COMPLETE
+
+- [x] `/events.html` + `/admin/events.html`
+- [x] `/blog.html` + `/admin/blog.html`
+- [x] `/about.html` + `/admin/team.html`
+- [x] `/connect.html` + `/admin/connect.html`
+- [x] `/gallery.html` + `/admin/gallery.html`
+- [x] `/music.html` + `/admin/music.html`
+
+Next milestone: Phase 3 — Members Area.
 
 ---
 
@@ -362,12 +392,12 @@
 - [x] `/connect.html` — visitor connect form
 - [x] `/about.html` — leadership team from Firestore
 - [x] `/gallery.html` — public gallery page
-- [ ] `/music.html` — public music library (stream + download)
+- [x] `/music.html` — public music library (stream + download)
 - [x] `/admin/events.html`
 - [x] `/admin/blog.html`
 - [x] `/admin/team.html`
 - [x] `/admin/gallery.html` — manage galleries (with audience selector)
-- [ ] `/admin/music.html` — upload and manage music tracks
+- [x] `/admin/music.html` — upload and manage music tracks
 - [x] `/admin/connect.html` — view visitor connect form submissions
 - [ ] Update service-worker.js cache list with new pages and bump cache version
 

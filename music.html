@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="EGC">
+  <link rel="apple-touch-icon" href="assets/images/icons/icon-192.png">
+  <title>Music | Emmanuel Gospel Centre</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    .category-btn.active {
+      background-color: #0A3D62;
+      color: white;
+      box-shadow: 0 2px 4px rgba(10, 61, 98, 0.2);
+    }
+  </style>
+</head>
+<body class="bg-zinc-50 font-sans">
+
+  <!-- Navigation (shared — see nav.html, injected by js/nav.js) -->
+  <div id="nav-placeholder"></div>
+
+  <!-- Header -->
+  <header class="bg-[#0A3D62] text-white py-16">
+    <div class="max-w-7xl mx-auto px-6 text-center">
+      <h1 class="text-5xl font-bold mb-4">Music</h1>
+      <p class="text-amber-200 max-w-lg mx-auto">Worship and song from the EGC family — stream or download</p>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-6 py-10">
+
+    <!-- Category filter -->
+    <div class="flex flex-wrap gap-3 mb-10">
+      <button onclick="setCategory('all')" id="filter-all"
+              class="category-btn active px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
+        All
+      </button>
+      <button onclick="setCategory('worship')" id="filter-worship"
+              class="category-btn px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
+        <i class="fas fa-hands-praying mr-1"></i> Worship
+      </button>
+      <button onclick="setCategory('choir')" id="filter-choir"
+              class="category-btn px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
+        <i class="fas fa-users mr-1"></i> Choir
+      </button>
+      <button onclick="setCategory('original')" id="filter-original"
+              class="category-btn px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
+        <i class="fas fa-star mr-1"></i> Original
+      </button>
+      <button onclick="setCategory('instrumental')" id="filter-instrumental"
+              class="category-btn px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
+        <i class="fas fa-music mr-1"></i> Instrumental
+      </button>
+    </div>
+
+    <!-- Track grid -->
+    <div id="music-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
+    <!-- Empty state -->
+    <p id="music-empty" class="hidden text-gray-500 text-center py-16">
+      <i class="fas fa-music text-3xl mb-3 block text-gray-300"></i>
+      No tracks in this category yet.
+    </p>
+
+    <!-- Loading state -->
+    <div id="loading" class="text-center py-16 text-gray-400">
+      <i class="fas fa-spinner fa-spin text-3xl mb-3 block"></i>
+      Loading music...
+    </div>
+
+    <!-- Error state -->
+    <div id="error-msg" class="hidden text-center py-16 text-red-400">
+      <i class="fas fa-exclamation-circle text-3xl mb-3 block"></i>
+      Failed to load music. Please try again later.
+    </div>
+
+  </div>
+
+  <script src="firebase-config.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/music.js"></script>
+</body>
+</html>
