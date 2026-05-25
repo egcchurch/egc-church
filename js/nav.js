@@ -27,9 +27,13 @@
       .then((html) => {
         placeholder.innerHTML = html;
         highlightActiveLink();
-        // Tell main.js the nav DOM now exists so it can bind the mobile
-        // toggle and auth-state buttons.
-        document.dispatchEvent(new CustomEvent('nav-loaded'));
+        // Load the notification bell module, then signal nav-ready so main.js
+        // can bind the mobile toggle and auth-state buttons.
+        const s = document.createElement('script');
+        s.src = '/js/notifications.js';
+        s.onload = () => document.dispatchEvent(new CustomEvent('nav-loaded'));
+        s.onerror = () => document.dispatchEvent(new CustomEvent('nav-loaded'));
+        document.head.appendChild(s);
       })
       .catch((err) => {
         // Don't crash the page if the nav fails to load.

@@ -238,6 +238,49 @@ describe('Firestore Security Rules', () => {
     });
   });
 
+  describe('User notifications subcollection', () => {
+    it('user can read their own notifications', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users', 'member-uid', 'notifications', 'n1'), {
+          title: 'Test', body: 'Hello', read: false
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'users', 'member-uid', 'notifications', 'n1')));
+    });
+
+    it('user can mark their own notification as read', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users', 'member-uid', 'notifications', 'n1'), {
+          title: 'Test', body: 'Hello', read: false
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'users', 'member-uid', 'notifications', 'n1'), { read: true }));
+    });
+
+    it('user cannot read another user notification', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users', 'other-uid', 'notifications', 'n1'), {
+          title: 'Secret', read: false
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(getDoc(doc(db, 'users', 'other-uid', 'notifications', 'n1')));
+    });
+
+    it('user can write their own FCM token', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      const db = memberUser().firestore();
+      await assertSucceeds(setDoc(doc(db, 'users', 'member-uid', 'fcmTokens', 'tok1'), {
+        token: 'abc123', device: 'Chrome', registeredAt: null
+      }));
+    });
+  });
+
   describe('Connect collection', () => {
     it('anyone (unauthenticated) can submit a connect form', async () => {
       const db = unauthUser().firestore();
