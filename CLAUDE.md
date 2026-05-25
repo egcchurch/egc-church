@@ -749,3 +749,5 @@ The agentic-style local workflow:
 - [x] **Phase 3 — Members Area** — complete and deployed
 - [x] **Phase 4 — Notifications & Messaging** — complete and deployed
 - [x] **Phase 5 — Polish** — complete and deployed
+- [ ] **Phase 6 — Permissions & Roles** — in progress (`docs/PERMISSIONS.md`)
+- [ ] **Phase 7 — Adaptive Homepage** — planned (`docs/HOMEPAGE.md`)
