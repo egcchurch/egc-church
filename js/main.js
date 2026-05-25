@@ -107,6 +107,11 @@ async function updateLoginButtons(user) {
       console.warn('Could not load user profile for nav', e);
     }
 
+    // Filter admin nav links by permission (admin pages only; Permissions defined by permissions.js)
+    if (typeof Permissions !== 'undefined') {
+      Permissions.init(user).then(() => Permissions.filterAdminNav());
+    }
+
     const displayName = user.displayName ? user.displayName.split(' ')[0] : 'Member';
     const isAdmin  = userData.adminRole === 'editor' || userData.adminRole === 'superadmin';
     const isMember = userData.membership === 'member' || isAdmin;

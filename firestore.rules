@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────────────────
     function isSignedIn() {
       return request.auth != null;
     }
@@ -12,87 +12,104 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.membership == 'member';
     }
 
-    function isEditor() {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.adminRole in ['editor', 'superadmin'];
+    // Phase 6: permission checks use Firebase Auth custom claims set by syncUserClaims.
+    // adminRole field kept in Firestore for the migration window (removed in PR 8).
+    function isSuperadmin() {
+      return request.auth != null && request.auth.token.superadmin == true;
     }
 
-    function isSuperAdmin() {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.adminRole == 'superadmin';
+    function hasPermission(p) {
+      return isSuperadmin() ||
+             (request.auth != null &&
+              request.auth.token.perms is list &&
+              p in request.auth.token.perms);
     }
 
     function isOwner(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // ── Users ─────────────────────────────────────────────────────────────
+    // ── Users ─────────────────────────────────────────────────────────────────
     match /users/{uid} {
-      // Members can read directory entries where the user has opted in
-      allow read: if isOwner(uid) || isEditor() ||
-        (isMember() && resource.data.directoryVisible == true);
+      allow read: if isOwner(uid) || isSuperadmin() || hasPermission('users.approve')
+                  || (isMember() && resource.data.directoryVisible == true);
       allow create: if isOwner(uid);
-      allow update: if isOwner(uid) || isSuperAdmin();
-      allow delete: if isSuperAdmin();
+      // isOwner: self-service profile fields (name, photo, privacy)
+      // users.approve: set membership tier
+      // users.assign_roles: set roles/extraPermissions (not isSuperadmin)
+      // isSuperadmin: unrestricted
+      allow update: if isOwner(uid)
+                    || isSuperadmin()
+                    || hasPermission('users.approve')
+                    || (hasPermission('users.assign_roles')
+                        && !request.resource.data.diff(resource.data).affectedKeys()
+                            .hasAny(['isSuperadmin']));
+      allow delete: if isSuperadmin();
     }
 
-    // ── User notifications subcollection ──────────────────────────────────
+    // ── User notifications subcollection ──────────────────────────────────────
     match /users/{uid}/notifications/{notifId} {
       allow read: if isOwner(uid);
       allow update: if isOwner(uid);
       // Cloud Functions write via admin SDK (bypasses these rules)
     }
 
-    // ── User FCM tokens subcollection ─────────────────────────────────────
+    // ── User FCM tokens subcollection ─────────────────────────────────────────
     match /users/{uid}/fcmTokens/{tokenId} {
       allow read: if isOwner(uid);
       allow write: if isOwner(uid);
       // Cloud Functions read via admin SDK
     }
 
-    // ── Sermons ───────────────────────────────────────────────────────────
+    // ── Sermons ───────────────────────────────────────────────────────────────
     match /sermons/{id} {
       allow read: if true;
-      allow write: if isEditor();
+      allow write: if hasPermission('sermons.manage');
     }
 
-    // ── Events ────────────────────────────────────────────────────────────
+    // ── Events ────────────────────────────────────────────────────────────────
     match /events/{id} {
       allow read: if true;
-      allow write: if isEditor();
+      allow write: if hasPermission('events.manage');
     }
 
-    // ── Blog ──────────────────────────────────────────────────────────────
+    // ── Blog ──────────────────────────────────────────────────────────────────
     match /blog/{id} {
       allow read: if true;
-      allow write: if isEditor();
+      allow write: if hasPermission('blog.manage');
     }
 
-    // ── Gallery ───────────────────────────────────────────────────────────
+    // ── Leadership Team ───────────────────────────────────────────────────────
+    match /team/{id} {
+      allow read: if true;
+      allow write: if hasPermission('team.manage');
+    }
+
+    // ── Gallery ───────────────────────────────────────────────────────────────
     match /gallery/{id} {
       allow read: if resource.data.audience == 'public' || isMember();
-      allow write: if isEditor();
+      allow write: if hasPermission('gallery.manage');
     }
 
-    // ── Music ─────────────────────────────────────────────────────────────
+    // ── Music ─────────────────────────────────────────────────────────────────
     match /music/{id} {
       allow read: if true;
-      allow write: if isEditor();
+      allow write: if hasPermission('music.manage');
     }
 
-    // ── Prayer Requests ───────────────────────────────────────────────────
+    // ── Prayer Requests ───────────────────────────────────────────────────────
     match /prayer/{id} {
       allow read: if isMember();
       allow create: if isMember();
-      allow update: if isOwner(resource.data.uid) || isEditor();
-      allow delete: if isEditor();
+      allow update: if isOwner(resource.data.uid) || hasPermission('prayer.moderate');
+      allow delete: if hasPermission('prayer.moderate');
     }
 
-    // ── Groups ────────────────────────────────────────────────────────────
+    // ── Groups ────────────────────────────────────────────────────────────────
     match /groups/{id} {
       allow read: if isMember();
-      allow create: if isEditor();
-      allow update: if isEditor() ||
+      allow create: if hasPermission('groups.manage');
+      allow update: if hasPermission('groups.manage') ||
         // Group leaders can manage their own group's members/pendingMembers
         (isSignedIn() && request.auth.uid in resource.data.leaders &&
           request.resource.data.diff(resource.data).affectedKeys()
@@ -101,43 +118,43 @@ service cloud.firestore {
         (isMember() &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['members', 'pendingMembers']));
-      allow delete: if isSuperAdmin();
+      allow delete: if isSuperadmin();
     }
 
-    // ── Devotionals ───────────────────────────────────────────────────────
+    // ── Devotionals ───────────────────────────────────────────────────────────
     match /devotionals/{id} {
       allow read: if isMember();
-      allow write: if isEditor();
+      allow write: if hasPermission('devotional.manage');
     }
 
-    // ── Notifications ─────────────────────────────────────────────────────
+    // ── Notifications ─────────────────────────────────────────────────────────
     match /notifications/{id} {
       allow read: if isSignedIn() &&
         (resource.data.audience == 'all' ||
          resource.data.audience == 'members' && isMember() ||
-         resource.data.audience == 'admins' && isEditor());
-      allow write: if isEditor();
+         resource.data.audience == 'admins' && hasPermission('notifications.send'));
+      allow write: if hasPermission('notifications.send');
     }
 
-    // ── Connect Forms ─────────────────────────────────────────────────────
+    // ── Connect Forms ─────────────────────────────────────────────────────────
     match /connect/{id} {
       allow create: if true;
-      allow read: if isEditor();
-      allow update: if isEditor();
-      allow delete: if isEditor();
+      allow read: if hasPermission('connect.view');
+      allow update: if hasPermission('connect.view');
+      allow delete: if hasPermission('connect.view');
     }
 
     // ── Roles (Phase 6) ───────────────────────────────────────────────────────
     match /roles/{roleId} {
       allow read: if isSignedIn();
-      allow create, update: if isSuperAdmin();
-      allow delete: if isSuperAdmin() && resource.data.isSystem != true;
+      allow create, update: if isSuperadmin();
+      allow delete: if isSuperadmin() && resource.data.isSystem != true;
     }
 
     // ── Homepage ──────────────────────────────────────────────────────────────
     match /homepage/{id} {
       allow read: if true;
-      allow write: if isEditor();
+      allow write: if hasPermission('homepage.manage');
     }
 
     // ── Messages (legacy flat collection — kept for backwards compat) ─────────

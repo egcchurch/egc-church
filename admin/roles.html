@@ -84,7 +84,8 @@
   <script src="/firebase-config.js"></script>
   <script src="/js/nav.js"></script>
   <script src="/js/main.js"></script>
-  <script src="/js/admin-auth.js"></script>
+  <script src="/js/permissions.js"></script>
+  <script src="/js/admin-auth.js" data-require-perm="users.assign_roles"></script>
   <script>
     const db = firebase.firestore();
     let isSuperadmin = false;

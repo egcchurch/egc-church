@@ -14,6 +14,51 @@
 
 ---
 
+## Session: Phase 6 PR 7 — rules migration + nav/dashboard permission filtering (Session 32)
+
+**Date:** 2026-05-26
+**Branch:** `phase6/migrate-rules-and-pages`
+**Status:** PR open
+
+### What was done
+
+**Firestore rules (`firestore.rules`)**
+- Replaced `isEditor()` and `isSuperAdmin()` Firestore-read helpers with claims-based `isSuperadmin()` (`request.auth.token.superadmin == true`) and `hasPermission(p)` (`superadmin || perms list contains p`). `isMember()` and `isOwner()` unchanged.
+- Every collection's write rule now uses `hasPermission('<area>.manage|send|moderate|view')` — one permission key per admin area.
+- `/users/{uid}` update rule: `isOwner || isSuperadmin || hasPermission('users.approve') || (hasPermission('users.assign_roles') && !affectedKeys.hasAny(['isSuperadmin']))` — enforces the privilege-escalation boundary at the rules layer.
+- Added missing `/team/{id}` rules block (public read, `team.manage` write) — previously no rule existed for this collection.
+
+**Tests (`tests/firestore.rules.test.js`)**
+- `editorUser()`: updated to pass `{ perms: [all 14 keys] }` custom claims (was empty `{}`).
+- `superAdmin()`: updated to pass `{ superadmin: true }` (was empty `{}`).
+- All 57 tests pass (41 rules tests + 16 unit tests).
+
+**`js/permissions.js`**
+- Added `filterAdminNav()`: hides `<a data-perm>` links in `#admin-nav-panel` and `#mobile-menu` where the user lacks the permission; hides `#admin-nav-wrapper` entirely if no links remain visible.
+
+**`js/main.js`**
+- `updateLoginButtons()` now calls `Permissions.init(user).then(() => Permissions.filterAdminNav())` after auth settles, guarded by `typeof Permissions !== 'undefined'` so it is a no-op on non-admin pages.
+
+**`admin-nav.html`**
+- All 14 admin nav links (desktop dropdown + mobile menu) now carry `data-perm="<key>"` attributes. `filterAdminNav()` uses these to show/hide links and the dropdown trigger.
+
+**`admin/index.html`**
+- Added `permissions.js` script tag. Added `id="dashboard-grid"` and `data-perm` on all 14 cards. Inline script runs `Permissions.init(user).then(...)` and hides cards the user cannot access.
+
+**All 14 admin content pages** (`sermons`, `events`, `blog`, `team`, `gallery`, `music`, `devotional`, `groups`, `homepage`, `notifications`, `prayer`, `connect`, `users`, `roles`)
+- Added `<script src="/js/permissions.js"></script>` before `admin-auth.js`.
+- Added `data-require-perm="<key>"` to the `admin-auth.js` script tag so the guard enforces the per-page permission via custom claims in addition to the existing `adminRole` check.
+
+### Notes / decisions
+
+- `isSuperadmin()` in rules now reads from `request.auth.token.superadmin` (custom claim), not from the Firestore user doc. This eliminates the extra Firestore read on every admin write and aligns with the Phase 6 design principle.
+- `adminRole` field kept in Firestore user docs — removed in PR 8 cleanup.
+- `isMember()` still reads from Firestore (`membership` field) — membership is intentionally NOT in custom claims; it's content-access, not capability-access.
+- The `PERMISSION_DENIED` log lines in test output are expected — they come from `assertFails` tests confirming denials.
+- Flash of all-links-visible before auth settles is acceptable (admin nav, not a public surface). Firestore rules and page-level guards are the real security boundary.
+
+---
+
 ## Session: Phase 6 PR 6 — permissions helper + admin-auth refactor (Session 31)
 
 **Date:** 2026-05-25
