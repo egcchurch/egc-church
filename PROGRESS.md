@@ -8,8 +8,66 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-05-24
-**Current milestone:** Phase 4 — Notifications & Messaging (not yet started)
+**Last worked on:** 2026-05-25
+**Current milestone:** Phase 4 — Notifications & Messaging (PRs open, awaiting review)
+
+---
+
+## Session: Phase 4 — Notifications & Messaging (Session 21)
+
+**Date:** 2026-05-25
+**Branches:** `phase4/notifications`, `phase4/messaging`
+**Status:** Both branches pushed, PRs open
+
+### What was done
+
+**PR 1 — `phase4/notifications`:**
+- **`js/notifications.js`** — self-initialising IIFE. Registers `auth.onAuthStateChanged`. When signed in: shows the notification bell, starts a Firestore `onSnapshot` listener on `/users/{uid}/notifications/` (ordered by `sentAt` desc, limit 20), renders a dropdown panel with unread count badge and mark-read-on-click. When signed out: tears down listener, hides bell. Also registers FCM token: lazy-loads `firebase-messaging-compat.js`, requests `Notification` permission, calls `messaging.getToken({ vapidKey, serviceWorkerRegistration })` (uses the existing caching SW rather than a separate `firebase-messaging-sw.js`), stores token in `/users/{uid}/fcmTokens/`. Handles foreground push via `messaging.onMessage()` toast.
+- **`js/nav.js`** — updated to load `notifications.js` dynamically after the nav partial is injected, then dispatch `nav-loaded`. This makes the notification bell available on every page without adding a script tag to every HTML file.
+- **`nav.html` / `members-nav.html` / `admin-nav.html`** — right-side of header refactored to a flex container holding `#notif-bell-wrapper` (bell + badge + dropdown panel), `#user-menu-wrapper` (login/user button), and `#mobile-btn`. Bell is `hidden` by default; `notifications.js` shows it on login.
+- **`admin-nav.html`** — NOTIFICATIONS link added to desktop and mobile menus.
+- **`admin/notifications.html`** — broadcast compose form (title, body, type, audience) + live history list. Calls `sendBroadcast` Cloud Function via `firebase.functions().httpsCallable()`. Loads `firebase-functions-compat.js`.
+- **`admin/index.html`** — Notifications card added (violet accent, bell icon).
+- **`functions/index.js`** — 4 new Cloud Functions:
+  - `sendBroadcast` (callable): verifies admin role, writes to `/notifications/`, fans out in-app notifications to matching users (batched 400/write-batch), collects FCM tokens and sends via `sendEachForMulticast` (batched 500).
+  - `onNewPrayerRequest` (Firestore trigger on `prayer/{requestId}`): private requests notify admins; public notify all members.
+  - `onNewConnectForm` (Firestore trigger on `connect/{submissionId}`): notifies all editors/superadmins.
+  - `weeklyDigest` (pubsub, every Sunday 09:00 SAST): compiles recent sermons + upcoming events into digest, writes in-app + sends FCM to all members.
+- **`firestore.rules`** — added subcollection rules: `/users/{uid}/notifications/{id}` (owner read/update), `/users/{uid}/fcmTokens/{id}` (owner read/write).
+- **`tests/firestore.rules.test.js`** — 4 new tests: own-notifications read, mark-read update, cross-user denied, FCM token write.
+- **`service-worker.js`** — Firebase Messaging SDK added via `importScripts` for background push handling (reuses caching SW, no separate `firebase-messaging-sw.js` needed). Cache bumped v13 → v14. `admin/notifications.html` and `js/notifications.js` added to precache.
+
+**PR 2 — `phase4/messaging`** (stacked on PR 1):
+- **`members/messages.html`** — split-pane DM UI: conversation list (left sidebar, 280px) + message thread (right, flex-1). "New Message" button opens a member picker modal. Thread auto-scrolls to latest. Auto-opens conversation from `?conv=<id>` URL param (used by notification deep links from `onNewMessage`).
+- **`js/messaging.js`** — self-initialising IIFE. Loads conversation list with `onSnapshot` (`participants array-contains`), renders conversation rows with last message preview and unread indicator. Opens conversation: loads nested `messages` sub-collection with `onSnapshot`, renders bubbles (mine right/navy, theirs left/white). Send form: adds message to `/conversations/{convId}/messages/`, updates `lastMessage`/`lastMessageAt`/`unreadBy` on the conversation doc. Start new conversation: queries `directoryVisible==true` members, checks for existing conversation before creating, creates `/conversations/{convId}` with `participants` array.
+- **`members-nav.html`** — MESSAGES link added to desktop + mobile nav.
+- **`functions/index.js`** — `onNewMessage` Firestore trigger on `conversations/{convId}/messages/{msgId}`: finds recipient, writes in-app notification, sends FCM push to recipient's tokens.
+- **`firestore.rules`** — `/conversations/{convId}` (participants can read/update) + nested `/messages/{msgId}` (participants can read/create, no update/delete). Legacy `/messages` flat collection rules preserved.
+- **`tests/firestore.rules.test.js`** — 4 new conversation tests: participant read, non-participant denied, nested message read, nested message denied.
+- **`service-worker.js`** — cache bumped v14 → v15; `members/messages.html` and `js/messaging.js` added to precache.
+
+### Notes / decisions
+
+- **VAPID key required for FCM push**: `js/notifications.js` has `const VAPID_KEY = 'YOUR_VAPID_KEY_HERE'`. Get from Firebase Console > Project Settings > Cloud Messaging > Web Push certificates > Generate key pair. In-app notification bell works without it; FCM push activates once filled in.
+- **Single service worker for both caching and FCM**: passing `serviceWorkerRegistration: await navigator.serviceWorker.ready` to `messaging.getToken()` reuses the caching SW. Firebase Messaging compat SDK is loaded via `importScripts` at the top of `service-worker.js`. Avoids the two-SW-per-scope conflict.
+- **Conversations schema**: used `/conversations/{convId}/messages/{msgId}` (nested) rather than the flat `/messages/{messageId}` in the original schema. This matches the Cloud Function trigger path referenced in CLAUDE.md and makes the conversation UI much simpler (list conversations, then messages within one). Old `/messages` rules are preserved.
+- **`onNewPrayerRequest` does not send FCM** — in-app only, matching the broadcast type table in CLAUDE.md ("Prayer request alert: In-app only").
+- **`onNewConnectForm` does not send FCM** — in-app only ("Connect form alert: In-app only").
+- **`weeklyDigest` uses `Africa/Johannesburg` timezone** (UTC+2, SAST) — inferred from domains.co.za domain registrar.
+
+### Phase 4 — Notifications & Messaging
+
+- [x] FCM token registration on login
+- [x] In-app notification bell (nav, real-time Firestore listener)
+- [x] `/admin/notifications.html` — compose and send broadcasts
+- [x] Cloud Function: `sendBroadcast` (HTTP/callable, FCM fan-out)
+- [x] Cloud Function: `onNewMessage` (Firestore trigger, DM push)
+- [x] Cloud Function: `onNewPrayerRequest` (Firestore trigger, alert fan-out)
+- [x] Cloud Function: `onNewConnectForm` (Firestore trigger, admin alert)
+- [x] Cloud Function: `weeklyDigest` (scheduled, Sunday)
+- [x] `/members/messages.html` — direct messaging between members
+
+**Phase 4 complete** — pending PR reviews and merge.
 
 ---
 
