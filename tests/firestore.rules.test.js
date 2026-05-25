@@ -238,6 +238,60 @@ describe('Firestore Security Rules', () => {
     });
   });
 
+  describe('Conversations collection', () => {
+    it('participant can read their conversation', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          participants: ['member-uid', 'other-uid'],
+          lastMessage: 'Hello'
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'conversations', 'conv1')));
+    });
+
+    it('non-participant cannot read conversation', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          participants: ['other-uid', 'another-uid'],
+          lastMessage: 'Secret'
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(getDoc(doc(db, 'conversations', 'conv1')));
+    });
+
+    it('participant can read messages in their conversation', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          participants: ['member-uid', 'other-uid']
+        });
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1', 'messages', 'msg1'), {
+          senderId: 'other-uid', body: 'Hi there', sentAt: null
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'conversations', 'conv1', 'messages', 'msg1')));
+    });
+
+    it('non-participant cannot read messages in someone else conversation', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          participants: ['other-uid', 'another-uid']
+        });
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1', 'messages', 'msg1'), {
+          senderId: 'other-uid', body: 'Private', sentAt: null
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(getDoc(doc(db, 'conversations', 'conv1', 'messages', 'msg1')));
+    });
+  });
+
   describe('User notifications subcollection', () => {
     it('user can read their own notifications', async () => {
       await seedUser('member-uid', { membership: 'member', adminRole: null });
