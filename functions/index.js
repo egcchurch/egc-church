@@ -268,3 +268,84 @@ exports.onNewMessage = functions.firestore
       webpush: { notification: { icon: '/assets/images/icons/icon-192.png' } },
     });
   });
+
+// ── deleteUserAccount ─────────────────────────────────────────────────────────
+// Callable from /profile.html.
+// Performs GDPR-compliant account deletion:
+//   - removes personal data (auth account, user doc, subcollections, photo)
+//   - anonymises authored content (prayer requests, gallery entries)
+//   - removes user from group member lists
+
+exports.deleteUserAccount = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
+  }
+  const uid = context.auth.uid;
+
+  try {
+    const bucket = admin.storage().bucket();
+
+    // 1. Delete profile photo — best-effort, no error if absent
+    await bucket.file(`users/${uid}/photo`).delete().catch(() => {});
+
+    // 2. Delete FCM tokens subcollection
+    const tokensSnap = await db.collection('users').doc(uid).collection('fcmTokens').get();
+    if (!tokensSnap.empty) {
+      const batch = db.batch();
+      tokensSnap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+
+    // 3. Delete notifications subcollection (batched for large counts)
+    const notifsSnap = await db.collection('users').doc(uid).collection('notifications').get();
+    if (!notifsSnap.empty) {
+      const CHUNK = 400;
+      for (let i = 0; i < notifsSnap.docs.length; i += CHUNK) {
+        const batch = db.batch();
+        notifsSnap.docs.slice(i, i + CHUNK).forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+
+    // 4. Anonymise prayer requests authored by this user
+    const prayerSnap = await db.collection('prayer').where('uid', '==', uid).get();
+    if (!prayerSnap.empty) {
+      const batch = db.batch();
+      prayerSnap.docs.forEach(d => batch.update(d.ref, { uid: 'deleted-user', authorName: 'Deleted User' }));
+      await batch.commit();
+    }
+
+    // 5. Anonymise gallery entries created by this user
+    const gallerySnap = await db.collection('gallery').where('createdBy', '==', uid).get();
+    if (!gallerySnap.empty) {
+      const batch = db.batch();
+      gallerySnap.docs.forEach(d => batch.update(d.ref, { createdBy: 'deleted-user' }));
+      await batch.commit();
+    }
+
+    // 6. Remove user from group member/leader/pending lists
+    const groupsSnap = await db.collection('groups').where('members', 'array-contains', uid).get();
+    if (!groupsSnap.empty) {
+      const batch = db.batch();
+      groupsSnap.docs.forEach(d => batch.update(d.ref, {
+        members:        admin.firestore.FieldValue.arrayRemove(uid),
+        pendingMembers: admin.firestore.FieldValue.arrayRemove(uid),
+        leaders:        admin.firestore.FieldValue.arrayRemove(uid),
+      }));
+      await batch.commit();
+    }
+
+    // 7. Delete /users/{uid} document
+    await db.collection('users').doc(uid).delete();
+
+    // 8. Delete Firebase Auth account (must be last — invalidates context.auth.uid)
+    await admin.auth().deleteUser(uid);
+
+    console.log(`Account deleted: ${uid}`);
+    return { success: true };
+
+  } catch (err) {
+    console.error(`Failed to delete account for ${uid}:`, err);
+    throw new functions.https.HttpsError('internal', 'Account deletion failed. Please try again.');
+  }
+});
