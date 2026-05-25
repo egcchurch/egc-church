@@ -28,8 +28,57 @@ document.addEventListener('nav-loaded', () => {
     }
   });
 
+  initNavDropdowns();
   checkAuthState();
 });
+
+// ==================== NAV DROPDOWNS ====================
+
+function initNavDropdowns() {
+  const configs = [
+    { btnId: 'members-nav-btn', panelId: 'members-nav-panel', chevronId: 'members-nav-chevron', wrapperId: 'members-nav-wrapper' },
+    { btnId: 'admin-nav-btn',   panelId: 'admin-nav-panel',   chevronId: 'admin-nav-chevron',   wrapperId: 'admin-nav-wrapper'   },
+  ];
+
+  configs.forEach(({ btnId, panelId, chevronId }) => {
+    const btn    = document.getElementById(btnId);
+    const panel  = document.getElementById(panelId);
+    const chevron = document.getElementById(chevronId);
+    if (!btn || !panel) return;
+
+    btn.addEventListener('click', () => {
+      const isOpen = !panel.classList.contains('hidden');
+      // Close all nav dropdowns
+      configs.forEach(({ panelId: p, chevronId: c }) => {
+        document.getElementById(p)?.classList.add('hidden');
+        document.getElementById(c)?.classList.remove('rotate-180');
+      });
+      if (!isOpen) {
+        panel.classList.remove('hidden');
+        chevron?.classList.add('rotate-180');
+      }
+    });
+  });
+
+  // Close on outside click (each wrapper checked independently so they close each other)
+  document.addEventListener('click', (e) => {
+    configs.forEach(({ panelId, chevronId, wrapperId }) => {
+      const wrapper = document.getElementById(wrapperId);
+      if (wrapper && !wrapper.contains(e.target)) {
+        document.getElementById(panelId)?.classList.add('hidden');
+        document.getElementById(chevronId)?.classList.remove('rotate-180');
+      }
+    });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    configs.forEach(({ panelId, chevronId }) => {
+      document.getElementById(panelId)?.classList.add('hidden');
+      document.getElementById(chevronId)?.classList.remove('rotate-180');
+    });
+  });
+}
 
 // ==================== AUTH STATE ====================
 

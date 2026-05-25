@@ -48,10 +48,20 @@
     document.querySelectorAll('#nav-placeholder a[href]').forEach((link) => {
       const linkPath = new URL(link.getAttribute('href'), window.location.origin).pathname;
       if (linkPath === current) {
-        link.classList.remove('hover:text-amber-600', 'transition-colors');
+        link.classList.remove('hover:text-amber-600', 'hover:bg-amber-50', 'transition-colors');
         link.classList.add('text-amber-600', 'font-semibold');
       }
     });
+
+    // Highlight the dropdown trigger when browsing within that section
+    const membersBtn = document.getElementById('members-nav-btn');
+    if (membersBtn && current.startsWith('/members/')) {
+      membersBtn.classList.add('text-amber-600', 'font-semibold');
+    }
+    const adminBtn = document.getElementById('admin-nav-btn');
+    if (adminBtn && current.startsWith('/admin/')) {
+      adminBtn.classList.add('text-amber-600', 'font-semibold');
+    }
   }
 
   if (document.readyState === 'loading') {
