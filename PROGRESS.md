@@ -14,6 +14,35 @@
 
 ---
 
+## Session: Phase 6 PR 5 — admin/users.html permissions UI (Session 30)
+
+**Date:** 2026-05-25
+**Branch:** `phase6/admin-users-ui`
+**Status:** PR open
+
+### What was done
+
+- **`admin/users.html`** — Added expandable "Permissions" section to every user card (both Pending and All Members tabs).
+  - Roles fetched from `/roles/` collection on page load (parallel with current-user doc fetch).
+  - Each card has a "Permissions ▾" toggle bar (chevron rotates on open). Collapsed by default.
+  - Inside: two-column grid — **Roles** checklist (one checkbox per `/roles/` doc, pre-checked from `u.roles`) and **Extra Permissions** checklist (all 14 permission keys, pre-checked from `u.extraPermissions`).
+  - **Superadmin override toggle** (amber toggle switch): rendered only when the viewing user is a superadmin AND the card is not their own record (prevents self-lockout). Pre-set from `u.isSuperadmin`.
+  - **Save Permissions** button writes `roles`, `extraPermissions`, and optionally `isSuperadmin` to the user doc. `syncUserClaims` function fires automatically on the write — no extra work needed.
+  - Status indicator ("Saving…" / "Saved" / error) inline next to the Save button.
+  - Added `escHtml()` utility (same as roles.html) — all Firestore strings escaped before DOM insertion.
+  - Existing Approve / Revoke / Make Editor / Make Superadmin / Remove Role buttons retained unchanged (still write `adminRole` for backward compatibility during migration window).
+  - Removed the `DOMContentLoaded → loadUsers()` call; users now load after auth settles and roles are cached.
+
+### Notes / decisions
+
+- `isSuperadmin` is detected from `adminRole === 'superadmin'` on the user's own Firestore doc — consistent with the pattern in admin/roles.html. This is the correct approach during the Phase 6 migration window before rules switch to custom claims.
+- Roles and current-user doc fetched in parallel (`Promise.all`) so page load is not serialised.
+- `rolesCache` gracefully handles the pre-migration state (empty `/roles/` collection) — shows a "run migration" message instead of empty checkboxes.
+- The "assigned" badge on the Permissions toggle bar gives a quick visual cue that a user has non-default permissions without needing to expand every card.
+- No SW cache change — `admin/users.html` was already in the precache list.
+
+---
+
 ## Session: Phase 6 PR 4 — admin/roles.html UI (Session 29)
 
 **Date:** 2026-05-25

@@ -23,7 +23,7 @@
   <div class="bg-[#0A3D62] text-white py-10 px-6">
     <div class="max-w-7xl mx-auto">
       <h1 class="text-3xl font-bold tracking-tight">User Management</h1>
-      <p class="text-blue-200 mt-1">Manage member approvals and roles</p>
+      <p class="text-blue-200 mt-1">Manage member approvals and permission roles</p>
     </div>
   </div>
 
@@ -59,6 +59,63 @@
   <script>
     const db = firebase.firestore();
     let currentTab = 'pending';
+    let isSuperadmin = false;
+    let currentUid = null;
+    let rolesCache = [];
+
+    const ALL_PERMS = [
+      'sermons.manage',
+      'events.manage',
+      'blog.manage',
+      'team.manage',
+      'gallery.manage',
+      'music.manage',
+      'devotional.manage',
+      'groups.manage',
+      'homepage.manage',
+      'notifications.send',
+      'prayer.moderate',
+      'connect.view',
+      'users.approve',
+      'users.assign_roles',
+    ];
+
+    const PERM_LABELS = {
+      'sermons.manage':     'Sermons',
+      'events.manage':      'Events',
+      'blog.manage':        'Blog',
+      'team.manage':        'Leadership Team',
+      'gallery.manage':     'Gallery',
+      'music.manage':       'Music',
+      'devotional.manage':  'Devotional',
+      'groups.manage':      'Groups',
+      'homepage.manage':    'Homepage',
+      'notifications.send': 'Notifications',
+      'prayer.moderate':    'Prayer Requests',
+      'connect.view':       'Connect Forms',
+      'users.approve':      'User Approval',
+      'users.assign_roles': 'Assign Roles',
+    };
+
+    // Fetch current user's role and the roles collection in parallel, then load users.
+    firebase.auth().onAuthStateChanged((user) => {
+      if (!user) return;
+      currentUid = user.uid;
+
+      const userDocP = db.collection('users').doc(user.uid).get().then((doc) => {
+        if (doc.exists) {
+          isSuperadmin = doc.data().adminRole === 'superadmin';
+        }
+      });
+
+      const rolesP = db.collection('roles').orderBy('displayName').get().then((snap) => {
+        rolesCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      });
+
+      Promise.all([userDocP, rolesP])
+        .then(() => loadUsers())
+        .catch(() => loadUsers());
+    });
 
     function setTab(tab) {
       currentTab = tab;
@@ -99,8 +156,7 @@
 
         list.innerHTML = '';
         snapshot.forEach(doc => {
-          const u = doc.data();
-          list.innerHTML += renderUserCard(doc.id, u);
+          list.innerHTML += renderUserCard(doc.id, doc.data());
         });
       }).catch(err => {
         console.error(err);
@@ -112,70 +168,239 @@
 
     function renderUserCard(uid, u) {
       const joined = u.createdAt?.toDate().toLocaleDateString() || 'Unknown';
+
       const membershipBadge = {
         pending: 'bg-yellow-100 text-yellow-700',
-        member: 'bg-green-100 text-green-700',
-        public: 'bg-gray-100 text-gray-700',
+        member:  'bg-green-100 text-green-700',
+        public:  'bg-gray-100 text-gray-700',
       }[u.membership] || 'bg-gray-100 text-gray-600';
 
       const roleBadge = u.adminRole
-        ? `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">${u.adminRole}</span>`
+        ? `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">${escHtml(u.adminRole)}</span>`
         : '';
 
+      // Phase 6 permission fields (may be absent before migration)
+      const userRoles      = Array.isArray(u.roles) ? u.roles : [];
+      const userExtraPerms = Array.isArray(u.extraPermissions) ? u.extraPermissions : [];
+      const userIsSA       = u.isSuperadmin === true;
+
+      const isSABadge = userIsSA
+        ? `<span class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">superadmin</span>`
+        : '';
+
+      // ── Roles checklist ────────────────────────────────────────────────────
+      const rolesHtml = rolesCache.length
+        ? rolesCache.map((r) => {
+            const checked = userRoles.includes(r.id) ? 'checked' : '';
+            return `<label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+              <input type="checkbox" class="perm-role accent-amber-500 w-4 h-4"
+                     value="${escHtml(r.id)}" ${checked}>
+              ${escHtml(r.displayName)}
+            </label>`;
+          }).join('')
+        : `<p class="text-sm text-gray-400 italic">No roles available — run the migration to seed default roles.</p>`;
+
+      // ── Extra permissions checklist ────────────────────────────────────────
+      const extraPermsHtml = ALL_PERMS.map((p) => {
+        const checked = userExtraPerms.includes(p) ? 'checked' : '';
+        return `<label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+          <input type="checkbox" class="perm-extra accent-amber-500 w-4 h-4"
+                 value="${p}" ${checked}>
+          ${PERM_LABELS[p] || p}
+        </label>`;
+      }).join('');
+
+      // ── Superadmin toggle — visible only to superadmin viewers, hidden on own card ─
+      const superadminSection = (isSuperadmin && uid !== currentUid) ? `
+        <div class="mt-5 pt-4 border-t border-zinc-100 flex items-center justify-between">
+          <div>
+            <p class="text-sm font-semibold text-gray-700">Superadmin override</p>
+            <p class="text-xs text-gray-400 mt-0.5">Grants all 14 permissions. Use with care.</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="superadmin-${uid}" class="sr-only peer"
+                   ${userIsSA ? 'checked' : ''}>
+            <div class="w-11 h-6 bg-gray-200 rounded-full peer
+                        peer-checked:bg-amber-500
+                        after:content-[''] after:absolute after:top-0.5 after:left-0.5
+                        after:bg-white after:rounded-full after:h-5 after:w-5
+                        after:transition-all peer-checked:after:translate-x-5"></div>
+          </label>
+        </div>` : '';
+
+      // ── Permissions-assigned indicator ─────────────────────────────────────
+      const hasPerms = userRoles.length || userExtraPerms.length || userIsSA;
+      const permsBadge = hasPerms
+        ? `<span class="ml-2 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">assigned</span>`
+        : '';
+
+      // ── Membership / legacy role buttons ───────────────────────────────────
+      const membershipBtn = u.membership === 'pending'
+        ? `<button onclick="approveMember('${uid}')"
+                   class="bg-green-500 hover:bg-green-600 text-white text-sm px-4 py-2 rounded-full transition">
+             Approve
+           </button>`
+        : u.membership === 'member'
+          ? `<button onclick="setMembership('${uid}', 'pending')"
+                     class="bg-yellow-400 hover:bg-yellow-500 text-white text-sm px-4 py-2 rounded-full transition">
+               Revoke
+             </button>`
+          : '';
+
+      const roleButtons = !u.adminRole
+        ? `<button onclick="setRole('${uid}', 'editor')"
+                   class="bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-2 rounded-full transition">
+             Make Editor
+           </button>`
+        : u.adminRole === 'editor'
+          ? `<button onclick="setRole('${uid}', 'superadmin')"
+                     class="bg-purple-500 hover:bg-purple-600 text-white text-sm px-4 py-2 rounded-full transition">
+               Make Superadmin
+             </button>
+             <button onclick="setRole('${uid}', null)"
+                     class="bg-gray-300 hover:bg-gray-400 text-gray-700 text-sm px-4 py-2 rounded-full transition">
+               Remove Role
+             </button>`
+          : u.adminRole === 'superadmin'
+            ? `<button onclick="setRole('${uid}', null)"
+                       class="bg-gray-300 hover:bg-gray-400 text-gray-700 text-sm px-4 py-2 rounded-full transition">
+                 Remove Role
+               </button>`
+            : '';
+
       return `
-        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col md:flex-row md:items-center gap-4">
-          <div class="flex items-center gap-4 flex-1">
-            ${u.photoURL
-              ? `<img src="${u.photoURL}" class="w-12 h-12 rounded-full object-cover">`
-              : `<div class="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-lg">
-                  ${(u.displayName || u.email || '?')[0].toUpperCase()}
-                </div>`
-            }
-            <div>
-              <p class="font-semibold text-gray-900">${u.displayName || '(no name)'}</p>
-              <p class="text-sm text-gray-500">${u.email}</p>
-              <p class="text-xs text-gray-400 mt-1">Joined ${joined}</p>
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+
+          <!-- Main info row -->
+          <div class="p-6 flex flex-col md:flex-row md:items-center gap-4">
+
+            <!-- Avatar + name/email -->
+            <div class="flex items-center gap-4 flex-1">
+              ${u.photoURL
+                ? `<img src="${escHtml(u.photoURL)}" class="w-12 h-12 rounded-full object-cover">`
+                : `<div class="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-lg">
+                    ${escHtml((u.displayName || u.email || '?')[0].toUpperCase())}
+                  </div>`
+              }
+              <div>
+                <p class="font-semibold text-gray-900">${escHtml(u.displayName || '(no name)')}</p>
+                <p class="text-sm text-gray-500">${escHtml(u.email || '')}</p>
+                <p class="text-xs text-gray-400 mt-1">Joined ${joined}</p>
+              </div>
+            </div>
+
+            <!-- Badges -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs px-3 py-1 rounded-full font-medium ${membershipBadge}">${escHtml(u.membership)}</span>
+              ${roleBadge}
+              ${isSABadge}
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex gap-2 flex-wrap">
+              ${membershipBtn}
+              ${roleButtons}
+            </div>
+
+          </div>
+
+          <!-- Permissions toggle bar -->
+          <button onclick="togglePermissions('${uid}')"
+                  class="w-full px-6 py-3 flex items-center justify-between
+                         text-sm border-t border-zinc-100 hover:bg-zinc-50 transition-colors">
+            <span class="font-medium text-gray-600">
+              <i class="fas fa-shield-halved mr-2 text-amber-500"></i>Permissions
+              ${permsBadge}
+            </span>
+            <i class="fas fa-chevron-down text-gray-400 transition-transform duration-200" id="chevron-${uid}"></i>
+          </button>
+
+          <!-- Expandable permissions section -->
+          <div id="perms-${uid}" class="hidden px-6 pb-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+
+              <!-- Roles -->
+              <div>
+                <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Roles</h4>
+                <div class="space-y-2">
+                  ${rolesHtml}
+                </div>
+              </div>
+
+              <!-- Extra permissions -->
+              <div>
+                <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  Extra Permissions
+                  <span class="ml-1 text-gray-400 font-normal normal-case">(one-off grants)</span>
+                </h4>
+                <div class="space-y-2">
+                  ${extraPermsHtml}
+                </div>
+              </div>
+
+            </div>
+
+            ${superadminSection}
+
+            <!-- Save controls -->
+            <div class="mt-5 flex items-center gap-3">
+              <button onclick="savePermissions('${uid}')"
+                      class="bg-amber-500 hover:bg-amber-600 text-white text-sm px-5 py-2 rounded-full transition font-medium">
+                Save Permissions
+              </button>
+              <span id="perm-status-${uid}" class="text-sm hidden"></span>
             </div>
           </div>
 
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-xs px-3 py-1 rounded-full font-medium ${membershipBadge}">${u.membership}</span>
-            ${roleBadge}
-          </div>
-
-          <div class="flex gap-2 flex-wrap">
-            ${u.membership === 'pending' ? `
-              <button onclick="approveMember('${uid}')"
-                      class="bg-green-500 hover:bg-green-600 text-white text-sm px-4 py-2 rounded-full transition">
-                Approve
-              </button>` : ''}
-            ${u.membership === 'member' ? `
-              <button onclick="setMembership('${uid}', 'pending')"
-                      class="bg-yellow-400 hover:bg-yellow-500 text-white text-sm px-4 py-2 rounded-full transition">
-                Revoke
-              </button>` : ''}
-            ${!u.adminRole ? `
-              <button onclick="setRole('${uid}', 'editor')"
-                      class="bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-2 rounded-full transition">
-                Make Editor
-              </button>` : ''}
-            ${u.adminRole === 'editor' ? `
-              <button onclick="setRole('${uid}', 'superadmin')"
-                      class="bg-purple-500 hover:bg-purple-600 text-white text-sm px-4 py-2 rounded-full transition">
-                Make Superadmin
-              </button>
-              <button onclick="setRole('${uid}', null)"
-                      class="bg-gray-300 hover:bg-gray-400 text-gray-700 text-sm px-4 py-2 rounded-full transition">
-                Remove Role
-              </button>` : ''}
-            ${u.adminRole === 'superadmin' ? `
-              <button onclick="setRole('${uid}', null)"
-                      class="bg-gray-300 hover:bg-gray-400 text-gray-700 text-sm px-4 py-2 rounded-full transition">
-                Remove Role
-              </button>` : ''}
-          </div>
         </div>`;
     }
+
+    // ── Toggle expand / collapse ───────────────────────────────────────────────
+
+    function togglePermissions(uid) {
+      const section = document.getElementById(`perms-${uid}`);
+      const chevron = document.getElementById(`chevron-${uid}`);
+      const nowOpen = section.classList.toggle('hidden') === false;
+      chevron.classList.toggle('rotate-180', nowOpen);
+    }
+
+    // ── Save roles + extra permissions (+ optional isSuperadmin) ──────────────
+
+    function savePermissions(uid) {
+      const section   = document.getElementById(`perms-${uid}`);
+      const statusEl  = document.getElementById(`perm-status-${uid}`);
+
+      const selectedRoles = [...section.querySelectorAll('.perm-role:checked')].map(el => el.value);
+      const selectedExtra = [...section.querySelectorAll('.perm-extra:checked')].map(el => el.value);
+
+      const update = {
+        roles:            selectedRoles,
+        extraPermissions: selectedExtra,
+        updatedAt:        firebase.firestore.FieldValue.serverTimestamp(),
+      };
+
+      // isSuperadmin toggle is only rendered for superadmin viewers on other users' cards
+      if (isSuperadmin && uid !== currentUid) {
+        const toggle = document.getElementById(`superadmin-${uid}`);
+        if (toggle) update.isSuperadmin = toggle.checked;
+      }
+
+      statusEl.textContent = 'Saving…';
+      statusEl.className = 'text-sm text-gray-400';
+
+      db.collection('users').doc(uid).update(update)
+        .then(() => {
+          statusEl.textContent = 'Saved';
+          statusEl.className = 'text-sm text-green-600';
+          setTimeout(() => { statusEl.textContent = ''; statusEl.className = 'text-sm hidden'; }, 2500);
+        })
+        .catch(err => {
+          statusEl.textContent = 'Error: ' + err.message;
+          statusEl.className = 'text-sm text-red-500';
+        });
+    }
+
+    // ── Membership / legacy role helpers ─────────────────────────────────────
 
     function approveMember(uid) {
       setMembership(uid, 'member');
@@ -193,7 +418,13 @@
         .catch(err => alert('Error: ' + err.message));
     }
 
-    document.addEventListener('DOMContentLoaded', () => loadUsers());
+    // ── Utility ───────────────────────────────────────────────────────────────
+
+    function escHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
   </script>
 </body>
 </html>
