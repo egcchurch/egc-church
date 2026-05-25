@@ -9,7 +9,7 @@
 //   3. Replace the placeholder below with your VAPID public key
 
 (function () {
-  const VAPID_KEY = 'YOUR_VAPID_KEY_HERE';
+  const VAPID_KEY = 'BKucjFII0q8tQZh2zwQbHmF3d7fV6cvw2n9M56q1qG2Hk-KE04lu5WYQtJZLumWmueGwudfVNvP5bGbxkzpeOT4';
 
   let unsubscribeNotifs = null;
 
