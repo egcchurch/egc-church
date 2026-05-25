@@ -73,7 +73,8 @@ church-website-pwa/
 │   ├── connect.html            ← View visitor connect form submissions
 │   ├── prayer.html             ← Moderate prayer requests
 │   ├── homepage.html           ← Manage homepage content
-│   └── notifications.html      ← Send broadcasts and notifications
+│   ├── notifications.html      ← Send broadcasts and notifications
+│   └── roles.html              ← Define and manage permission roles (Phase 6)
 │
 ├── functions/                  ← Firebase Cloud Functions
 │   ├── index.js                ← Function entry — auth, Firestore, scheduled, callable triggers
@@ -182,6 +183,7 @@ church-website-pwa/
 | Manage homepage          | /admin/homepage      |                 |
 | Send notifications       | /admin/notifications |                 |
 | User management          | /admin/users         | superadmin only |
+| Manage roles             | /admin/roles         | any admin can view; superadmin creates/edits/deletes |
 
 ---
 

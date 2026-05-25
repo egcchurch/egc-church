@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>Role Management | EGC Admin</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans overflow-x-hidden">
+
+  <div id="nav-placeholder"></div>
+
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <div>
+        <h1 class="text-3xl font-bold tracking-tight">Role Management</h1>
+        <p class="text-blue-200 mt-1">Define permission roles for admin users</p>
+      </div>
+      <button id="add-role-btn" onclick="openCreateModal()"
+              class="hidden bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+        <i class="fas fa-plus mr-2"></i>Add Role
+      </button>
+    </div>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-6 py-10">
+    <div id="roles-list" class="space-y-4">
+      <div class="text-center py-12 text-gray-400">
+        <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+        <p>Loading roles...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Create / Edit Modal -->
+  <div id="modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div class="px-6 py-5 border-b border-zinc-100 flex items-center justify-between">
+        <h2 id="modal-title" class="text-lg font-bold text-[#0A3D62]">Add Role</h2>
+        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-xl">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="px-6 py-5 space-y-5">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
+          <input id="f-display-name" type="text" maxlength="60"
+                 class="w-full border border-zinc-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                 placeholder="e.g. Worship Team Lead">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <input id="f-description" type="text" maxlength="120"
+                 class="w-full border border-zinc-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                 placeholder="Brief description of this role's responsibilities">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-3">Permissions</label>
+          <div class="grid grid-cols-2 gap-2" id="perm-checkboxes"></div>
+        </div>
+        <div id="modal-error" class="hidden text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3"></div>
+      </div>
+      <div class="px-6 py-4 border-t border-zinc-100 flex gap-3 justify-end">
+        <button onclick="closeModal()"
+                class="px-5 py-2.5 rounded-full text-sm font-medium border border-zinc-300 hover:bg-zinc-50 transition-colors">
+          Cancel
+        </button>
+        <button id="modal-save-btn" onclick="saveRole()"
+                class="px-6 py-2.5 rounded-full text-sm font-medium bg-amber-500 hover:bg-amber-600 text-white transition-colors">
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/firebase-config.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script src="/js/admin-auth.js"></script>
+  <script>
+    const db = firebase.firestore();
+    let isSuperadmin = false;
+    let editingId = null;
+
+    const ALL_PERMS = [
+      'sermons.manage',
+      'events.manage',
+      'blog.manage',
+      'team.manage',
+      'gallery.manage',
+      'music.manage',
+      'devotional.manage',
+      'groups.manage',
+      'homepage.manage',
+      'notifications.send',
+      'prayer.moderate',
+      'connect.view',
+      'users.approve',
+      'users.assign_roles',
+    ];
+
+    const PERM_LABELS = {
+      'sermons.manage':     'Sermons',
+      'events.manage':      'Events',
+      'blog.manage':        'Blog',
+      'team.manage':        'Leadership Team',
+      'gallery.manage':     'Gallery',
+      'music.manage':       'Music',
+      'devotional.manage':  'Devotional',
+      'groups.manage':      'Groups',
+      'homepage.manage':    'Homepage',
+      'notifications.send': 'Notifications',
+      'prayer.moderate':    'Prayer Requests',
+      'connect.view':       'Connect Forms',
+      'users.approve':      'User Approval',
+      'users.assign_roles': 'Assign Roles',
+    };
+
+    // Detect superadmin after auth settles; show write controls and load roles
+    firebase.auth().onAuthStateChanged((user) => {
+      if (!user) return;
+      db.collection('users').doc(user.uid).get().then((doc) => {
+        if (!doc.exists) return;
+        isSuperadmin = doc.data().adminRole === 'superadmin';
+        if (isSuperadmin) {
+          document.getElementById('add-role-btn').classList.remove('hidden');
+        }
+        loadRoles();
+      });
+    });
+
+    function loadRoles() {
+      const list = document.getElementById('roles-list');
+      list.innerHTML = `<div class="text-center py-12 text-gray-400">
+        <i class="fas fa-spinner fa-spin text-3xl mb-3"></i><p>Loading...</p></div>`;
+
+      db.collection('roles').orderBy('displayName').get().then((snap) => {
+        if (snap.empty) {
+          list.innerHTML = `<div class="text-center py-12 text-gray-400">
+            <i class="fas fa-shield-halved text-3xl mb-3"></i>
+            <p>No roles found. Run the migration function to seed default roles.</p></div>`;
+          return;
+        }
+
+        list.innerHTML = snap.docs.map((doc) => {
+          const r = doc.data();
+          const perms = Array.isArray(r.permissions) ? r.permissions : [];
+          const permTags = perms.map((p) =>
+            `<span class="inline-block bg-amber-100 text-amber-800 text-xs font-medium px-2 py-0.5 rounded-full">${PERM_LABELS[p] || p}</span>`
+          ).join('');
+
+          const systemBadge = r.isSystem
+            ? `<span class="ml-2 text-xs bg-zinc-100 text-zinc-500 font-medium px-2 py-0.5 rounded-full">system</span>`
+            : '';
+
+          const editBtn = isSuperadmin
+            ? `<button onclick="openEditModal('${doc.id}')"
+                       class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                 <i class="fas fa-pen mr-1"></i>Edit
+               </button>`
+            : '';
+
+          const deleteBtn = (isSuperadmin && !r.isSystem)
+            ? `<button onclick="deleteRole('${doc.id}', '${escHtml(r.displayName)}')"
+                       class="text-sm text-red-500 hover:text-red-700 font-medium ml-3">
+                 <i class="fas fa-trash mr-1"></i>Delete
+               </button>`
+            : '';
+
+          return `
+            <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-6" data-id="${doc.id}"
+                 data-display-name="${escHtml(r.displayName)}"
+                 data-description="${escHtml(r.description || '')}"
+                 data-permissions='${JSON.stringify(perms)}'>
+              <div class="flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                  <h3 class="font-bold text-[#0A3D62] text-lg">
+                    ${escHtml(r.displayName)}${systemBadge}
+                  </h3>
+                  <p class="text-sm text-zinc-500 mt-0.5">${escHtml(r.description || '')}</p>
+                </div>
+                <div class="flex items-center shrink-0">
+                  ${editBtn}${deleteBtn}
+                </div>
+              </div>
+              <div class="mt-4 flex flex-wrap gap-1.5">
+                ${perms.length ? permTags : '<span class="text-xs text-zinc-400">No permissions assigned</span>'}
+              </div>
+            </div>`;
+        }).join('');
+      }).catch((err) => {
+        list.innerHTML = `<div class="text-center py-12 text-red-400">
+          <p>Failed to load roles: ${escHtml(err.message)}</p></div>`;
+      });
+    }
+
+    // ── Modal helpers ─────────────────────────────────────────────────────────
+
+    function buildPermCheckboxes(selected = []) {
+      const container = document.getElementById('perm-checkboxes');
+      container.innerHTML = ALL_PERMS.map((p) => {
+        const checked = selected.includes(p) ? 'checked' : '';
+        return `<label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <input type="checkbox" name="perm" value="${p}" ${checked}
+                 class="accent-amber-500 w-4 h-4">
+          ${PERM_LABELS[p] || p}
+        </label>`;
+      }).join('');
+    }
+
+    function openCreateModal() {
+      editingId = null;
+      document.getElementById('modal-title').textContent = 'Add Role';
+      document.getElementById('f-display-name').value = '';
+      document.getElementById('f-description').value = '';
+      buildPermCheckboxes([]);
+      hideModalError();
+      document.getElementById('modal').classList.remove('hidden');
+      document.getElementById('f-display-name').focus();
+    }
+
+    function openEditModal(id) {
+      const card = document.querySelector(`[data-id="${id}"]`);
+      if (!card) return;
+      editingId = id;
+      document.getElementById('modal-title').textContent = 'Edit Role';
+      document.getElementById('f-display-name').value = card.dataset.displayName;
+      document.getElementById('f-description').value = card.dataset.description;
+      const perms = JSON.parse(card.dataset.permissions || '[]');
+      buildPermCheckboxes(perms);
+      hideModalError();
+      document.getElementById('modal').classList.remove('hidden');
+      document.getElementById('f-display-name').focus();
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.add('hidden');
+      editingId = null;
+    }
+
+    function showModalError(msg) {
+      const el = document.getElementById('modal-error');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    function hideModalError() {
+      document.getElementById('modal-error').classList.add('hidden');
+    }
+
+    function saveRole() {
+      const displayName = document.getElementById('f-display-name').value.trim();
+      const description = document.getElementById('f-description').value.trim();
+      const permissions = [...document.querySelectorAll('input[name="perm"]:checked')].map((el) => el.value);
+
+      if (!displayName) { showModalError('Display name is required.'); return; }
+
+      const btn = document.getElementById('modal-save-btn');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      const now = firebase.firestore.FieldValue.serverTimestamp();
+      let op;
+
+      if (editingId) {
+        op = db.collection('roles').doc(editingId).update({ displayName, description, permissions, updatedAt: now });
+      } else {
+        op = db.collection('roles').add({ displayName, description, permissions, isSystem: false, createdAt: now, updatedAt: now });
+      }
+
+      op.then(() => {
+        closeModal();
+        loadRoles();
+      }).catch((err) => {
+        showModalError(err.message);
+      }).finally(() => {
+        btn.disabled = false;
+        btn.textContent = 'Save';
+      });
+    }
+
+    function deleteRole(id, name) {
+      if (!confirm(`Delete role "${name}"? This cannot be undone.`)) return;
+      db.collection('roles').doc(id).delete().then(loadRoles).catch((err) => {
+        alert('Delete failed: ' + err.message);
+      });
+    }
+
+    // Close modal on backdrop click
+    document.getElementById('modal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('modal')) closeModal();
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+
+    function escHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>
