@@ -7,6 +7,7 @@ admin.initializeApp();
 const db = admin.firestore();
 
 const { computeEffectiveClaims, permissionFieldsChanged } = require('./computePermissions');
+const { DEFAULT_ROLES } = require('./rolesData');
 
 // ── syncUserClaims ────────────────────────────────────────────────────────────
 // Triggered on any write to /users/{uid}.
@@ -487,3 +488,103 @@ function toRFC822(dateStr) {
     .toUTCString()
     .replace('GMT', '+0000');
 }
+
+// ── migrateRolesV1 ────────────────────────────────────────────────────────────
+// Callable — superadmin only. One-time migration for Phase 6.
+//
+// Step 1: Seed /roles if the collection is empty.
+// Step 2: For every user doc that does not yet have the Phase 6 permission
+//         fields (isSuperadmin, roles, extraPermissions), set them based on
+//         the legacy adminRole value:
+//           "superadmin" → isSuperadmin: true,  roles: []
+//           "editor"     → isSuperadmin: false, roles: ["content_editor"]
+//           null / other → isSuperadmin: false, roles: []
+//
+// Each user write triggers syncUserClaims automatically.
+// adminRole is NOT removed — stays as fallback until Phase 6 PR #8 cleanup.
+// Idempotent: skips users that already have all three fields.
+
+exports.migrateRolesV1 = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
+  }
+
+  // Custom claims may not be populated yet at migration time — verify via Firestore
+  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+  if (!callerSnap.exists || callerSnap.data().adminRole !== 'superadmin') {
+    throw new functions.https.HttpsError('permission-denied', 'Superadmin required.');
+  }
+
+  const { FieldPath, FieldValue } = admin.firestore;
+  const BATCH_SIZE = 100;
+  let rolesSeeded = 0;
+  let usersUpdated = 0;
+  const errors = [];
+
+  // Step 1: seed /roles if empty
+  const existingRoles = await db.collection('roles').limit(1).get();
+  if (existingRoles.empty) {
+    const now = FieldValue.serverTimestamp();
+    const batch = db.batch();
+    for (const role of DEFAULT_ROLES) {
+      const { id, ...fields } = role;
+      batch.set(db.collection('roles').doc(id), { ...fields, createdAt: now, updatedAt: now });
+    }
+    await batch.commit();
+    rolesSeeded = DEFAULT_ROLES.length;
+    console.log(`migrateRolesV1: seeded ${rolesSeeded} roles`);
+  } else {
+    console.log('migrateRolesV1: roles collection already populated, skipping seed');
+  }
+
+  // Step 2: migrate user docs in cursor-paginated batches of 100
+  let lastDoc = null;
+
+  while (true) {
+    let query = db.collection('users').orderBy(FieldPath.documentId()).limit(BATCH_SIZE);
+    if (lastDoc) query = query.startAfter(lastDoc);
+
+    const snap = await query.get();
+    if (snap.empty) break;
+
+    const batch = db.batch();
+    let batchCount = 0;
+
+    for (const doc of snap.docs) {
+      const u = doc.data();
+
+      // Skip users already migrated (all three permission fields present)
+      if ('isSuperadmin' in u && Array.isArray(u.roles) && Array.isArray(u.extraPermissions)) {
+        continue;
+      }
+
+      let update;
+      if (u.adminRole === 'superadmin') {
+        update = { isSuperadmin: true,  roles: [],                  extraPermissions: [] };
+      } else if (u.adminRole === 'editor') {
+        update = { isSuperadmin: false, roles: ['content_editor'],  extraPermissions: [] };
+      } else {
+        update = { isSuperadmin: false, roles: [],                  extraPermissions: [] };
+      }
+
+      batch.update(doc.ref, { ...update, updatedAt: FieldValue.serverTimestamp() });
+      batchCount++;
+    }
+
+    if (batchCount > 0) {
+      try {
+        await batch.commit();
+        usersUpdated += batchCount;
+      } catch (err) {
+        console.error('migrateRolesV1: batch commit failed:', err.message);
+        errors.push(err.message);
+      }
+    }
+
+    lastDoc = snap.docs[snap.docs.length - 1];
+    if (snap.docs.length < BATCH_SIZE) break;
+  }
+
+  console.log(`migrateRolesV1: complete — ${usersUpdated} users updated, ${rolesSeeded} roles seeded`);
+  return { usersUpdated, rolesSeeded, errors };
+});
