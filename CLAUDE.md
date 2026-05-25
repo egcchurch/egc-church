@@ -656,6 +656,7 @@ Storage rules enforce file size and type per path (see `storage.rules`):
 - All changes go through a Pull Request — `main` is protected, CI checks must pass before merge
 - Every prod release deploys static site + Cloud Functions together
 - Append a session entry to `PROGRESS.md` on every PR
+- **Branch sequentially, never in parallel** — when a session produces multiple PRs, wait for each to merge to `main` before creating the next branch. Never create two branches from the same base commit when they modify the same files (e.g. `functions/index.js`). This avoids merge conflicts on rebase.
 
 ---
 
@@ -723,6 +724,8 @@ The agentic-style local workflow:
 7. Production auto-deploys
 8. Delete branch locally and remotely
 
+> **Multi-PR sessions:** If a session needs more than one PR, do them one at a time — wait for each PR to merge before creating the next branch. Never branch multiple features from the same base commit when they touch overlapping files. This keeps rebases conflict-free.
+
 ---
 
 ## Current Phase
@@ -731,4 +734,4 @@ The agentic-style local workflow:
 - [x] **Phase 2 — Core Public Site** — complete and deployed
 - [x] **Phase 3 — Members Area** — complete and deployed
 - [x] **Phase 4 — Notifications & Messaging** — complete and deployed
-- [ ] **Phase 5 — Polish** — next
+- [x] **Phase 5 — Polish** — complete and deployed
