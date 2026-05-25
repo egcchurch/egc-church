@@ -221,3 +221,50 @@ exports.weeklyDigest = functions.pubsub
     console.log(`Weekly digest: ${docs.length} members, ${tokens.length} push tokens`);
     return null;
   });
+
+// ── onNewMessage ──────────────────────────────────────────────────────────────
+// Triggered when a message is created in /conversations/{convId}/messages/{msgId}.
+// Pushes an FCM notification + in-app notification to the recipient.
+
+exports.onNewMessage = functions.firestore
+  .document('conversations/{convId}/messages/{msgId}')
+  .onCreate(async (snap, context) => {
+    const message  = snap.data();
+    const { convId } = context.params;
+    const senderId = message.senderId;
+
+    if (!senderId) return;
+
+    // Get conversation to find the recipient
+    const convSnap = await db.collection('conversations').doc(convId).get();
+    if (!convSnap.exists) return;
+
+    const participants = convSnap.data().participants || [];
+    const recipientId  = participants.find(uid => uid !== senderId);
+    if (!recipientId) return;
+
+    // Get sender display name
+    const senderSnap = await db.collection('users').doc(senderId).get();
+    const senderName = senderSnap.data()?.displayName || 'Someone';
+
+    const title = `Message from ${senderName}`;
+    const body  = (message.body || '').substring(0, 120);
+    const link  = `/members/messages.html?conv=${convId}`;
+    const sentAt = admin.firestore.FieldValue.serverTimestamp();
+
+    // Write in-app notification
+    await db.collection('users').doc(recipientId).collection('notifications').add({
+      title, body, type: 'direct', sentAt, read: false, linkUrl: link,
+    });
+
+    // FCM push to recipient's tokens
+    const tokensSnap = await db.collection('users').doc(recipientId).collection('fcmTokens').get();
+    const tokens = tokensSnap.docs.map(d => d.data().token).filter(Boolean);
+    if (!tokens.length) return;
+
+    await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: { title, body },
+      webpush: { notification: { icon: '/assets/images/icons/icon-192.png' } },
+    });
+  });
