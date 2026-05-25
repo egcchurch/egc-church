@@ -12,6 +12,9 @@
         "PROGRESS.md",
         "ENVIRONMENT.md",
         "README.md"
+      ],
+      "rewrites": [
+        { "source": "/feed.xml", "function": "podcastFeed" }
       ]
     },
     {
@@ -26,6 +29,9 @@
         "PROGRESS.md",
         "ENVIRONMENT.md",
         "README.md"
+      ],
+      "rewrites": [
+        { "source": "/feed.xml", "function": "podcastFeed" }
       ]
     }
   ],

@@ -349,3 +349,92 @@ exports.deleteUserAccount = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('internal', 'Account deletion failed. Please try again.');
   }
 });
+
+// ── podcastFeed ───────────────────────────────────────────────────────────────
+// HTTP function — routed from /feed.xml via firebase.json rewrites.
+// Returns a valid RSS 2.0 / iTunes podcast feed of published sermons with audio.
+
+exports.podcastFeed = functions.https.onRequest(async (req, res) => {
+  if (req.method !== 'GET') {
+    res.status(405).send('Method Not Allowed');
+    return;
+  }
+
+  try {
+    // Single equality filter avoids composite index requirement; sort client-side.
+    const snap = await db.collection('sermons')
+      .where('published', '==', true)
+      .get();
+
+    const sermons = snap.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(s => s.audioUrl && s.audioUrl.trim())
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+      .slice(0, 100);
+
+    const items = sermons.map(s => {
+      const pubDate   = toRFC822(s.date);
+      const duration  = s.duration || '';
+      const speaker   = s.speaker  || 'Emmanuel Gospel Centre';
+      const desc      = [speaker, duration].filter(Boolean).join(' | ');
+      return `
+    <item>
+      <title>${xmlEsc(s.title || '')}</title>
+      <guid isPermaLink="false">${xmlEsc(s.id)}</guid>
+      <pubDate>${pubDate}</pubDate>
+      <description>${xmlEsc(desc)}</description>
+      <enclosure url="${xmlEsc(s.audioUrl)}" length="0" type="audio/mpeg"/>
+      <itunes:title>${xmlEsc(s.title || '')}</itunes:title>
+      <itunes:author>${xmlEsc(speaker)}</itunes:author>
+      <itunes:duration>${xmlEsc(duration)}</itunes:duration>
+      <itunes:summary>${xmlEsc(desc)}</itunes:summary>
+    </item>`;
+    }).join('');
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+     xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Emmanuel Gospel Centre Sermons</title>
+    <link>https://app.egc.church/sermons.html</link>
+    <language>en</language>
+    <description>Sermon recordings from Emmanuel Gospel Centre (EGC).</description>
+    <itunes:author>Emmanuel Gospel Centre</itunes:author>
+    <itunes:image href="https://app.egc.church/assets/images/icons/icon-512.png"/>
+    <itunes:category text="Religion &amp; Spirituality">
+      <itunes:category text="Christianity"/>
+    </itunes:category>
+    <itunes:explicit>false</itunes:explicit>
+${items}
+  </channel>
+</rss>`;
+
+    res.set('Content-Type', 'application/xml; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+    res.send(xml);
+
+  } catch (err) {
+    console.error('podcastFeed error:', err);
+    res.status(500).send('Internal server error');
+  }
+});
+
+function xmlEsc(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function toRFC822(dateStr) {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return new Date().toUTCString().replace('GMT', '+0000');
+  }
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 8, 0, 0))
+    .toUTCString()
+    .replace('GMT', '+0000');
+}
