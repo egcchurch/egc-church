@@ -14,6 +14,29 @@
 
 ---
 
+## Session: Phase 6 PR 4 — admin/roles.html UI (Session 29)
+
+**Date:** 2026-05-25
+**Branch:** `phase6/admin-roles-ui`
+**Status:** PR open
+
+### What was done
+
+- **`admin/roles.html`** — New page. Lists all `/roles/` docs (any admin). Superadmin-only: Add Role button, Edit button per card, Delete button (disabled for `isSystem: true` roles). Create/edit via modal with display name, description, and 14 permission checkboxes. `escHtml()` sanitises all Firestore strings into the DOM.
+- **`admin-nav.html`** — Added "Roles" link to desktop dropdown and mobile menu.
+- **`admin/index.html`** — Added Roles dashboard card (amber shield icon).
+- **`service-worker.js`** — Cache bumped `v16 → v17`; `/admin/roles.html` added to precache list.
+- **`CLAUDE.md`** — Added `admin/roles.html` to project structure and site map.
+
+### Notes / decisions
+
+- Auth pattern: `admin-auth.js` gates to any adminRole; the page JS reads the user doc to set `isSuperadmin` and conditionally renders write controls. Firestore rules are the real enforcement.
+- Roles list sorted by `displayName` — consistent, predictable order.
+- System roles (`isSystem: true`) show a "system" badge and have no Delete button — matches the Firestore rule that blocks deleting system roles.
+- Modal closes on Escape key and backdrop click, consistent with other modals in the project.
+
+---
+
 ## Session: Phase 6 PR 3 — migrateRolesV1 function (Session 28)
 
 **Date:** 2026-05-25
