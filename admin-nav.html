@@ -21,20 +21,20 @@
           </button>
           <div id="admin-nav-panel"
                class="hidden absolute left-0 top-full mt-2 w-52 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50">
-            <a href="/admin/sermons.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Sermons</a>
-            <a href="/admin/events.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Events</a>
-            <a href="/admin/blog.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Blog</a>
-            <a href="/admin/team.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Team</a>
-            <a href="/admin/gallery.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Gallery</a>
-            <a href="/admin/music.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Music</a>
-            <a href="/admin/prayer.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Prayer</a>
-            <a href="/admin/groups.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Groups</a>
-            <a href="/admin/devotional.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Devotional</a>
-            <a href="/admin/connect.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Connect</a>
-            <a href="/admin/homepage.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Homepage</a>
-            <a href="/admin/notifications.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Notifications</a>
-            <a href="/admin/users.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Users</a>
-            <a href="/admin/roles.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Roles</a>
+            <a href="/admin/sermons.html" data-perm="sermons.manage" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Sermons</a>
+            <a href="/admin/events.html" data-perm="events.manage" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Events</a>
+            <a href="/admin/blog.html" data-perm="blog.manage" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Blog</a>
+            <a href="/admin/team.html" data-perm="team.manage" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Team</a>
+            <a href="/admin/gallery.html" data-perm="gallery.manage" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Gallery</a>
+            <a href="/admin/music.html" data-perm="music.manage" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Music</a>
+            <a href="/admin/prayer.html" data-perm="prayer.moderate" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Prayer</a>
+            <a href="/admin/groups.html" data-perm="groups.manage" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Groups</a>
+            <a href="/admin/devotional.html" data-perm="devotional.manage" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Devotional</a>
+            <a href="/admin/connect.html" data-perm="connect.view" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Connect</a>
+            <a href="/admin/homepage.html" data-perm="homepage.manage" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Homepage</a>
+            <a href="/admin/notifications.html" data-perm="notifications.send" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Notifications</a>
+            <a href="/admin/users.html" data-perm="users.approve" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Users</a>
+            <a href="/admin/roles.html" data-perm="users.assign_roles" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Roles</a>
           </div>
         </div>
       </div>
@@ -81,20 +81,20 @@
   <div id="mobile-menu" class="hidden md:hidden bg-white border-t py-6">
     <div class="flex flex-col px-6 space-y-6 text-base font-medium">
       <a href="/index.html" class="hover:text-amber-600"><i class="fas fa-arrow-left mr-1"></i>Back to Site</a>
-      <a href="/admin/sermons.html" class="hover:text-amber-600">SERMONS</a>
-      <a href="/admin/events.html" class="hover:text-amber-600">EVENTS</a>
-      <a href="/admin/blog.html" class="hover:text-amber-600">BLOG</a>
-      <a href="/admin/team.html" class="hover:text-amber-600">TEAM</a>
-      <a href="/admin/gallery.html" class="hover:text-amber-600">GALLERY</a>
-      <a href="/admin/music.html" class="hover:text-amber-600">MUSIC</a>
-      <a href="/admin/prayer.html" class="hover:text-amber-600">PRAYER</a>
-      <a href="/admin/groups.html" class="hover:text-amber-600">GROUPS</a>
-      <a href="/admin/devotional.html" class="hover:text-amber-600">DEVOTIONAL</a>
-      <a href="/admin/connect.html" class="hover:text-amber-600">CONNECT</a>
-      <a href="/admin/homepage.html" class="hover:text-amber-600">HOMEPAGE</a>
-      <a href="/admin/notifications.html" class="hover:text-amber-600">NOTIFICATIONS</a>
-      <a href="/admin/users.html" class="hover:text-amber-600">USERS</a>
-      <a href="/admin/roles.html" class="hover:text-amber-600">ROLES</a>
+      <a href="/admin/sermons.html" data-perm="sermons.manage" class="hover:text-amber-600">SERMONS</a>
+      <a href="/admin/events.html" data-perm="events.manage" class="hover:text-amber-600">EVENTS</a>
+      <a href="/admin/blog.html" data-perm="blog.manage" class="hover:text-amber-600">BLOG</a>
+      <a href="/admin/team.html" data-perm="team.manage" class="hover:text-amber-600">TEAM</a>
+      <a href="/admin/gallery.html" data-perm="gallery.manage" class="hover:text-amber-600">GALLERY</a>
+      <a href="/admin/music.html" data-perm="music.manage" class="hover:text-amber-600">MUSIC</a>
+      <a href="/admin/prayer.html" data-perm="prayer.moderate" class="hover:text-amber-600">PRAYER</a>
+      <a href="/admin/groups.html" data-perm="groups.manage" class="hover:text-amber-600">GROUPS</a>
+      <a href="/admin/devotional.html" data-perm="devotional.manage" class="hover:text-amber-600">DEVOTIONAL</a>
+      <a href="/admin/connect.html" data-perm="connect.view" class="hover:text-amber-600">CONNECT</a>
+      <a href="/admin/homepage.html" data-perm="homepage.manage" class="hover:text-amber-600">HOMEPAGE</a>
+      <a href="/admin/notifications.html" data-perm="notifications.send" class="hover:text-amber-600">NOTIFICATIONS</a>
+      <a href="/admin/users.html" data-perm="users.approve" class="hover:text-amber-600">USERS</a>
+      <a href="/admin/roles.html" data-perm="users.assign_roles" class="hover:text-amber-600">ROLES</a>
       <button id="mobile-login-btn"
               class="bg-amber-500 text-white py-4 rounded-full font-medium mt-4">
         Member Login

@@ -33,11 +33,19 @@ function memberUser() {
 }
 
 function editorUser() {
-  return testEnv.authenticatedContext('editor-uid', {});
+  // All 14 permission keys — mirrors the content_editor role after migration
+  return testEnv.authenticatedContext('editor-uid', {
+    perms: [
+      'sermons.manage', 'events.manage', 'blog.manage', 'team.manage',
+      'gallery.manage', 'music.manage', 'devotional.manage', 'groups.manage',
+      'homepage.manage', 'notifications.send', 'prayer.moderate', 'connect.view',
+      'users.approve', 'users.assign_roles',
+    ],
+  });
 }
 
 function superAdmin() {
-  return testEnv.authenticatedContext('admin-uid', {});
+  return testEnv.authenticatedContext('admin-uid', { superadmin: true });
 }
 
 function unauthUser() {

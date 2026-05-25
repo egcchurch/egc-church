@@ -40,5 +40,35 @@ const Permissions = (() => {
     return _superadmin;
   }
 
-  return { init, refresh, hasPermission, isSuperadmin };
+  // Filter admin nav links and dashboard cards based on current user's permissions.
+  // Hides any <a data-perm="..."> element where the user lacks the permission.
+  // Hides the entire #admin-nav-wrapper if no dropdown links remain visible.
+  function filterAdminNav() {
+    const panel = document.getElementById('admin-nav-panel');
+    if (panel) {
+      let anyVisible = false;
+      panel.querySelectorAll('a[data-perm]').forEach((link) => {
+        if (!hasPermission(link.dataset.perm)) {
+          link.classList.add('hidden');
+        } else {
+          anyVisible = true;
+        }
+      });
+      if (!anyVisible) {
+        const wrapper = document.getElementById('admin-nav-wrapper');
+        if (wrapper) wrapper.classList.add('hidden');
+      }
+    }
+
+    const mobile = document.getElementById('mobile-menu');
+    if (mobile) {
+      mobile.querySelectorAll('a[data-perm]').forEach((link) => {
+        if (!hasPermission(link.dataset.perm)) {
+          link.classList.add('hidden');
+        }
+      });
+    }
+  }
+
+  return { init, refresh, hasPermission, isSuperadmin, filterAdminNav };
 })();

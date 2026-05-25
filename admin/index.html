@@ -17,6 +17,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script src="/firebase-config.js"></script>
+  <script src="/js/permissions.js"></script>
   <script src="/js/admin-auth.js"></script>
 </head>
 <body class="bg-zinc-50 font-sans">
@@ -31,9 +32,9 @@
   </div>
 
   <main class="max-w-7xl mx-auto px-6 py-10">
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div id="dashboard-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
 
-      <a href="/admin/sermons.html"
+      <a href="/admin/sermons.html" data-perm="sermons.manage"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-amber-200 transition-colors">
           <i class="fas fa-microphone text-amber-600 text-xl"></i>
@@ -42,7 +43,7 @@
         <p class="text-sm text-zinc-500">Add and manage sermon recordings, notes, and metadata.</p>
       </a>
 
-      <a href="/admin/events.html"
+      <a href="/admin/events.html" data-perm="events.manage"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-blue-200 transition-colors">
           <i class="fas fa-calendar-days text-blue-600 text-xl"></i>
@@ -51,7 +52,7 @@
         <p class="text-sm text-zinc-500">Create and manage church calendar events.</p>
       </a>
 
-      <a href="/admin/blog.html"
+      <a href="/admin/blog.html" data-perm="blog.manage"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
           <i class="fas fa-newspaper text-green-600 text-xl"></i>
@@ -60,7 +61,7 @@
         <p class="text-sm text-zinc-500">Write and publish announcements and news posts.</p>
       </a>
 
-      <a href="/admin/team.html"
+      <a href="/admin/team.html" data-perm="team.manage"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-colors">
           <i class="fas fa-people-group text-purple-600 text-xl"></i>
@@ -69,7 +70,7 @@
         <p class="text-sm text-zinc-500">Manage the leadership profiles shown on the About page.</p>
       </a>
 
-      <a href="/admin/gallery.html"
+      <a href="/admin/gallery.html" data-perm="gallery.manage"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-rose-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-rose-200 transition-colors">
           <i class="fas fa-images text-rose-600 text-xl"></i>
@@ -78,7 +79,7 @@
         <p class="text-sm text-zinc-500">Upload and manage photo galleries for public, members, and youth.</p>
       </a>
 
-      <a href="/admin/music.html"
+      <a href="/admin/music.html" data-perm="music.manage"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-indigo-200 transition-colors">
           <i class="fas fa-music text-indigo-600 text-xl"></i>
@@ -87,7 +88,7 @@
         <p class="text-sm text-zinc-500">Upload and manage the church music library.</p>
       </a>
 
-      <a href="/admin/prayer.html"
+      <a href="/admin/prayer.html" data-perm="prayer.moderate"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-sky-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-sky-200 transition-colors">
           <i class="fas fa-hands-praying text-sky-600 text-xl"></i>
@@ -96,7 +97,7 @@
         <p class="text-sm text-zinc-500">Moderate and manage member prayer requests.</p>
       </a>
 
-      <a href="/admin/groups.html"
+      <a href="/admin/groups.html" data-perm="groups.manage"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-teal-200 transition-colors">
           <i class="fas fa-users text-teal-600 text-xl"></i>
@@ -105,7 +106,7 @@
         <p class="text-sm text-zinc-500">Create and manage all small groups and their leaders.</p>
       </a>
 
-      <a href="/admin/devotional.html"
+      <a href="/admin/devotional.html" data-perm="devotional.manage"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-orange-200 transition-colors">
           <i class="fas fa-book-open text-orange-600 text-xl"></i>
@@ -114,7 +115,7 @@
         <p class="text-sm text-zinc-500">Write and schedule daily devotional content.</p>
       </a>
 
-      <a href="/admin/connect.html"
+      <a href="/admin/connect.html" data-perm="connect.view"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-lime-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-lime-200 transition-colors">
           <i class="fas fa-envelope text-lime-600 text-xl"></i>
@@ -123,7 +124,7 @@
         <p class="text-sm text-zinc-500">View and manage visitor connect form submissions.</p>
       </a>
 
-      <a href="/admin/homepage.html"
+      <a href="/admin/homepage.html" data-perm="homepage.manage"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-cyan-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-cyan-200 transition-colors">
           <i class="fas fa-house text-cyan-600 text-xl"></i>
@@ -132,7 +133,7 @@
         <p class="text-sm text-zinc-500">Edit the tagline, announcement banner, and service times.</p>
       </a>
 
-      <a href="/admin/notifications.html"
+      <a href="/admin/notifications.html" data-perm="notifications.send"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-violet-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-violet-200 transition-colors">
           <i class="fas fa-bell text-violet-600 text-xl"></i>
@@ -141,16 +142,16 @@
         <p class="text-sm text-zinc-500">Send broadcasts and push notifications to members.</p>
       </a>
 
-      <a href="/admin/users.html"
+      <a href="/admin/users.html" data-perm="users.approve"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-red-200 transition-colors">
           <i class="fas fa-user-shield text-red-600 text-xl"></i>
         </div>
         <h2 class="font-bold text-lg text-[#0A3D62] mb-1">User Management</h2>
-        <p class="text-sm text-zinc-500">Approve new members and manage user roles. Superadmin only.</p>
+        <p class="text-sm text-zinc-500">Approve new members and manage user roles.</p>
       </a>
 
-      <a href="/admin/roles.html"
+      <a href="/admin/roles.html" data-perm="users.assign_roles"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-amber-200 transition-colors">
           <i class="fas fa-shield-halved text-amber-600 text-xl"></i>
@@ -164,5 +165,17 @@
 
   <script src="/js/nav.js"></script>
   <script src="/js/main.js"></script>
+  <script>
+    firebase.auth().onAuthStateChanged((user) => {
+      if (!user) return;
+      Permissions.init(user).then(() => {
+        document.querySelectorAll('#dashboard-grid [data-perm]').forEach((card) => {
+          if (!Permissions.hasPermission(card.dataset.perm)) {
+            card.classList.add('hidden');
+          }
+        });
+      });
+    });
+  </script>
 </body>
 </html>
