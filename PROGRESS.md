@@ -10,7 +10,25 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-25
-**Current milestone:** Phase 5 — Polish (complete)
+**Current milestone:** Phase 6 — Permissions & Roles (planning)
+
+---
+
+## Session: Phase 6 & 7 planning docs (Session 25)
+
+**Date:** 2026-05-25
+**Branch:** `docs/phase-6-7-planning`
+**Status:** Merged (PR #30)
+
+### What was done
+
+- **`docs/PERMISSIONS.md`** — Full design spec for Phase 6: granular per-area permission keys, 7 default roles, Firestore `/roles/` schema, `syncUserClaims` Cloud Function, security rules sketch, migration plan, and 8-PR sequencing plan.
+- **`docs/HOMEPAGE.md`** — Full design spec for Phase 7: four-state adaptive home surface (visitor / pending / public / member), live stream surfacing via `/homepage/content`, notice board `kind` field, gated-content prompts replacing silent redirects, "Request member access" flow, FCM token registration scoped to members only. 7-PR sequencing plan.
+
+### Notes / decisions
+
+- Phase 6 must land before Phase 7 PR #5 (admin shortcuts strip) — `hasPermission()` helper is a dependency.
+- `adminRole` field kept during Phase 6 migration window; removed in cleanup PR #8.
 
 ---
 
@@ -18,7 +36,7 @@
 
 **Date:** 2026-05-25
 **Branch:** `fix/nav-dropdown`
-**Status:** PR open
+**Status:** Merged (PR #29)
 
 ### What was done
 
@@ -39,7 +57,7 @@
 
 **Date:** 2026-05-25
 **Branch:** `chore/update-docs-phase5`
-**Status:** PR open
+**Status:** Merged (PR #28)
 
 ### What was done
 
