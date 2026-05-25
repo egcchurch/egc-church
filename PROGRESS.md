@@ -10,7 +10,54 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-25
-**Current milestone:** Phase 5 — Polish (complete)
+**Current milestone:** Phase 6 — Permissions & Roles (in progress)
+
+---
+
+## Session: Phase 6 PR 1 — Roles collection (Session 26)
+
+**Date:** 2026-05-25
+**Branch:** `phase6/roles-collection`
+**Status:** PR open
+
+### What was done
+
+- **`firestore.rules`** — Added `/roles/{roleId}` rules block: any signed-in user can read; only superadmin can create/update; superadmin can delete only if `isSystem != true`.
+- **`tests/firestore.rules.test.js`** — Added `deleteDoc` to imports; added 7 new roles tests (unauth read denied, auth read allowed, member/editor create denied, superadmin create allowed, superadmin delete system role denied, superadmin delete non-system role allowed). All 41 tests pass.
+- **`functions/seedRoles.js`** — New standalone Node script. Seeds 7 default roles (`administrator`, `pastor`, `deacon`, `media_helper`, `communications`, `prayer_lead`, `content_editor`) in a single batch. Aborts if the collection already has documents. Run with `GOOGLE_APPLICATION_CREDENTIALS=/path/to/sa.json node seedRoles.js` from within `functions/`.
+- **`CLAUDE.md`** — Added `functions/seedRoles.js` to project structure; added `/roles/{roleId}` to Firestore Data Structure section; fixed Phase 6 & 7 in Current Phase list (from housekeeping PR that was pushed but not merged).
+
+### Notes / decisions
+
+- `isSuperAdmin()` in rules still reads the user doc (`adminRole == 'superadmin'`). This changes in Phase 6 PR #7 when rules switch to custom claims. The roles rules are forward-compatible.
+- Seed script lives in `functions/` to reuse the already-installed `firebase-admin` package without needing a new folder.
+- No SW cache changes — no new HTML pages.
+
+---
+
+## Session: Phase 6 & 7 planning docs (Session 25)
+
+**Date:** 2026-05-25
+**Branch:** `docs/phase-6-7-planning`
+**Status:** Merged (PR #30)
+
+### What was done
+
+- **`docs/PERMISSIONS.md`** — Full design spec for Phase 6: granular per-area permission keys, 7 default roles, Firestore `/roles/` schema, `syncUserClaims` Cloud Function, security rules sketch, migration plan, and 8-PR sequencing plan.
+- **`docs/HOMEPAGE.md`** — Full design spec for Phase 7: four-state adaptive home surface, live stream surfacing, notice board `kind` field, gated-content prompts, "Request member access" flow, FCM token registration scoped to members only. 7-PR sequencing plan.
+
+### Notes / decisions
+
+- Phase 6 must land before Phase 7 PR #5 (admin shortcuts strip).
+- `adminRole` field kept during Phase 6 migration window; removed in cleanup PR #8.
+
+---
+
+## Session: Docs housekeeping — Phase 6 roadmap (Session 24b)
+
+**Date:** 2026-05-25
+**Branch:** `chore/update-docs-phase6`
+**Status:** Pushed, not merged (superseded — housekeeping rolled into Session 26)
 
 ---
 
@@ -18,7 +65,7 @@
 
 **Date:** 2026-05-25
 **Branch:** `fix/nav-dropdown`
-**Status:** PR open
+**Status:** Merged (PR #29)
 
 ### What was done
 
@@ -39,7 +86,7 @@
 
 **Date:** 2026-05-25
 **Branch:** `chore/update-docs-phase5`
-**Status:** PR open
+**Status:** Merged (PR #28)
 
 ### What was done
 

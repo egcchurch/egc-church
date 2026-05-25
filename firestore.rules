@@ -127,6 +127,13 @@ service cloud.firestore {
       allow delete: if isEditor();
     }
 
+    // ── Roles (Phase 6) ───────────────────────────────────────────────────────
+    match /roles/{roleId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSuperAdmin();
+      allow delete: if isSuperAdmin() && resource.data.isSystem != true;
+    }
+
     // ── Homepage ──────────────────────────────────────────────────────────────
     match /homepage/{id} {
       allow read: if true;

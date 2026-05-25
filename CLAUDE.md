@@ -77,6 +77,7 @@ church-website-pwa/
 │
 ├── functions/                  ← Firebase Cloud Functions
 │   ├── index.js                ← Function entry — auth, Firestore, scheduled, callable triggers
+│   ├── seedRoles.js            ← One-time seed script for /roles collection (Phase 6, manual run)
 │   ├── package.json            ← Node dependencies (firebase-admin, firebase-functions)
 │   └── .gitignore              ← Excludes node_modules
 │
@@ -440,6 +441,15 @@ Functions are organised by trigger type:
 /messages/{messageId}
   participants: [uid array]
   senderId, body, sentAt, read: true | false
+
+/roles/{roleId}                             ← Phase 6 — granular permissions
+  id: string                                ← matches doc ID
+  displayName: string
+  description: string
+  permissions: [string]                     ← array of permission keys (e.g. "sermons.manage")
+  isSystem: true | false                    ← system roles cannot be deleted
+  createdAt, updatedAt (timestamps)
+  updatedBy: uid (nullable)
 ```
 
 ---
