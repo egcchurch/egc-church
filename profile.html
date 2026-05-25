@@ -16,6 +16,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-functions-compat.js"></script>
 </head>
 <body class="bg-zinc-50 font-sans overflow-x-hidden">
 
@@ -139,6 +140,29 @@
       </button>
     </div>
 
+    <!-- Danger Zone -->
+    <div class="bg-white rounded-2xl border border-red-200 shadow-sm p-8">
+      <h2 class="text-lg font-bold text-red-700 mb-2">Delete Account</h2>
+      <p class="text-sm text-gray-600 mb-5">
+        Permanently deletes your account and all personal data. This action
+        <strong>cannot be undone</strong>. Your profile, messages, and prayer
+        requests will be removed. Group memberships will be cleared.
+      </p>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            Type your email address to confirm
+          </label>
+          <input id="f-delete-confirm" type="email" placeholder="your@email.com"
+                 class="w-full border border-red-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
+        </div>
+        <button id="delete-account-btn" onclick="deleteAccount()"
+                class="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-full text-sm font-medium transition-all">
+          Delete My Account
+        </button>
+      </div>
+    </div>
+
   </main>
 
   <script src="/firebase-config.js"></script>
@@ -240,6 +264,34 @@
       currentUser.sendEmailVerification()
         .then(() => alert('Verification email sent. Please check your inbox.'))
         .catch(err => alert('Error: ' + err.message));
+    }
+
+    async function deleteAccount() {
+      const confirmVal = document.getElementById('f-delete-confirm').value.trim();
+      if (!confirmVal || confirmVal.toLowerCase() !== (currentUser.email || '').toLowerCase()) {
+        alert('Please type your email address exactly to confirm deletion.');
+        return;
+      }
+
+      if (!confirm(
+        'This will permanently delete your account and all associated personal data.\n\n' +
+        'This action CANNOT be undone. Are you sure?'
+      )) return;
+
+      const btn = document.getElementById('delete-account-btn');
+      btn.disabled = true;
+      btn.textContent = 'Deleting...';
+
+      try {
+        const deleteUser = firebase.functions().httpsCallable('deleteUserAccount');
+        await deleteUser();
+        await auth.signOut();
+        window.location.href = '/index.html';
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Delete My Account';
+        alert('Error: ' + err.message);
+      }
     }
   </script>
 </body>
