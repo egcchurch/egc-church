@@ -9,7 +9,53 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-25
-**Current milestone:** Phase 5 — Polish (next)
+**Current milestone:** Phase 5 — Polish (in progress)
+
+---
+
+## Session: Phase 5 — Polish (Session 22)
+
+**Date:** 2026-05-25
+**Branches:** `phase5/homepage` (PR #25, merged), `phase5/account-deletion` (PR #26, merged), `phase5/podcast-rss`
+**Status:** PRs #25 and #26 merged; podcast-rss PR open
+
+### What was done
+
+**PR #25 — `phase5/homepage` (merged):**
+- **`js/homepage.js`** — IIFE. Waits for Firebase, loads `/homepage/content` doc, populates `#hero-tagline`, shows/hides announcement banner, renders service times grid. Falls back to default service times (Sunday 10:00 AM, Wednesday 7:00 PM) if no Firestore doc exists; renders defaults immediately on DOMContentLoaded to avoid flash of empty content.
+- **`index.html`** — three new sections below hero: announcement banner (amber, `hidden` by default), service times grid (navy, "Join Us"), static Explore cards (Sermons, Events, Music, Connect). `id="hero-tagline"` added to tagline. Loads `js/homepage.js`.
+- **`admin/homepage.html`** — editor-gated. Edit tagline; toggle announcement with title + body; add/remove service time rows (label/day/time). Saves to `/homepage/content` with `set({ merge: true })`.
+- **`admin-nav.html`** — HOMEPAGE link added to desktop + mobile.
+- **`admin/index.html`** — Homepage card (cyan, house icon).
+- **`firestore.rules`** — `/homepage/{id}`: public read, editor write.
+- **`tests/firestore.rules.test.js`** — 3 new homepage tests.
+- **`service-worker.js`** — cache v15 → v16; `admin/homepage.html` + `js/homepage.js` added.
+
+**PR #26 — `phase5/account-deletion` (merged):**
+- **`functions/index.js`** — `deleteUserAccount` (callable): deletes profile photo from Storage (best-effort), FCM tokens subcollection, notifications subcollection (batched 400), anonymises prayer requests + gallery entries, removes user from group arrays, deletes `/users/{uid}` doc, then deletes Firebase Auth account.
+- **`profile.html`** — Danger Zone card: user types their email to confirm + `confirm()` dialog. Calls Cloud Function, signs out, redirects to `/index.html`. Loads `firebase-functions-compat.js`.
+
+**PR #27 — `phase5/podcast-rss`:**
+- **`functions/index.js`** — `podcastFeed` (HTTP): queries `published == true` sermons, filters for `audioUrl`, sorts by `date` desc client-side (no composite index), returns RSS 2.0 + iTunes XML (up to 100 items, 1-hour cache). `xmlEsc()` and `toRFC822()` helpers.
+- **`firebase.json`** — `rewrites` added to both staging and production: `{ "source": "/feed.xml", "function": "podcastFeed" }`.
+- Feed URL: `https://app.egc.church/feed.xml`
+
+### Notes / decisions
+
+- Homepage defaults rendered immediately (before Firestore) so the service times section is never blank.
+- Account deletion ordering: Auth account deleted last — earlier deletions use admin SDK (unaffected by Auth state), but deleting Auth first would invalidate the callable context.
+- Podcast `enclosure length="0"`: file sizes not stored in Firestore; length="0" is broadly accepted by podcast clients.
+- `/feed.xml` via Hosting rewrite: routes transparently to the Cloud Function; GET-only (405 for others).
+
+### Phase 5 checklist
+
+- [x] Homepage dynamic content from Firestore
+- [x] `/admin/homepage.html` — manage homepage content blocks
+- [x] Podcast RSS feed (`/feed.xml`)
+- [x] Cloud Function: `deleteUserAccount` (GDPR account deletion)
+- [x] Account deletion UI on `/profile.html`
+- [ ] Cloudflare R2 / Internet Archive backup for sermon media (deferred)
+- [ ] Cloudflare R2 migration for music (deferred — monitor storage)
 
 ---
 
@@ -584,13 +630,13 @@ Next milestone: Phase 3 — Members Area.
 
 ### Phase 5 — Polish
 
-- [ ] Homepage dynamic content pulled from Firestore
-- [ ] `/admin/homepage.html` — manage homepage content blocks
-- [ ] Podcast RSS feed
-- [ ] Cloudflare R2 or Internet Archive backup for sermon media
-- [ ] Cloudflare R2 migration path for music if Firebase Storage approaches 5GB
-- [ ] Cloud Function: `deleteUserAccount` (GDPR-compliant account deletion)
-- [ ] Account deletion UI on `/profile.html`
+- [x] Homepage dynamic content from Firestore
+- [x] `/admin/homepage.html` — manage homepage content blocks
+- [x] Podcast RSS feed (`/feed.xml` via Cloud Function)
+- [x] Cloud Function: `deleteUserAccount` (GDPR-compliant account deletion)
+- [x] Account deletion UI on `/profile.html`
+- [ ] Cloudflare R2 / Internet Archive backup for sermon media (deferred)
+- [ ] Cloudflare R2 migration path for music if approaching 4GB (deferred)
 
 ---
 
