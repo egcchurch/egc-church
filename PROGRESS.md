@@ -14,6 +14,26 @@
 
 ---
 
+## Session: Phase 6 PR 6 — permissions helper + admin-auth refactor (Session 31)
+
+**Date:** 2026-05-25
+**Branch:** `phase6/permission-helper`
+**Status:** PR open
+
+### What was done
+
+- **`js/permissions.js`** — New module. Exposes `Permissions.init(user)` (Promise, fetches and caches custom claims from `user.getIdTokenResult()`), `Permissions.hasPermission(key)` (synchronous after init), `Permissions.isSuperadmin()` (synchronous), and `Permissions.refresh(user)` (force token refresh then re-cache — call after saving role changes so new claims are immediately visible). Claims format: `{ superadmin: true }` for superadmins; `{ superadmin: false, perms: [...] }` for everyone else.
+- **`js/admin-auth.js`** — Refactored to optionally accept `data-require-perm="<key>"` on the script tag. Captures `document.currentScript.dataset.requirePerm` synchronously at IIFE start (before any async callbacks). After the existing `adminRole` check passes, if a perm is specified, calls `user.getIdTokenResult()` and checks `claims.superadmin === true || claims.perms.includes(requiredPerm)`. Without the attribute the guard behaves exactly as before. All existing pages remain unaffected.
+- **`service-worker.js`** — Cache bumped `v17 → v18`; `/js/permissions.js` added to precache list.
+
+### Notes / decisions
+
+- `permissions.js` is not loaded by any page yet — that happens in PR 7. The module is created now so PR 7 can add `<script src="/js/permissions.js">` alongside the nav/dashboard filtering changes in a single coherent commit.
+- `document.currentScript` is captured synchronously at the top of the `admin-auth.js` IIFE before the `waitForFirebase` / `onAuthStateChanged` callbacks run — the only window where it is reliably non-null for a synchronously-parsed `<script>` tag.
+- `Permissions.refresh(user)` calls `getIdToken(true)` (force refresh) before re-fetching claims — this is necessary after `syncUserClaims` writes new custom claims, since the local token is cached and won't reflect the update until refreshed.
+
+---
+
 ## Session: Phase 6 PR 5 — admin/users.html permissions UI (Session 30)
 
 **Date:** 2026-05-25
