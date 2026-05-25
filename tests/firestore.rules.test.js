@@ -371,4 +371,30 @@ describe('Firestore Security Rules', () => {
     });
   });
 
+  describe('Homepage collection', () => {
+    it('unauthenticated user can read homepage content', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'homepage', 'content'), { tagline: 'Welcome' });
+      });
+      const db = unauthUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'homepage', 'content')));
+    });
+
+    it('member cannot write homepage content', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      const db = memberUser().firestore();
+      await assertFails(setDoc(doc(db, 'homepage', 'content'), { tagline: 'Hack' }));
+    });
+
+    it('editor can write homepage content', async () => {
+      await seedUser('editor-uid', { membership: 'public', adminRole: 'editor' });
+      const db = editorUser().firestore();
+      await assertSucceeds(setDoc(doc(db, 'homepage', 'content'), {
+        tagline: 'Welcome to EGC',
+        serviceTimes: [],
+        announcement: { visible: false, title: '', body: '' }
+      }));
+    });
+  });
+
 });

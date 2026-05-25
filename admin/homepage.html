@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>Homepage Management | EGC Admin</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans overflow-x-hidden">
+
+  <!-- Navigation (shared — see admin-nav.html, injected by js/nav.js) -->
+  <div id="nav-placeholder"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-3xl mx-auto">
+      <h1 class="text-3xl font-bold tracking-tight">Homepage</h1>
+      <p class="text-blue-200 mt-1">Manage the public homepage content</p>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast"
+       class="hidden fixed bottom-6 right-6 z-50 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-xl text-sm transition-all">
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <main class="max-w-3xl mx-auto px-6 py-10 space-y-8">
+
+    <!-- Hero Tagline -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+      <h2 class="text-lg font-bold text-[#0A3D62] mb-1">Hero Tagline</h2>
+      <p class="text-sm text-gray-500 mb-5">Subtitle text shown over the homepage video.</p>
+      <input id="f-tagline" type="text" placeholder="e.g. May the Lord richly bless you"
+             class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+    </div>
+
+    <!-- Announcement -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="text-lg font-bold text-[#0A3D62]">Announcement Banner</h2>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input id="f-ann-visible" type="checkbox" class="w-4 h-4 accent-amber-500">
+          <span class="text-sm font-medium text-gray-700">Visible</span>
+        </label>
+      </div>
+      <p class="text-sm text-gray-500 mb-5">Amber banner shown below the hero when enabled.</p>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+          <input id="f-ann-title" type="text" placeholder="Announcement title"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Body</label>
+          <textarea id="f-ann-body" rows="3" placeholder="Announcement details..."
+                    class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Service Times -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="text-lg font-bold text-[#0A3D62]">Service Times</h2>
+        <button onclick="addServiceTime()"
+                class="text-sm text-amber-600 hover:text-amber-700 font-medium transition-colors">
+          <i class="fas fa-plus mr-1"></i>Add
+        </button>
+      </div>
+      <p class="text-sm text-gray-500 mb-5">Shown in the "Join Us" section on the homepage.</p>
+      <div id="service-times-list" class="space-y-3"></div>
+    </div>
+
+    <!-- Save -->
+    <div class="flex justify-end">
+      <button onclick="saveAll()"
+              class="bg-amber-500 hover:bg-amber-600 text-white px-10 py-3 rounded-full text-sm font-medium transition-all">
+        Save Changes
+      </button>
+    </div>
+
+  </main>
+
+  <script src="/firebase-config.js"></script>
+  <script src="/js/admin-auth.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    const db = firebase.firestore();
+    const docRef = db.collection('homepage').doc('content');
+
+    // ── Load ─────────────────────────────────────────────────────────────────
+
+    document.addEventListener('DOMContentLoaded', loadContent);
+
+    function loadContent() {
+      docRef.get().then(doc => {
+        const d = doc.exists ? doc.data() : {};
+
+        document.getElementById('f-tagline').value = d.tagline || '';
+
+        const ann = d.announcement || {};
+        document.getElementById('f-ann-visible').checked = ann.visible === true;
+        document.getElementById('f-ann-title').value   = ann.title || '';
+        document.getElementById('f-ann-body').value    = ann.body  || '';
+
+        const times = d.serviceTimes || [
+          { label: 'Morning Service', day: 'Sunday',    time: '10:00 AM' },
+          { label: 'Prayer Meeting',  day: 'Wednesday', time: '7:00 PM'  },
+        ];
+        document.getElementById('service-times-list').innerHTML = '';
+        times.forEach(t => appendServiceTimeRow(t));
+      }).catch(err => toast('Failed to load content: ' + err.message, true));
+    }
+
+    // ── Service times rows ────────────────────────────────────────────────────
+
+    function appendServiceTimeRow(t = {}) {
+      const row = document.createElement('div');
+      row.className = 'flex gap-3 items-start service-time-row';
+      row.innerHTML = `
+        <input type="text" placeholder="Label (e.g. Morning Service)" value="${esc(t.label || '')}"
+               class="st-label flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        <input type="text" placeholder="Day (e.g. Sunday)" value="${esc(t.day || '')}"
+               class="st-day w-28 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        <input type="text" placeholder="Time (e.g. 10:00 AM)" value="${esc(t.time || '')}"
+               class="st-time w-28 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        <button onclick="this.closest('.service-time-row').remove()"
+                class="mt-2 text-gray-400 hover:text-red-500 transition-colors text-sm px-1">
+          <i class="fas fa-trash"></i>
+        </button>
+      `;
+      document.getElementById('service-times-list').appendChild(row);
+    }
+
+    function addServiceTime() {
+      appendServiceTimeRow();
+    }
+
+    function collectServiceTimes() {
+      return Array.from(document.querySelectorAll('.service-time-row')).map(row => ({
+        label: row.querySelector('.st-label').value.trim(),
+        day:   row.querySelector('.st-day').value.trim(),
+        time:  row.querySelector('.st-time').value.trim(),
+      })).filter(t => t.label || t.day || t.time);
+    }
+
+    // ── Save ──────────────────────────────────────────────────────────────────
+
+    function saveAll() {
+      const data = {
+        tagline: document.getElementById('f-tagline').value.trim(),
+        announcement: {
+          visible: document.getElementById('f-ann-visible').checked,
+          title:   document.getElementById('f-ann-title').value.trim(),
+          body:    document.getElementById('f-ann-body').value.trim(),
+        },
+        serviceTimes: collectServiceTimes(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      };
+
+      docRef.set(data, { merge: true })
+        .then(() => toast('Homepage saved.'))
+        .catch(err => toast('Error: ' + err.message, true));
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    function esc(str) {
+      return String(str).replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    let toastTimer;
+    function toast(msg, isError = false) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.remove('hidden', 'bg-gray-900', 'bg-red-600');
+      el.classList.add(isError ? 'bg-red-600' : 'bg-gray-900');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.add('hidden'), 3500);
+    }
+  </script>
+</body>
+</html>
