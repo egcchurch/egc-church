@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="EGC">
+  <link rel="apple-touch-icon" href="/assets/images/icons/icon-192.png">
+  <title>Notifications | EGC Admin</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-functions-compat.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="/js/admin-auth.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans">
+
+  <!-- Navigation -->
+  <div id="nav-placeholder"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-7xl mx-auto">
+      <h1 class="text-3xl font-bold tracking-tight">Notifications</h1>
+      <p class="text-blue-200 mt-1">Send broadcasts and view notification history</p>
+    </div>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-6 py-8">
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+
+      <!-- ── Send Broadcast Form ─────────────────────────────────────────── -->
+      <div class="lg:col-span-2">
+        <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-6">
+          <h2 class="text-lg font-bold text-[#0A3D62] mb-5">
+            <i class="fas fa-paper-plane mr-2 text-amber-500"></i>Send Broadcast
+          </h2>
+
+          <form id="broadcast-form" class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Title</label>
+              <input id="f-title" type="text" required maxlength="120"
+                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                     placeholder="e.g. Sunday Service Reminder">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Message</label>
+              <textarea id="f-body" required rows="4" maxlength="500"
+                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                        placeholder="Write your message here…"></textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Type</label>
+                <select id="f-type"
+                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                  <option value="broadcast">General</option>
+                  <option value="emergency">Emergency</option>
+                  <option value="digest">Digest</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Audience</label>
+                <select id="f-audience"
+                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                  <option value="members">Members only</option>
+                  <option value="all">All approved users</option>
+                  <option value="admins">Admins only</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="form-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
+
+            <button id="send-btn" type="submit"
+                    class="w-full bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+              <i class="fas fa-paper-plane"></i> Send Broadcast
+            </button>
+          </form>
+
+          <div class="mt-4 p-3 bg-blue-50 rounded-lg">
+            <p class="text-xs text-blue-700">
+              <i class="fas fa-info-circle mr-1"></i>
+              Push notifications reach members who have granted permission and are registered.
+              In-app notifications reach all matching users when they next open the app.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Notification History ────────────────────────────────────────── -->
+      <div class="lg:col-span-3">
+        <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm">
+          <div class="px-6 py-4 border-b border-zinc-100 flex items-center justify-between">
+            <h2 class="text-lg font-bold text-[#0A3D62]">
+              <i class="fas fa-history mr-2 text-amber-500"></i>Sent Notifications
+            </h2>
+            <span id="notif-count" class="text-xs text-gray-400"></span>
+          </div>
+
+          <div id="notif-list" class="divide-y divide-zinc-50">
+            <div class="flex items-center justify-center py-16 text-gray-300">
+              <i class="fas fa-circle-notch fa-spin text-2xl"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Toast -->
+  <div id="toast"
+       class="fixed bottom-6 right-6 z-50 hidden bg-[#0A3D62] text-white px-5 py-3 rounded-xl shadow-xl text-sm font-medium max-w-xs">
+  </div>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    const functions = firebase.functions();
+    const sendBroadcastFn = functions.httpsCallable('sendBroadcast');
+
+    // ── Toast ──────────────────────────────────────────────────────────────────
+    function showToast(msg, isError = false) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = `fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl text-sm font-medium max-w-xs text-white ${
+        isError ? 'bg-red-600' : 'bg-[#0A3D62]'
+      }`;
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 3500);
+    }
+
+    // ── Send Broadcast ─────────────────────────────────────────────────────────
+    document.getElementById('broadcast-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn     = document.getElementById('send-btn');
+      const errBox  = document.getElementById('form-error');
+      errBox.classList.add('hidden');
+
+      const title    = document.getElementById('f-title').value.trim();
+      const body     = document.getElementById('f-body').value.trim();
+      const type     = document.getElementById('f-type').value;
+      const audience = document.getElementById('f-audience').value;
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Sending…';
+
+      try {
+        const result = await sendBroadcastFn({ title, body, type, audience });
+        const { sent, inApp } = result.data;
+        showToast(`Sent — ${inApp} in-app notification${inApp !== 1 ? 's' : ''}, ${sent} push notification${sent !== 1 ? 's' : ''}.`);
+        document.getElementById('broadcast-form').reset();
+      } catch (err) {
+        errBox.textContent = err.message || 'Failed to send broadcast. Please try again.';
+        errBox.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Broadcast';
+      }
+    });
+
+    // ── Load Notification History ──────────────────────────────────────────────
+    function loadHistory() {
+      firebase.firestore()
+        .collection('notifications')
+        .orderBy('sentAt', 'desc')
+        .limit(50)
+        .onSnapshot((snap) => {
+          const list = document.getElementById('notif-list');
+          const count = document.getElementById('notif-count');
+
+          if (snap.empty) {
+            list.innerHTML = '<p class="text-sm text-gray-400 text-center py-12">No broadcasts sent yet.</p>';
+            count.textContent = '';
+            return;
+          }
+
+          count.textContent = `${snap.size} sent`;
+          list.innerHTML = snap.docs.map(d => {
+            const n = d.data();
+            const date = n.sentAt?.toDate
+              ? n.sentAt.toDate().toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })
+              : '—';
+            const audienceLabel = { all: 'All Users', members: 'Members', admins: 'Admins' }[n.audience] || n.audience;
+            const typeColor = {
+              emergency: 'bg-red-100 text-red-700',
+              digest: 'bg-blue-100 text-blue-700',
+              broadcast: 'bg-amber-100 text-amber-700',
+            }[n.type] || 'bg-gray-100 text-gray-600';
+
+            return `
+              <div class="px-6 py-4">
+                <div class="flex items-start justify-between gap-3 flex-wrap">
+                  <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-gray-800 text-sm leading-snug">${esc(n.title || '')}</p>
+                    <p class="text-xs text-gray-500 mt-1 line-clamp-2">${esc(n.body || '')}</p>
+                  </div>
+                  <div class="flex flex-col items-end gap-1 shrink-0">
+                    <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${typeColor}">${esc(n.type || '')}</span>
+                    <span class="text-[10px] text-gray-400">${esc(audienceLabel)}</span>
+                  </div>
+                </div>
+                <p class="text-[10px] text-gray-400 mt-2">${date}</p>
+              </div>`;
+          }).join('');
+        });
+    }
+
+    document.addEventListener('nav-loaded', () => {
+      if (typeof firebase !== 'undefined') loadHistory();
+    });
+
+    function esc(str) {
+      const d = document.createElement('div');
+      d.textContent = String(str);
+      return d.innerHTML;
+    }
+  </script>
+</body>
+</html>

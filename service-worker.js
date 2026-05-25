@@ -1,4 +1,34 @@
-const CACHE_NAME = 'egc-cache-v13';
+// Firebase Messaging SDK — handles push notifications when the browser tab is in the background.
+// The client passes serviceWorkerRegistration to messaging.getToken() so Firebase uses this SW
+// instead of looking for a separate firebase-messaging-sw.js at the root.
+importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
+
+if (!self.firebase?.apps?.length) {
+  firebase.initializeApp({
+    apiKey: 'AIzaSyAly2rtcYlwmk-TyhMqBcybUzupB76DCY8',
+    authDomain: 'egc-church.firebaseapp.com',
+    projectId: 'egc-church',
+    storageBucket: 'egc-church.firebasestorage.app',
+    messagingSenderId: '1062334725558',
+    appId: '1:1062334725558:web:6ba21350d61b55c6515517',
+  });
+}
+
+const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage((payload) => {
+  const title = payload.notification?.title || 'EGC Notification';
+  const body  = payload.notification?.body  || '';
+  self.registration.showNotification(title, {
+    body,
+    icon: '/assets/images/icons/icon-192.png',
+    badge: '/assets/images/icons/icon-72.png',
+    data: payload.data || {},
+  });
+});
+
+const CACHE_NAME = 'egc-cache-v14';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -33,6 +63,7 @@ const PRECACHE_URLS = [
   '/admin/groups.html',
   '/admin/devotional.html',
   '/admin/connect.html',
+  '/admin/notifications.html',
   '/admin/gallery.html',
   '/admin/music.html',
   '/firebase-config.js',
@@ -49,6 +80,7 @@ const PRECACHE_URLS = [
   '/js/storage-upload.js',
   '/js/admin-auth.js',
   '/js/member-auth.js',
+  '/js/notifications.js',
   '/manifest.json',
   '/assets/images/icons/icon-192.png',
   '/assets/images/icons/icon-512.png',
