@@ -14,6 +14,27 @@
 
 ---
 
+## Session: Nav dropdown fix (Session 24)
+
+**Date:** 2026-05-25
+**Branch:** `fix/nav-dropdown`
+**Status:** PR open
+
+### What was done
+
+- **`members-nav.html`** — Replaced 8 individual desktop links with a single `MEMBERS ▾` dropdown (click to open, Escape/outside-click to close, chevron rotates 180° when open). Mobile nav untouched.
+- **`admin-nav.html`** — Replaced 13 individual desktop links (SERMONS … USERS) with a single `ADMIN ▾` dropdown. Same behaviour. Mobile nav untouched.
+- **`js/main.js`** — Added `initNavDropdowns()`: binds click-toggle on each dropdown button; closes all nav dropdowns before opening one; closes on outside click and Escape key. Called from `nav-loaded` handler.
+- **`js/nav.js`** — Updated `highlightActiveLink()` to also highlight the dropdown trigger button (`text-amber-600 font-semibold`) when the current path starts with `/members/` or `/admin/`. Also removes `hover:bg-amber-50` from the matched dropdown link (consistent active state).
+
+### Notes / decisions
+
+- No new pages added — SW cache list and cache version unchanged.
+- Dropdown open/close uses the same outside-click pattern already used for the user account dropdown (`!wrapper.contains(e.target)`), so the two are naturally mutually exclusive without extra coupling.
+- Chevron rotation uses Tailwind's `rotate-180` + `transition-transform duration-200` classes, toggled in JS.
+
+---
+
 ## Session: Phase 5 — Docs housekeeping (Session 23)
 
 **Date:** 2026-05-25

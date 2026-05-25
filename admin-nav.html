@@ -13,19 +13,29 @@
 
       <div class="hidden md:flex items-center gap-x-8 text-sm font-medium">
         <a href="/index.html" class="hover:text-amber-600 transition-colors"><i class="fas fa-arrow-left mr-1"></i>Back to Site</a>
-        <a href="/admin/sermons.html" class="hover:text-amber-600 transition-colors">SERMONS</a>
-        <a href="/admin/events.html" class="hover:text-amber-600 transition-colors">EVENTS</a>
-        <a href="/admin/blog.html" class="hover:text-amber-600 transition-colors">BLOG</a>
-        <a href="/admin/team.html" class="hover:text-amber-600 transition-colors">TEAM</a>
-        <a href="/admin/gallery.html" class="hover:text-amber-600 transition-colors">GALLERY</a>
-        <a href="/admin/music.html" class="hover:text-amber-600 transition-colors">MUSIC</a>
-        <a href="/admin/prayer.html" class="hover:text-amber-600 transition-colors">PRAYER</a>
-        <a href="/admin/groups.html" class="hover:text-amber-600 transition-colors">GROUPS</a>
-        <a href="/admin/devotional.html" class="hover:text-amber-600 transition-colors">DEVOTIONAL</a>
-        <a href="/admin/connect.html" class="hover:text-amber-600 transition-colors">CONNECT</a>
-        <a href="/admin/homepage.html" class="hover:text-amber-600 transition-colors">HOMEPAGE</a>
-        <a href="/admin/notifications.html" class="hover:text-amber-600 transition-colors">NOTIFICATIONS</a>
-        <a href="/admin/users.html" class="hover:text-amber-600 transition-colors">USERS</a>
+
+        <div class="relative" id="admin-nav-wrapper">
+          <button id="admin-nav-btn"
+                  class="flex items-center gap-1.5 hover:text-amber-600 transition-colors">
+            ADMIN <i id="admin-nav-chevron" class="fas fa-chevron-down text-xs transition-transform duration-200"></i>
+          </button>
+          <div id="admin-nav-panel"
+               class="hidden absolute left-0 top-full mt-2 w-52 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50">
+            <a href="/admin/sermons.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Sermons</a>
+            <a href="/admin/events.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Events</a>
+            <a href="/admin/blog.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Blog</a>
+            <a href="/admin/team.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Team</a>
+            <a href="/admin/gallery.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Gallery</a>
+            <a href="/admin/music.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Music</a>
+            <a href="/admin/prayer.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Prayer</a>
+            <a href="/admin/groups.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Groups</a>
+            <a href="/admin/devotional.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Devotional</a>
+            <a href="/admin/connect.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Connect</a>
+            <a href="/admin/homepage.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Homepage</a>
+            <a href="/admin/notifications.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Notifications</a>
+            <a href="/admin/users.html" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600 transition-colors">Users</a>
+          </div>
+        </div>
       </div>
 
       <div class="flex items-center gap-1">
