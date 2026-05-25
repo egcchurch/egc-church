@@ -6,6 +6,55 @@ admin.initializeApp();
 
 const db = admin.firestore();
 
+const { computeEffectiveClaims, permissionFieldsChanged } = require('./computePermissions');
+
+// ── syncUserClaims ────────────────────────────────────────────────────────────
+// Triggered on any write to /users/{uid}.
+// Recomputes effective permissions from roles + extraPermissions and writes
+// them to Firebase Auth custom claims so security rules can use them without
+// an extra Firestore read on every request.
+// Skips the write if none of the permission-relevant fields changed.
+
+exports.syncUserClaims = functions.firestore
+  .document('users/{uid}')
+  .onWrite(async (change, context) => {
+    const { uid } = context.params;
+
+    // Doc deleted — clear claims (Auth account may already be gone; ignore that error)
+    if (!change.after.exists) {
+      try {
+        await admin.auth().setCustomUserClaims(uid, null);
+      } catch (e) {
+        console.warn(`syncUserClaims: could not clear claims for ${uid}:`, e.message);
+      }
+      return null;
+    }
+
+    const afterData  = change.after.data() || {};
+    const beforeData = change.before.exists ? (change.before.data() || {}) : null;
+
+    if (!permissionFieldsChanged(beforeData, afterData)) {
+      console.log(`syncUserClaims: no permission change for ${uid}, skipping`);
+      return null;
+    }
+
+    const isSuperadmin     = afterData.isSuperadmin === true;
+    const roleIds          = afterData.roles || [];
+    const extraPermissions = afterData.extraPermissions || [];
+
+    // Fetch all assigned role documents in parallel
+    const roleSnaps = await Promise.all(
+      roleIds.map((id) => db.collection('roles').doc(id).get())
+    );
+    const roleDocs = roleSnaps.filter((s) => s.exists).map((s) => s.data());
+
+    const claims = computeEffectiveClaims(isSuperadmin, roleDocs, extraPermissions);
+    await admin.auth().setCustomUserClaims(uid, claims);
+
+    console.log(`syncUserClaims: set claims for ${uid}:`, JSON.stringify(claims));
+    return null;
+  });
+
 // ── onUserCreate ──────────────────────────────────────────────────────────────
 // Triggered when a new user registers via Firebase Auth.
 // Auto-provisions a /users/{uid} document with default membership = 'pending'.
