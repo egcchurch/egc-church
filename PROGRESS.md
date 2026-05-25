@@ -9,7 +9,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-25
-**Current milestone:** Phase 4 — Notifications & Messaging (PRs open, awaiting review)
+**Current milestone:** Phase 5 — Polish (next)
 
 ---
 
@@ -67,7 +67,7 @@
 - [x] Cloud Function: `weeklyDigest` (scheduled, Sunday)
 - [x] `/members/messages.html` — direct messaging between members
 
-**Phase 4 complete** — pending PR reviews and merge.
+**Phase 4 complete** — merged to main (PRs #22 and #23).
 
 ---
 
@@ -572,15 +572,15 @@ Next milestone: Phase 3 — Members Area.
 
 ### Phase 4 — Notifications & Messaging
 
-- [ ] FCM token registration on login
-- [ ] In-app notification bell (nav, real-time Firestore listener)
-- [ ] `/admin/notifications.html` — compose and send broadcasts
-- [ ] Cloud Function: `sendBroadcast` (HTTP/callable, FCM fan-out)
-- [ ] Cloud Function: `onNewMessage` (Firestore trigger, DM push)
-- [ ] Cloud Function: `onNewPrayerRequest` (Firestore trigger, alert fan-out)
-- [ ] Cloud Function: `onNewConnectForm` (Firestore trigger, admin alert)
-- [ ] Cloud Function: `weeklyDigest` (scheduled, Sunday)
-- [ ] `/members/messages.html` — direct messaging between members
+- [x] FCM token registration on login
+- [x] In-app notification bell (nav, real-time Firestore listener)
+- [x] `/admin/notifications.html` — compose and send broadcasts
+- [x] Cloud Function: `sendBroadcast` (HTTP/callable, FCM fan-out)
+- [x] Cloud Function: `onNewMessage` (Firestore trigger, DM push)
+- [x] Cloud Function: `onNewPrayerRequest` (Firestore trigger, alert fan-out)
+- [x] Cloud Function: `onNewConnectForm` (Firestore trigger, admin alert)
+- [x] Cloud Function: `weeklyDigest` (scheduled, Sunday)
+- [x] `/members/messages.html` — direct messaging between members
 
 ### Phase 5 — Polish
 

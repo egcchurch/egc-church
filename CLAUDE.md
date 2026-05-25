@@ -568,8 +568,8 @@ Firestore rules for `/groups/{groupId}` updates:
 - Password reset: handled by Firebase Auth's built-in `sendPasswordResetEmail()` — link on /login.html
 - Firestore database: `(default)` in nam5 region (production mode)
 - Firebase Storage: in use (audio, PDFs, images, music, cover art)
-- Cloud Messaging (FCM): planned (Phase 4)
-- Cloud Functions: `onUserCreate` deployed; broadcasts/triggers planned (Phase 4); account deletion (Phase 5)
+- Cloud Messaging (FCM): deployed — VAPID key configured, token registration in js/notifications.js
+- Cloud Functions: `onUserCreate`, `sendBroadcast`, `onNewMessage`, `onNewPrayerRequest`, `onNewConnectForm`, `weeklyDigest` deployed; account deletion (Phase 5)
 - Authorised domains: localhost, 127.0.0.1, egcchurch.github.io, egc-church.firebaseapp.com, egc-church.web.app, staging.egc.church, app.egc.church
 - Billing plan: **Blaze (pay-as-you-go)** — required for Cloud Functions; usage stays within free tier at church scale
 - Required composite indexes:
@@ -730,5 +730,5 @@ The agentic-style local workflow:
 - [x] **Phase 1 — Foundation** — complete and deployed
 - [x] **Phase 2 — Core Public Site** — complete and deployed
 - [x] **Phase 3 — Members Area** — complete and deployed
-- [ ] **Phase 4 — Notifications & Messaging** — next
-- [ ] Phase 5 — Polish
+- [x] **Phase 4 — Notifications & Messaging** — complete and deployed
+- [ ] **Phase 5 — Polish** — next
