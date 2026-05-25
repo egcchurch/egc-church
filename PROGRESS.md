@@ -9,15 +9,32 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-25
-**Current milestone:** Phase 5 — Polish (in progress)
+**Current milestone:** Phase 5 — Polish (complete)
+
+---
+
+## Session: Phase 5 — Docs housekeeping (Session 23)
+
+**Date:** 2026-05-25
+**Branch:** `chore/update-docs-phase5`
+**Status:** PR open
+
+### What was done
+
+- **`CLAUDE.md`** — Added sequential branching rule to Constraints & Rules and a "Multi-PR sessions" callout to Development Workflow. Marked Phase 5 complete.
+- **`PROGRESS.md`** — Updated current milestone; updated Session 22 status to show all three PRs merged.
+
+### Notes / decisions
+
+- Rule added after Phase 5 merge conflict incident: two branches both appended to `functions/index.js` from the same base commit, causing a rebase conflict. Rule: wait for each PR to merge before branching the next.
 
 ---
 
 ## Session: Phase 5 — Polish (Session 22)
 
 **Date:** 2026-05-25
-**Branches:** `phase5/homepage` (PR #25, merged), `phase5/account-deletion` (PR #26, merged), `phase5/podcast-rss`
-**Status:** PRs #25 and #26 merged; podcast-rss PR open
+**Branches:** `phase5/homepage` (PR #25, merged), `phase5/account-deletion` (PR #26, merged), `phase5/podcast-rss` (PR #27, merged)
+**Status:** All three PRs merged
 
 ### What was done
 
