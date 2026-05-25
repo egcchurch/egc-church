@@ -14,6 +14,29 @@
 
 ---
 
+## Session: Phase 6 PR 2 — syncUserClaims function (Session 27)
+
+**Date:** 2026-05-25
+**Branch:** `phase6/sync-claims-function`
+**Status:** PR open
+
+### What was done
+
+- **`functions/computePermissions.js`** — New pure module (no Firebase deps). Exports two functions: `computeEffectiveClaims(isSuperadmin, roleDocs, extraPermissions)` → custom claims object; `permissionFieldsChanged(before, after)` → boolean guard to skip unnecessary claim writes.
+- **`functions/index.js`** — Added `syncUserClaims` Firestore trigger on `users/{uid}` writes. On delete: clears claims (best-effort). On create/update: checks if permission fields changed; if so, fetches role docs in parallel, computes claims via helper, writes to Firebase Auth custom claims.
+- **`tests/syncUserClaims.test.js`** — 16 pure unit tests covering `computeEffectiveClaims` (superadmin override, role union, deduplication, extras, missing permissions array) and `permissionFieldsChanged` (creation, changed/unchanged fields). No emulator required. All 57 tests pass (41 rules + 16 unit).
+- **`CLAUDE.md`** — Added `syncUserClaims` to Cloud Functions Architecture section.
+
+### Notes / decisions
+
+- Pure helper module pattern: keeps the trigger thin, makes the logic fully testable without mocking Firebase Admin.
+- Claims format: `{ superadmin: true }` for superadmins (no perms array); `{ superadmin: false, perms: [...] }` for everyone else. `superadmin: false` is explicit so demoting a superadmin clears the claim.
+- Trigger fires on every user doc write; idempotency guard skips unless `roles`, `extraPermissions`, or `isSuperadmin` changed. Non-permission updates (displayName, photoURL, etc.) are free.
+- Custom claims budget: 14 keys × ~20 bytes ≈ 280 bytes — well within the 1000-byte limit.
+- `isSuperadmin`, `roles`, `extraPermissions` fields don't exist on user docs yet — added in Phase 6 PR #3 (migration). Function defaults all three to empty/false, so it's safe to deploy before migration runs.
+
+---
+
 ## Session: Phase 6 PR 1 — Roles collection (Session 26)
 
 **Date:** 2026-05-25

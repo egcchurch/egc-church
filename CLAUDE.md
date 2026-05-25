@@ -333,6 +333,10 @@ Functions are organised by trigger type:
 
 - `deleteUserAccount` — callable from `/profile.html` — performs GDPR-compliant account deletion (see Account Deletion section)
 
+### Phase 6
+
+- `syncUserClaims` — trigger: `/users/{uid}` write — recomputes effective permissions from `user.roles` + `user.extraPermissions`, writes to Firebase Auth custom claims (`{ superadmin: true }` or `{ superadmin: false, perms: [...] }`). Skips if no permission-relevant fields changed. Helper logic in `functions/computePermissions.js` (pure module, tested independently).
+
 ---
 
 ## Firestore Data Structure
@@ -745,3 +749,5 @@ The agentic-style local workflow:
 - [x] **Phase 3 — Members Area** — complete and deployed
 - [x] **Phase 4 — Notifications & Messaging** — complete and deployed
 - [x] **Phase 5 — Polish** — complete and deployed
+- [ ] **Phase 6 — Permissions & Roles** — in progress (`docs/PERMISSIONS.md`)
+- [ ] **Phase 7 — Adaptive Homepage** — planned (`docs/HOMEPAGE.md`)
