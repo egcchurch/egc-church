@@ -1,5 +1,5 @@
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
-const { doc, getDoc, setDoc, updateDoc } = require('firebase/firestore');
+const { doc, getDoc, setDoc, updateDoc, deleteDoc } = require('firebase/firestore');
 
 let testEnv;
 
@@ -368,6 +368,61 @@ describe('Firestore Security Rules', () => {
       });
       const db = memberUser().firestore();
       await assertFails(getDoc(doc(db, 'connect', 'c1')));
+    });
+  });
+
+  describe('Roles collection', () => {
+    it('unauthenticated user cannot read roles', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'roles', 'deacon'), { displayName: 'Deacon', isSystem: true, permissions: [] });
+      });
+      const db = unauthUser().firestore();
+      await assertFails(getDoc(doc(db, 'roles', 'deacon')));
+    });
+
+    it('authenticated member can read roles', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'roles', 'deacon'), { displayName: 'Deacon', isSystem: true, permissions: [] });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'roles', 'deacon')));
+    });
+
+    it('member cannot create a role', async () => {
+      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      const db = memberUser().firestore();
+      await assertFails(setDoc(doc(db, 'roles', 'new-role'), { displayName: 'Hacker', permissions: [], isSystem: false }));
+    });
+
+    it('editor cannot create a role', async () => {
+      await seedUser('editor-uid', { membership: 'public', adminRole: 'editor' });
+      const db = editorUser().firestore();
+      await assertFails(setDoc(doc(db, 'roles', 'new-role'), { displayName: 'Editor Role', permissions: [], isSystem: false }));
+    });
+
+    it('superadmin can create a role', async () => {
+      await seedUser('admin-uid', { membership: 'public', adminRole: 'superadmin' });
+      const db = superAdmin().firestore();
+      await assertSucceeds(setDoc(doc(db, 'roles', 'new-role'), { displayName: 'New Role', permissions: [], isSystem: false }));
+    });
+
+    it('superadmin cannot delete a system role', async () => {
+      await seedUser('admin-uid', { membership: 'public', adminRole: 'superadmin' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'roles', 'deacon'), { displayName: 'Deacon', isSystem: true, permissions: [] });
+      });
+      const db = superAdmin().firestore();
+      await assertFails(deleteDoc(doc(db, 'roles', 'deacon')));
+    });
+
+    it('superadmin can delete a non-system role', async () => {
+      await seedUser('admin-uid', { membership: 'public', adminRole: 'superadmin' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'roles', 'custom-role'), { displayName: 'Custom', isSystem: false, permissions: [] });
+      });
+      const db = superAdmin().firestore();
+      await assertSucceeds(deleteDoc(doc(db, 'roles', 'custom-role')));
     });
   });
 
