@@ -28,7 +28,7 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE_NAME = 'egc-cache-v17';
+const CACHE_NAME = 'egc-cache-v18';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -83,6 +83,7 @@ const PRECACHE_URLS = [
   '/js/storage-upload.js',
   '/js/admin-auth.js',
   '/js/member-auth.js',
+  '/js/permissions.js',
   '/js/homepage.js',
   '/js/notifications.js',
   '/js/messaging.js',
