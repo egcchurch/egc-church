@@ -77,6 +77,8 @@ church-website-pwa/
 │
 ├── functions/                  ← Firebase Cloud Functions
 │   ├── index.js                ← Function entry — auth, Firestore, scheduled, callable triggers
+│   ├── computePermissions.js   ← Pure helper: computeEffectiveClaims, permissionFieldsChanged
+│   ├── rolesData.js            ← Shared role data: ALL_PERMISSIONS, DEFAULT_ROLES (used by seed + migrate)
 │   ├── seedRoles.js            ← One-time seed script for /roles collection (Phase 6, manual run)
 │   ├── package.json            ← Node dependencies (firebase-admin, firebase-functions)
 │   └── .gitignore              ← Excludes node_modules
@@ -336,6 +338,7 @@ Functions are organised by trigger type:
 ### Phase 6
 
 - `syncUserClaims` — trigger: `/users/{uid}` write — recomputes effective permissions from `user.roles` + `user.extraPermissions`, writes to Firebase Auth custom claims (`{ superadmin: true }` or `{ superadmin: false, perms: [...] }`). Skips if no permission-relevant fields changed. Helper logic in `functions/computePermissions.js` (pure module, tested independently).
+- `migrateRolesV1` — callable (superadmin only) — one-time Phase 6 migration: (1) seeds `/roles/` with 7 default roles if empty; (2) iterates all user docs in batches of 100 and sets `isSuperadmin`, `roles`, `extraPermissions` based on legacy `adminRole` (`"superadmin"` → `isSuperadmin: true`; `"editor"` → `roles: ["content_editor"]`; else → empty). Idempotent — skips users where all three fields already exist. Returns `{ usersUpdated, rolesSeeded, errors }`. Run on staging first, verify, then prod.
 
 ---
 

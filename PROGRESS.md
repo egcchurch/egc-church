@@ -14,6 +14,29 @@
 
 ---
 
+## Session: Phase 6 PR 3 — migrateRolesV1 function (Session 28)
+
+**Date:** 2026-05-25
+**Branch:** `phase6/migration-function`
+**Status:** PR open
+
+### What was done
+
+- **`functions/rolesData.js`** — New shared module exporting `ALL_PERMISSIONS` (14 keys) and `DEFAULT_ROLES` (7 roles). Previously these were inlined in `seedRoles.js`; extracted so both the seed script and the callable migration share one source of truth.
+- **`functions/seedRoles.js`** — Updated to `require('./rolesData')` instead of duplicating the arrays.
+- **`functions/index.js`** — Added `migrateRolesV1` callable. Superadmin-only. Step 1: seeds `/roles/` with 7 default roles if empty. Step 2: paginates all user docs (100 per batch via `orderBy(__name__).startAfter(cursor)`), sets `isSuperadmin`, `roles`, `extraPermissions` based on legacy `adminRole`, skips docs that already have all three fields. Each user write triggers `syncUserClaims` automatically. Returns `{ usersUpdated, rolesSeeded, errors }`.
+- **`CLAUDE.md`** — Added `functions/rolesData.js` to project structure; added `migrateRolesV1` to Cloud Functions Architecture section.
+
+### Notes / decisions
+
+- Auth check uses Firestore `adminRole` (not custom claims) — at migration time, claims haven't been populated yet.
+- Idempotency guard: skips users where `isSuperadmin`, `roles`, and `extraPermissions` are all already present. Safe to run twice without overwriting manually-set roles from the admin UI.
+- `adminRole` field is NOT removed — stays as fallback until Phase 6 PR #8 cleanup.
+- No new unit tests — the pure computation logic (`computeEffectiveClaims`, `permissionFieldsChanged`) is already tested in `tests/syncUserClaims.test.js`. The migration's user-mapping logic is straightforward imperative code.
+- Run order: staging first → verify counts → production.
+
+---
+
 ## Session: Phase 6 PR 2 — syncUserClaims function (Session 27)
 
 **Date:** 2026-05-25
