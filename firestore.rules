@@ -12,8 +12,7 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.membership == 'member';
     }
 
-    // Phase 6: permission checks use Firebase Auth custom claims set by syncUserClaims.
-    // adminRole field kept in Firestore for the migration window (removed in PR 8).
+    // Permission checks use Firebase Auth custom claims set by syncUserClaims.
     function isSuperadmin() {
       return request.auth != null && request.auth.token.superadmin == true;
     }

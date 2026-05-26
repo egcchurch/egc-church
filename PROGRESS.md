@@ -9,8 +9,65 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-05-25
-**Current milestone:** Phase 6 — Permissions & Roles (in progress)
+**Last worked on:** 2026-05-26
+**Current milestone:** Phase 6 — Permissions & Roles (complete — all 8 PRs merged)
+
+---
+
+## Session: Phase 6 PR 8 — adminRole cleanup (Session 33)
+
+**Date:** 2026-05-26
+**Branch:** `phase6/remove-adminrole`
+**Status:** PR open
+
+### What was done
+
+**`firestore.rules`**
+- Removed the migration-window comment about `adminRole` (already unused in rules since PR 7).
+
+**`storage.rules`**
+- Replaced `isEditor()` helper (Firestore read on `adminRole`) with `isAdminUser()` using custom claims: `request.auth.token.superadmin == true || (request.auth.token.perms is list && perms.size() > 0)`. No more Firestore read on every storage write.
+
+**`js/admin-auth.js`**
+- Removed the Firestore read for `adminRole` check.
+- Replaced with a single `user.getIdTokenResult()` call. Base check (no `data-require-perm`): `superadmin === true || (perms is non-empty array)`. Per-page check (with `data-require-perm`): `superadmin === true || perms.includes(requiredPerm)`. One async step instead of two.
+
+**`js/main.js`**
+- `isAdmin` computed from `userData.isSuperadmin === true || userData.roles.length > 0 || userData.extraPermissions.length > 0` (Phase 6 fields) instead of `userData.adminRole`.
+
+**`admin/users.html`**
+- `isSuperadmin` detected from `doc.data().isSuperadmin === true` (was `adminRole === 'superadmin'`).
+- Removed `roleBadge` (displayed the `adminRole` value as a blue badge). `isSABadge` already covers the superadmin indicator.
+- Removed `roleButtons` section ("Make Editor / Make Superadmin / Remove Role" buttons).
+- Removed `setRole()` function and its section comment. Permissions are now managed exclusively via the expandable Permissions section (roles + extraPermissions + isSuperadmin toggle).
+- Renamed "Membership / legacy role helpers" comment to "Membership helpers".
+
+**`admin/roles.html`**
+- `isSuperadmin` detected from `doc.data().isSuperadmin === true`.
+
+**`functions/index.js`**
+- `onUserCreate`: removed `adminRole: null` from the provisioned doc; added `isSuperadmin: false`, `roles: []`, `extraPermissions: []` as the Phase 6 defaults.
+- `sendBroadcast`: auth check now uses `context.auth.token.superadmin / perms` (custom claims) — removed the Firestore read of the caller doc. `audience === 'admins'` query replaced: fetches all users and filters for `isSuperadmin || roles.length > 0 || extraPermissions.length > 0` (covers all variants of admin capability).
+- `onNewPrayerRequest`: private prayer → admins query uses same fetch-all-and-filter approach.
+- `onNewConnectForm`: admins query uses same fetch-all-and-filter approach.
+- `migrateRolesV1`: auth check now uses `context.auth.token.superadmin` (claims populated since migration ran). Removed Firestore read of caller doc. Removed comment about `adminRole` fallback.
+
+**`tests/firestore.rules.test.js`**
+- Removed `adminRole` from all user seed data. Replaced `adminRole: 'editor'` with `isSuperadmin: false, roles: ['content_editor']` and `adminRole: 'superadmin'` with `isSuperadmin: true, roles: []`. All 57 tests pass unchanged.
+
+**`CLAUDE.md`**
+- Removed `adminRole` from `/users/{uid}` schema; added `isSuperadmin`, `roles`, `extraPermissions` fields.
+- Updated Admin Pages table: added `Required permission` column, removed old "editor or superadmin" heading.
+- Replaced "Admin Role" section in Role & Permission Model with Phase 6 model description (custom claims, `docs/PERMISSIONS.md` pointer).
+- Updated Combined Access Matrix column headers.
+- Updated Approval Flow, `onUserCreate` description, `migrateRolesV1` description, group leader description, and Member Directory "Never shown" list.
+- Updated `admin/` folder comment and `admin/groups.html` line to reference permissions instead of `adminRole`.
+
+### Notes / decisions
+
+- `storage.rules` `isAdminUser()` uses `perms.size() > 0` rather than checking a specific permission per path. This is consistent with how any admin-role user previously had blanket storage write access. If finer-grained storage rules are needed later (e.g. only `sermons.manage` can write to `/sermons/`), that can be done without a schema change.
+- Cloud Functions `audience === 'admins'` query now fetches all users and filters in code. At church scale (< 200 users) this is negligible. A dedicated `isAdmin` boolean field would enable a Firestore query but was out of scope for this cleanup PR.
+- The `migrateRolesV1` function retains the `adminRole`-to-Phase6 mapping logic internally (the batch reads still access `u.adminRole` on existing docs). This is fine — the function is idempotent and only runs against docs that haven't been migrated yet. Those docs still have `adminRole` present as historical data.
 
 ---
 

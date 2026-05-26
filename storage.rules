@@ -12,9 +12,10 @@ service firebase.storage {
         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.membership == 'member';
     }
 
-    function isEditor() {
+    function isAdminUser() {
       return isSignedIn() &&
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.adminRole in ['editor', 'superadmin'];
+        (request.auth.token.superadmin == true ||
+         (request.auth.token.perms is list && request.auth.token.perms.size() > 0));
     }
 
     function isOwner(uid) {
@@ -45,47 +46,47 @@ service firebase.storage {
     // ── Sermon audio ──────────────────────────────────────────────────────
     match /sermons/{fileName} {
       allow read: if true;
-      allow write: if isEditor() && isValidAudio();
+      allow write: if isAdminUser() && isValidAudio();
     }
 
     // ── Sermon notes (PDF) ────────────────────────────────────────────────
     match /sermon-notes/{fileName} {
       allow read: if true;
-      allow write: if isEditor() && isValidPDF();
+      allow write: if isAdminUser() && isValidPDF();
     }
 
     // ── Gallery images ────────────────────────────────────────────────────
     match /gallery/{galleryId}/{fileName} {
       allow read: if true; // Audience check handled in Firestore
-      allow write: if isEditor() && isValidImage();
+      allow write: if isAdminUser() && isValidImage();
     }
 
     // ── Music ─────────────────────────────────────────────────────────────
     match /music/{fileName} {
       allow read: if true;
-      allow write: if isEditor() && isValidAudio();
+      allow write: if isAdminUser() && isValidAudio();
     }
 
     match /music/covers/{fileName} {
       allow read: if true;
-      allow write: if isEditor() && isValidImage();
+      allow write: if isAdminUser() && isValidImage();
     }
 
     // ── Blog & Events images ──────────────────────────────────────────────
     match /blog/{fileName} {
       allow read: if true;
-      allow write: if isEditor() && isValidImage();
+      allow write: if isAdminUser() && isValidImage();
     }
 
     match /events/{fileName} {
       allow read: if true;
-      allow write: if isEditor() && isValidImage();
+      allow write: if isAdminUser() && isValidImage();
     }
 
     // ── Team photos ───────────────────────────────────────────────────────
     match /team/{fileName} {
       allow read: if true;
-      allow write: if isEditor() && isValidImage();
+      allow write: if isAdminUser() && isValidImage();
     }
   }
 }
