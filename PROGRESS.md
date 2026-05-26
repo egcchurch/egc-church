@@ -14,6 +14,43 @@
 
 ---
 
+## Session: Post-launch fixes — indexes, storage, roles seed (Session 35)
+
+**Date:** 2026-05-26
+**Branches:** `fix/firestore-indexes`
+**Status:** Merged
+
+### What was done
+
+**Bug: Messages page spinner stuck on mobile**
+- Root cause: `conversations` query uses `.where('participants', 'array-contains', uid).orderBy('lastMessageAt', 'desc')` which requires a composite index. Index was missing from `firestore.indexes.json`. Desktop worked from local Firestore cache; mobile (no cache) failed silently — spinner never cleared.
+- Fix: added composite index to `firestore.indexes.json` for `conversations` (participants + lastMessageAt).
+- Also added `events` (published + startDate) and `sermons` (published + date) indexes which existed in Firebase but were missing from the file, and `users` (membership + directoryVisible) for the member picker in messaging.
+- Deployed via `firebase deploy --only firestore:indexes`.
+
+**Bug: Storage rules not deployed (gallery upload unauthorized)**
+- Firebase Storage had never been initialised on the project. Enabled via Firebase Console (central-1, production mode).
+- `firebase deploy --only storage` failed to update rules — Storage was brand new and the deploy didn't propagate. Fixed by pasting rules directly into Firebase Console → Storage → Rules.
+
+**Bug: Admin roles page — delete button not working (stale state)**
+- Resolved by refreshing the page. Timing issue with `isSuperadmin` flag not set on first render; not a code bug.
+
+**Bug: Creating roles gave "missing or insufficient permissions"**
+- Firestore rules had never been deployed after Phase 6 changes. Fixed by running `firebase deploy --only firestore:rules`.
+
+**Superadmin setup**
+- `migrateRolesV1` and `syncUserClaims` had never been deployed — `deploy.yml` only deploys Hosting.
+- Ran `firebase deploy --only functions` to deploy all Cloud Functions.
+- Manually added `isSuperadmin: true`, `roles: []`, `extraPermissions: []` to superadmin user doc in Firebase Console.
+- Seeded default roles by deleting test role, then running `node seedRoles.js` with service account credentials from `functions/` directory.
+
+### Notes / decisions
+
+- `firebase deploy --only firestore:indexes` will prompt to delete indexes in Firebase not present in the file — always answer **No** unless intentionally removing an index.
+- All Phase 6 backend resources (Functions, Firestore rules, Storage rules, indexes) required manual deployment. Only static Hosting auto-deploys via CI.
+
+---
+
 ## Session: Phase 6 hotfix — Permissions.init guard + function deploy (Session 34)
 
 **Date:** 2026-05-26
