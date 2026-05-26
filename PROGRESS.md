@@ -18,7 +18,7 @@
 
 **Date:** 2026-05-26
 **Branches:** `fix/firestore-indexes`
-**Status:** Merged
+**Status:** PR open
 
 ### What was done
 
@@ -87,7 +87,7 @@
 
 **Date:** 2026-05-26
 **Branch:** `phase6/remove-adminrole`
-**Status:** PR open
+**Status:** Merged (PR #39)
 
 ### What was done
 
