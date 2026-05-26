@@ -10,7 +10,39 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-26
-**Current milestone:** Phase 6 — Permissions & Roles (complete — all 8 PRs merged)
+**Current milestone:** Phase 7 — Adaptive Homepage (planned)
+
+---
+
+## Session: Phase 6 hotfix — Permissions.init guard + function deploy (Session 34)
+
+**Date:** 2026-05-26
+**Branch:** `fix/permissions-init-guard`
+**Status:** Merged (PRs #40 and #41)
+
+### What was done
+
+**Bug: Member login button dead on all non-admin pages**
+- Error: `Uncaught (in promise) TypeError: Permissions.init is not a function` at `main.js:112`
+- Root cause: browsers expose a built-in global `window.Permissions` (Web Permissions API). On non-admin pages that don't load `js/permissions.js`, the `typeof Permissions !== 'undefined'` check passed against the browser's native object, then `Permissions.init(user)` threw synchronously inside the async `updateLoginButtons` — aborting the function before the login button's `onclick` was wired up.
+- Fix (`js/main.js`): tightened guard to `typeof Permissions !== 'undefined' && typeof Permissions.init === 'function'`.
+- Service worker bumped `v18 → v19` so existing cached clients pick up the fixed `main.js`.
+
+**Bug: Admin dashboard cards loading then disappearing**
+- Root cause: `syncUserClaims` Cloud Function had never been deployed — only `onUserCreate` was live. No custom claims were being written for any user, so the `admin-auth.js` guard (which checks claims) rejected everyone and redirected away.
+- Fix: ran `firebase deploy --only functions` to deploy all functions including `syncUserClaims`.
+
+**Superadmin account setup (manual)**
+- The superadmin user doc (`fHupKxXg92WOlHSWAwm6kJ9bktM2`) was missing Phase 6 fields — `migrateRolesV1` had not run for it.
+- Manually added `isSuperadmin: true`, `roles: []`, `extraPermissions: []` to the Firestore doc via Firebase Console.
+- This triggered `syncUserClaims`, which wrote `{ superadmin: true }` as custom claims.
+- Signed out and back in to get a fresh token — admin dashboard working.
+
+### Notes / decisions
+
+- The browser `Permissions` global conflict is a subtle gotcha — the guard pattern `typeof X !== 'undefined' && typeof X.method === 'function'` should be used any time a module name could clash with a browser API.
+- Functions must be explicitly deployed (`firebase deploy --only functions`) — the `deploy.yml` workflow uses `action-hosting-deploy` which only covers Firebase Hosting (static site). Cloud Functions are never auto-deployed by CI; every functions change requires a manual deploy after merge.
+- Phase 6 is now fully operational on production.
 
 ---
 

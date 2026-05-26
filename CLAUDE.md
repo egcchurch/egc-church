@@ -675,7 +675,7 @@ Storage rules enforce file size and type per path (see `storage.rules`):
 - All paths must use `/` as root (not `/egc-church/`)
 - Cloud Functions use firebase-functions **v1** (`functions.auth.user().onCreate`) — v2 `beforeUserCreated` requires GCIP paid upgrade
 - All changes go through a Pull Request — `main` is protected, CI checks must pass before merge
-- Every prod release deploys static site + Cloud Functions together
+- **`deploy.yml` only deploys Firebase Hosting (static site)** — Cloud Functions are NEVER auto-deployed by CI. After merging any PR that changes `functions/`, manually run `firebase deploy --only functions`
 - Append a session entry to `PROGRESS.md` on every PR
 - **Branch sequentially, never in parallel** — when a session produces multiple PRs, wait for each to merge to `main` before creating the next branch. Never create two branches from the same base commit when they modify the same files (e.g. `functions/index.js`). This avoids merge conflicts on rebase.
 
