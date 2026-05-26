@@ -113,7 +113,9 @@ async function updateLoginButtons(user) {
     }
 
     const displayName = user.displayName ? user.displayName.split(' ')[0] : 'Member';
-    const isAdmin  = userData.adminRole === 'editor' || userData.adminRole === 'superadmin';
+    const isAdmin  = userData.isSuperadmin === true ||
+                    (Array.isArray(userData.roles) && userData.roles.length > 0) ||
+                    (Array.isArray(userData.extraPermissions) && userData.extraPermissions.length > 0);
     const isMember = userData.membership === 'member' || isAdmin;
 
     // ── Desktop: turn button into dropdown trigger ──

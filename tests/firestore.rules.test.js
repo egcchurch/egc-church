@@ -64,14 +64,14 @@ describe('Firestore Security Rules', () => {
 
   describe('Users collection', () => {
     it('pending user cannot read another user doc', async () => {
-      await seedUser('pending-uid', { membership: 'pending', adminRole: null });
-      await seedUser('other-uid', { membership: 'member', adminRole: null });
+      await seedUser('pending-uid', { membership: 'pending' });
+      await seedUser('other-uid', { membership: 'member' });
       const db = pendingUser().firestore();
       await assertFails(getDoc(doc(db, 'users', 'other-uid')));
     });
 
     it('user can read their own doc', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       const db = memberUser().firestore();
       await assertSucceeds(getDoc(doc(db, 'users', 'member-uid')));
     });
@@ -87,7 +87,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('member cannot write sermons', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       const db = memberUser().firestore();
       await assertFails(setDoc(doc(db, 'sermons', 's1'), { title: 'Hack' }));
     });
@@ -103,7 +103,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('member can read members-only gallery', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'gallery', 'g1'), { audience: 'members' });
       });
@@ -114,7 +114,7 @@ describe('Firestore Security Rules', () => {
 
   describe('Groups collection', () => {
     it('group leader can update members but not name', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'groups', 'g1'), {
           name: 'Youth',
@@ -129,7 +129,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('member (non-leader) can join an open group', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'groups', 'g1'), {
           name: 'Open Group',
@@ -144,7 +144,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('member cannot change group name', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'groups', 'g1'), {
           name: 'Group',
@@ -160,7 +160,7 @@ describe('Firestore Security Rules', () => {
 
   describe('Prayer collection', () => {
     it('member can submit a prayer request', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       const db = memberUser().firestore();
       await assertSucceeds(setDoc(doc(db, 'prayer', 'p1'), {
         uid: 'member-uid', body: 'Please pray for me', isAnonymous: false, isPrivate: false, prayedFor: []
@@ -176,7 +176,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('member can read prayer requests', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), { uid: 'other-uid', body: 'Prayer', isPrivate: false });
       });
@@ -187,7 +187,7 @@ describe('Firestore Security Rules', () => {
 
   describe('Devotionals collection', () => {
     it('member can read devotionals', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'devotionals', 'd1'), { date: '2026-05-24', title: 'Test', body: 'Content' });
       });
@@ -204,13 +204,13 @@ describe('Firestore Security Rules', () => {
     });
 
     it('member cannot write devotionals', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       const db = memberUser().firestore();
       await assertFails(setDoc(doc(db, 'devotionals', 'd1'), { date: '2026-05-24', title: 'Hack' }));
     });
 
     it('editor can write devotionals', async () => {
-      await seedUser('editor-uid', { membership: 'public', adminRole: 'editor' });
+      await seedUser('editor-uid', { membership: 'public', isSuperadmin: false, roles: ['content_editor'] });
       const db = editorUser().firestore();
       await assertSucceeds(setDoc(doc(db, 'devotionals', 'd1'), { date: '2026-05-24', title: 'Devotional', body: 'Content' }));
     });
@@ -218,15 +218,15 @@ describe('Firestore Security Rules', () => {
 
   describe('Users directory', () => {
     it('member can read a directory-visible member profile', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
-      await seedUser('other-uid', { membership: 'member', adminRole: null, directoryVisible: true });
+      await seedUser('member-uid', { membership: 'member' });
+      await seedUser('other-uid', { membership: 'member', directoryVisible: true });
       const db = memberUser().firestore();
       await assertSucceeds(getDoc(doc(db, 'users', 'other-uid')));
     });
 
     it('member cannot read a profile with directoryVisible false', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
-      await seedUser('other-uid', { membership: 'member', adminRole: null, directoryVisible: false });
+      await seedUser('member-uid', { membership: 'member' });
+      await seedUser('other-uid', { membership: 'member', directoryVisible: false });
       const db = memberUser().firestore();
       await assertFails(getDoc(doc(db, 'users', 'other-uid')));
     });
@@ -234,7 +234,7 @@ describe('Firestore Security Rules', () => {
 
   describe('Messages collection', () => {
     it('user cannot read message they are not a participant of', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'messages', 'm1'), {
           participants: ['other-uid', 'another-uid'],
@@ -248,7 +248,7 @@ describe('Firestore Security Rules', () => {
 
   describe('Conversations collection', () => {
     it('participant can read their conversation', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
           participants: ['member-uid', 'other-uid'],
@@ -260,7 +260,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('non-participant cannot read conversation', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
           participants: ['other-uid', 'another-uid'],
@@ -272,7 +272,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('participant can read messages in their conversation', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
           participants: ['member-uid', 'other-uid']
@@ -286,7 +286,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('non-participant cannot read messages in someone else conversation', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
           participants: ['other-uid', 'another-uid']
@@ -302,7 +302,7 @@ describe('Firestore Security Rules', () => {
 
   describe('User notifications subcollection', () => {
     it('user can read their own notifications', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'users', 'member-uid', 'notifications', 'n1'), {
           title: 'Test', body: 'Hello', read: false
@@ -313,7 +313,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('user can mark their own notification as read', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'users', 'member-uid', 'notifications', 'n1'), {
           title: 'Test', body: 'Hello', read: false
@@ -324,7 +324,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('user cannot read another user notification', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'users', 'other-uid', 'notifications', 'n1'), {
           title: 'Secret', read: false
@@ -335,7 +335,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('user can write their own FCM token', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       const db = memberUser().firestore();
       await assertSucceeds(setDoc(doc(db, 'users', 'member-uid', 'fcmTokens', 'tok1'), {
         token: 'abc123', device: 'Chrome', registeredAt: null
@@ -360,7 +360,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('editor can read and mark a submission read', async () => {
-      await seedUser('editor-uid', { membership: 'public', adminRole: 'editor' });
+      await seedUser('editor-uid', { membership: 'public', isSuperadmin: false, roles: ['content_editor'] });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'connect', 'c1'), { name: 'Visitor', read: false });
       });
@@ -370,7 +370,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('member cannot read submissions', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'connect', 'c1'), { name: 'Visitor', read: false });
       });
@@ -389,7 +389,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('authenticated member can read roles', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'roles', 'deacon'), { displayName: 'Deacon', isSystem: true, permissions: [] });
       });
@@ -398,25 +398,25 @@ describe('Firestore Security Rules', () => {
     });
 
     it('member cannot create a role', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       const db = memberUser().firestore();
       await assertFails(setDoc(doc(db, 'roles', 'new-role'), { displayName: 'Hacker', permissions: [], isSystem: false }));
     });
 
     it('editor cannot create a role', async () => {
-      await seedUser('editor-uid', { membership: 'public', adminRole: 'editor' });
+      await seedUser('editor-uid', { membership: 'public', isSuperadmin: false, roles: ['content_editor'] });
       const db = editorUser().firestore();
       await assertFails(setDoc(doc(db, 'roles', 'new-role'), { displayName: 'Editor Role', permissions: [], isSystem: false }));
     });
 
     it('superadmin can create a role', async () => {
-      await seedUser('admin-uid', { membership: 'public', adminRole: 'superadmin' });
+      await seedUser('admin-uid', { membership: 'public', isSuperadmin: true, roles: [] });
       const db = superAdmin().firestore();
       await assertSucceeds(setDoc(doc(db, 'roles', 'new-role'), { displayName: 'New Role', permissions: [], isSystem: false }));
     });
 
     it('superadmin cannot delete a system role', async () => {
-      await seedUser('admin-uid', { membership: 'public', adminRole: 'superadmin' });
+      await seedUser('admin-uid', { membership: 'public', isSuperadmin: true, roles: [] });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'roles', 'deacon'), { displayName: 'Deacon', isSystem: true, permissions: [] });
       });
@@ -425,7 +425,7 @@ describe('Firestore Security Rules', () => {
     });
 
     it('superadmin can delete a non-system role', async () => {
-      await seedUser('admin-uid', { membership: 'public', adminRole: 'superadmin' });
+      await seedUser('admin-uid', { membership: 'public', isSuperadmin: true, roles: [] });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'roles', 'custom-role'), { displayName: 'Custom', isSystem: false, permissions: [] });
       });
@@ -444,13 +444,13 @@ describe('Firestore Security Rules', () => {
     });
 
     it('member cannot write homepage content', async () => {
-      await seedUser('member-uid', { membership: 'member', adminRole: null });
+      await seedUser('member-uid', { membership: 'member' });
       const db = memberUser().firestore();
       await assertFails(setDoc(doc(db, 'homepage', 'content'), { tagline: 'Hack' }));
     });
 
     it('editor can write homepage content', async () => {
-      await seedUser('editor-uid', { membership: 'public', adminRole: 'editor' });
+      await seedUser('editor-uid', { membership: 'public', isSuperadmin: false, roles: ['content_editor'] });
       const db = editorUser().firestore();
       await assertSucceeds(setDoc(doc(db, 'homepage', 'content'), {
         tagline: 'Welcome to EGC',

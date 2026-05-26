@@ -71,7 +71,9 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
       photoURL: photoURL || '',
       emailVerified: emailVerified || false,
       membership: 'pending',
-      adminRole: null,
+      isSuperadmin: false,
+      roles: [],
+      extraPermissions: [],
       phone: '',
       directoryVisible: true,
       directoryShowEmail: false,
@@ -95,10 +97,9 @@ exports.sendBroadcast = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
   }
 
-  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-  const caller = callerSnap.data() || {};
-  if (!['editor', 'superadmin'].includes(caller.adminRole)) {
-    throw new functions.https.HttpsError('permission-denied', 'Admin role required.');
+  const token = context.auth.token;
+  if (token.superadmin !== true && !(Array.isArray(token.perms) && token.perms.includes('notifications.send'))) {
+    throw new functions.https.HttpsError('permission-denied', 'notifications.send permission required.');
   }
 
   const { title, body, type = 'broadcast', audience = 'all' } = data;
@@ -112,16 +113,23 @@ exports.sendBroadcast = functions.https.onCall(async (data, context) => {
   await db.collection('notifications').add({ title, body, type, audience, sentBy: context.auth.uid, sentAt });
 
   // Query users matching audience
-  let usersQuery = db.collection('users');
+  let usersSnap;
   if (audience === 'members') {
-    usersQuery = usersQuery.where('membership', '==', 'member');
+    usersSnap = await db.collection('users').where('membership', '==', 'member').get();
   } else if (audience === 'admins') {
-    usersQuery = usersQuery.where('adminRole', 'in', ['editor', 'superadmin']);
+    // Fetch all users and filter those with any admin capability (isSuperadmin, roles, or extraPermissions).
+    const allSnap = await db.collection('users').get();
+    const adminDocs = allSnap.docs.filter((d) => {
+      const u = d.data();
+      return u.isSuperadmin === true ||
+             (Array.isArray(u.roles) && u.roles.length > 0) ||
+             (Array.isArray(u.extraPermissions) && u.extraPermissions.length > 0);
+    });
+    usersSnap = { docs: adminDocs, empty: adminDocs.length === 0 };
   } else {
-    usersQuery = usersQuery.where('membership', 'in', ['member', 'public']);
+    usersSnap = await db.collection('users').where('membership', 'in', ['member', 'public']).get();
   }
 
-  const usersSnap = await usersQuery.get();
   if (usersSnap.empty) return { sent: 0, inApp: 0 };
 
   // Write in-app notifications (batched — max 500 ops per batch)
@@ -174,11 +182,19 @@ exports.onNewPrayerRequest = functions.firestore
     const body  = (prayer.body || '').substring(0, 120);
     const link  = isPrivate ? '/admin/prayer.html' : '/members/prayer.html';
 
-    let usersQuery = isPrivate
-      ? db.collection('users').where('adminRole', 'in', ['editor', 'superadmin'])
-      : db.collection('users').where('membership', '==', 'member');
-
-    const usersSnap = await usersQuery.get();
+    let usersSnap;
+    if (isPrivate) {
+      const allSnap = await db.collection('users').get();
+      const adminDocs = allSnap.docs.filter((d) => {
+        const u = d.data();
+        return u.isSuperadmin === true ||
+               (Array.isArray(u.roles) && u.roles.length > 0) ||
+               (Array.isArray(u.extraPermissions) && u.extraPermissions.length > 0);
+      });
+      usersSnap = { docs: adminDocs, empty: adminDocs.length === 0 };
+    } else {
+      usersSnap = await db.collection('users').where('membership', '==', 'member').get();
+    }
     if (usersSnap.empty) return;
 
     const batch = db.batch();
@@ -202,11 +218,15 @@ exports.onNewConnectForm = functions.firestore
     const title = 'New Connect Form Submission';
     const body  = `From ${form.name || 'Visitor'}: ${(form.message || '').substring(0, 100)}`;
 
-    const adminsSnap = await db.collection('users')
-      .where('adminRole', 'in', ['editor', 'superadmin'])
-      .get();
-
-    if (adminsSnap.empty) return;
+    const allUsersSnap = await db.collection('users').get();
+    const adminDocs = allUsersSnap.docs.filter((d) => {
+      const u = d.data();
+      return u.isSuperadmin === true ||
+             (Array.isArray(u.roles) && u.roles.length > 0) ||
+             (Array.isArray(u.extraPermissions) && u.extraPermissions.length > 0);
+    });
+    if (adminDocs.length === 0) return;
+    const adminsSnap = { docs: adminDocs };
 
     const batch = db.batch();
     adminsSnap.docs.forEach((adminDoc) => {
@@ -501,7 +521,6 @@ function toRFC822(dateStr) {
 //           null / other → isSuperadmin: false, roles: []
 //
 // Each user write triggers syncUserClaims automatically.
-// adminRole is NOT removed — stays as fallback until Phase 6 PR #8 cleanup.
 // Idempotent: skips users that already have all three fields.
 
 exports.migrateRolesV1 = functions.https.onCall(async (data, context) => {
@@ -509,9 +528,7 @@ exports.migrateRolesV1 = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
   }
 
-  // Custom claims may not be populated yet at migration time — verify via Firestore
-  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-  if (!callerSnap.exists || callerSnap.data().adminRole !== 'superadmin') {
+  if (context.auth.token.superadmin !== true) {
     throw new functions.https.HttpsError('permission-denied', 'Superadmin required.');
   }
 

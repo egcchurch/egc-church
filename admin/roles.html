@@ -130,7 +130,7 @@
       if (!user) return;
       db.collection('users').doc(user.uid).get().then((doc) => {
         if (!doc.exists) return;
-        isSuperadmin = doc.data().adminRole === 'superadmin';
+        isSuperadmin = doc.data().isSuperadmin === true;
         if (isSuperadmin) {
           document.getElementById('add-role-btn').classList.remove('hidden');
         }

@@ -59,14 +59,14 @@ church-website-pwa/
 │   ├── gallery.html            ← Members + youth galleries
 │   └── messages.html           ← In-app direct messaging
 │
-├── admin/                      ← Admin-gated pages (adminRole required)
+├── admin/                      ← Admin-gated pages (custom claims required)
 │   ├── index.html              ← Admin dashboard
 │   ├── users.html              ← superadmin only — approvals and role management
 │   ├── sermons.html            ← Manage sermons
 │   ├── events.html             ← Manage calendar events
 │   ├── blog.html               ← Manage announcements
 │   ├── team.html               ← Manage leadership profiles
-│   ├── groups.html             ← Manage ALL groups (editor/superadmin only)
+│   ├── groups.html             ← Manage ALL groups (groups.manage permission)
 │   ├── devotional.html         ← Manage devotional content
 │   ├── gallery.html            ← Manage photo galleries (all audiences)
 │   ├── music.html              ← Manage music library
@@ -165,31 +165,31 @@ church-website-pwa/
 | Members & youth gallery | /members/gallery    |
 | Direct messages         | /members/messages   |
 
-### Admin Pages (adminRole: "editor" or "superadmin")
+### Admin Pages (custom claims — `isSuperadmin` or specific permission required)
 
-| Page                     | URL                  | Notes           |
-| ------------------------ | -------------------- | --------------- |
-| Admin dashboard          | /admin/              |                 |
-| Manage sermons           | /admin/sermons       |                 |
-| Manage events            | /admin/events        |                 |
-| Manage blog              | /admin/blog          |                 |
-| Manage team              | /admin/team          |                 |
-| Manage groups            | /admin/groups        |                 |
-| Manage devotional        | /admin/devotional    |                 |
-| Manage gallery           | /admin/gallery       |                 |
-| Manage music             | /admin/music         |                 |
-| View connect submissions | /admin/connect       |                 |
-| Moderate prayer requests | /admin/prayer        |                 |
-| Manage homepage          | /admin/homepage      |                 |
-| Send notifications       | /admin/notifications |                 |
-| User management          | /admin/users         | superadmin only |
-| Manage roles             | /admin/roles         | any admin can view; superadmin creates/edits/deletes |
+| Page                     | URL                  | Required permission        |
+| ------------------------ | -------------------- | -------------------------- |
+| Admin dashboard          | /admin/              | any admin (superadmin or perms) |
+| Manage sermons           | /admin/sermons       | `sermons.manage`           |
+| Manage events            | /admin/events        | `events.manage`            |
+| Manage blog              | /admin/blog          | `blog.manage`              |
+| Manage team              | /admin/team          | `team.manage`              |
+| Manage groups            | /admin/groups        | `groups.manage`            |
+| Manage devotional        | /admin/devotional    | `devotional.manage`        |
+| Manage gallery           | /admin/gallery       | `gallery.manage`           |
+| Manage music             | /admin/music         | `music.manage`             |
+| View connect submissions | /admin/connect       | `connect.view`             |
+| Moderate prayer requests | /admin/prayer        | `prayer.moderate`          |
+| Manage homepage          | /admin/homepage      | `homepage.manage`          |
+| Send notifications       | /admin/notifications | `notifications.send`       |
+| User management          | /admin/users         | `users.approve`            |
+| Manage roles             | /admin/roles         | `users.assign_roles`; superadmin for create/edit/delete |
 
 ---
 
 ## Role & Permission Model
 
-Two independent role dimensions per user:
+Two independent dimensions per user:
 
 ### Membership Tier (controls content access)
 
@@ -199,28 +199,28 @@ Two independent role dimensions per user:
 | `public`  | Approved general user — public pages only              |
 | `member`  | Approved church member — public + all member pages     |
 
-### Admin Role (controls content management)
+### Admin Permissions (controls content management — Phase 6)
 
-| Value        | Access                                           |
-| ------------ | ------------------------------------------------ |
-| `null`       | No admin access                                  |
-| `editor`     | Add and edit content across all admin sections   |
-| `superadmin` | Everything — plus user approvals and role grants |
+Permissions are stored as Firebase Auth custom claims computed by the `syncUserClaims` Cloud Function.
+
+- `isSuperadmin: true` on the user doc → custom claim `{ superadmin: true }` → all 14 permissions
+- `roles: [roleIds]` + `extraPermissions: [keys]` → custom claim `{ superadmin: false, perms: [...] }` → additive union
+- See `docs/PERMISSIONS.md` for the full 14-key permission model and default roles
 
 ### Combined Access Matrix
 
-| Page / Feature  | Public (pending) | Public (approved) | Member | Editor | Superadmin |
-| --------------- | ---------------- | ----------------- | ------ | ------ | ---------- |
-| Public pages    | Yes              | Yes               | Yes    | Yes    | Yes        |
-| Profile page    | Yes              | Yes               | Yes    | Yes    | Yes        |
-| Live stream     | No               | No                | Yes    | Yes    | Yes        |
-| Members area    | No               | No                | Yes    | Yes    | Yes        |
-| Admin section   | No               | No                | No     | Yes    | Yes        |
-| User management | No               | No                | No     | No     | Yes        |
+| Page / Feature  | Public (pending) | Public (approved) | Member | Has permission | Superadmin |
+| --------------- | ---------------- | ----------------- | ------ | -------------- | ---------- |
+| Public pages    | Yes              | Yes               | Yes    | Yes            | Yes        |
+| Profile page    | Yes              | Yes               | Yes    | Yes            | Yes        |
+| Live stream     | No               | No                | Yes    | Yes            | Yes        |
+| Members area    | No               | No                | Yes    | Yes            | Yes        |
+| Admin section   | No               | No                | No     | Yes (per perm) | Yes        |
+| User management | No               | No                | No     | users.approve  | Yes        |
 
 ### Approval Flow
 
-- New registrations default to `membership: "pending"`, `adminRole: null`, `emailVerified: false`
+- New registrations default to `membership: "pending"`, `isSuperadmin: false`, `emailVerified: false`
 - Auto-provisioning handled by `onUserCreate` Cloud Function (Firebase Auth trigger)
 - Firebase Auth's built-in `sendEmailVerification()` sends a verification email on registration
 - Forgotten passwords handled via Firebase Auth's `sendPasswordResetEmail()` — triggered from a "Forgot password?" link on `/login.html`
@@ -331,7 +331,7 @@ Functions are organised by trigger type:
 
 ### Auth Triggers (Phase 1 — DEPLOYED)
 
-- `onUserCreate` — trigger: new Firebase Auth user — creates `/users/{uid}` doc with `membership: "pending"`, `adminRole: null`, `emailVerified: false`, default privacy flags
+- `onUserCreate` — trigger: new Firebase Auth user — creates `/users/{uid}` doc with `membership: "pending"`, `isSuperadmin: false`, `roles: []`, `extraPermissions: []`, `emailVerified: false`, default privacy flags
 
 ### Phase 5
 
@@ -340,7 +340,7 @@ Functions are organised by trigger type:
 ### Phase 6
 
 - `syncUserClaims` — trigger: `/users/{uid}` write — recomputes effective permissions from `user.roles` + `user.extraPermissions`, writes to Firebase Auth custom claims (`{ superadmin: true }` or `{ superadmin: false, perms: [...] }`). Skips if no permission-relevant fields changed. Helper logic in `functions/computePermissions.js` (pure module, tested independently).
-- `migrateRolesV1` — callable (superadmin only) — one-time Phase 6 migration: (1) seeds `/roles/` with 7 default roles if empty; (2) iterates all user docs in batches of 100 and sets `isSuperadmin`, `roles`, `extraPermissions` based on legacy `adminRole` (`"superadmin"` → `isSuperadmin: true`; `"editor"` → `roles: ["content_editor"]`; else → empty). Idempotent — skips users where all three fields already exist. Returns `{ usersUpdated, rolesSeeded, errors }`. Run on staging first, verify, then prod.
+- `migrateRolesV1` — callable (superadmin only) — one-time Phase 6 migration: (1) seeds `/roles/` with 7 default roles if empty; (2) iterates all user docs in batches of 100 and sets `isSuperadmin`, `roles`, `extraPermissions` (idempotent — skips users where all three fields already exist). Returns `{ usersUpdated, rolesSeeded, errors }`. Already run on staging and production.
 
 ---
 
@@ -352,7 +352,9 @@ Functions are organised by trigger type:
   photoURL (nullable)
   phone (nullable)
   membership: "pending" | "public" | "member"
-  adminRole: null | "editor" | "superadmin"
+  isSuperadmin: boolean               ← Phase 6 — overrides all permissions
+  roles: [string]                     ← Phase 6 — array of /roles/ doc IDs
+  extraPermissions: [string]          ← Phase 6 — one-off per-user permission keys
   emailVerified: true | false
   directoryVisible: true | false      ← appear in /members/directory at all
   directoryShowEmail: true | false    ← expose email in directory
@@ -544,7 +546,7 @@ via YouTube public URLs.
 - Each member controls their own visibility settings from `/profile.html`
 - Always shown to other members: `displayName`, `photoURL`, `membership` status
 - Optionally shown (per user opt-in): `email`, `phone`
-- Never shown: `adminRole`, internal flags, approval metadata
+- Never shown: `isSuperadmin`, `roles`, `extraPermissions`, internal flags, approval metadata
 
 ---
 
@@ -557,7 +559,7 @@ Group management is split between two surfaces to keep the admin guard simple:
 - **`/admin/groups.html`** — editor or superadmin only — full management of ALL groups (create, delete, edit, change leaders)
 - **`/members/groups.html`** — any member — browse and join groups, AND leader-only sections to manage their own group's members
 
-This means a group leader who is NOT an admin manages their group from the members area, not the admin area. The admin auth guard checks `adminRole` only — no special cases needed.
+This means a group leader who is NOT an admin manages their group from the members area, not the admin area. The admin auth guard checks custom claims only — no special cases needed.
 
 ### Join Policy
 

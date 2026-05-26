@@ -105,7 +105,7 @@
 
       const userDocP = db.collection('users').doc(user.uid).get().then((doc) => {
         if (doc.exists) {
-          isSuperadmin = doc.data().adminRole === 'superadmin';
+          isSuperadmin = doc.data().isSuperadmin === true;
         }
       });
 
@@ -176,11 +176,7 @@
         public:  'bg-gray-100 text-gray-700',
       }[u.membership] || 'bg-gray-100 text-gray-600';
 
-      const roleBadge = u.adminRole
-        ? `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">${escHtml(u.adminRole)}</span>`
-        : '';
-
-      // Phase 6 permission fields (may be absent before migration)
+      // Phase 6 permission fields
       const userRoles      = Array.isArray(u.roles) ? u.roles : [];
       const userExtraPerms = Array.isArray(u.extraPermissions) ? u.extraPermissions : [];
       const userIsSA       = u.isSuperadmin === true;
@@ -248,27 +244,6 @@
              </button>`
           : '';
 
-      const roleButtons = !u.adminRole
-        ? `<button onclick="setRole('${uid}', 'editor')"
-                   class="bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-2 rounded-full transition">
-             Make Editor
-           </button>`
-        : u.adminRole === 'editor'
-          ? `<button onclick="setRole('${uid}', 'superadmin')"
-                     class="bg-purple-500 hover:bg-purple-600 text-white text-sm px-4 py-2 rounded-full transition">
-               Make Superadmin
-             </button>
-             <button onclick="setRole('${uid}', null)"
-                     class="bg-gray-300 hover:bg-gray-400 text-gray-700 text-sm px-4 py-2 rounded-full transition">
-               Remove Role
-             </button>`
-          : u.adminRole === 'superadmin'
-            ? `<button onclick="setRole('${uid}', null)"
-                       class="bg-gray-300 hover:bg-gray-400 text-gray-700 text-sm px-4 py-2 rounded-full transition">
-                 Remove Role
-               </button>`
-            : '';
-
       return `
         <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
@@ -293,14 +268,12 @@
             <!-- Badges -->
             <div class="flex items-center gap-2 flex-wrap">
               <span class="text-xs px-3 py-1 rounded-full font-medium ${membershipBadge}">${escHtml(u.membership)}</span>
-              ${roleBadge}
               ${isSABadge}
             </div>
 
             <!-- Action buttons -->
             <div class="flex gap-2 flex-wrap">
               ${membershipBtn}
-              ${roleButtons}
             </div>
 
           </div>
@@ -401,7 +374,7 @@
         });
     }
 
-    // ── Membership / legacy role helpers ─────────────────────────────────────
+    // ── Membership helpers ────────────────────────────────────────────────────
 
     function approveMember(uid) {
       setMembership(uid, 'member');
@@ -409,12 +382,6 @@
 
     function setMembership(uid, membership) {
       db.collection('users').doc(uid).update({ membership, updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
-        .then(() => loadUsers())
-        .catch(err => alert('Error: ' + err.message));
-    }
-
-    function setRole(uid, role) {
-      db.collection('users').doc(uid).update({ adminRole: role, updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
         .then(() => loadUsers())
         .catch(err => alert('Error: ' + err.message));
     }
