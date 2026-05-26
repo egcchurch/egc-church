@@ -108,7 +108,7 @@ async function updateLoginButtons(user) {
     }
 
     // Filter admin nav links by permission (admin pages only; Permissions defined by permissions.js)
-    if (typeof Permissions !== 'undefined') {
+    if (typeof Permissions !== 'undefined' && typeof Permissions.init === 'function') {
       Permissions.init(user).then(() => Permissions.filterAdminNav());
     }
 
