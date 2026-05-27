@@ -39,6 +39,15 @@
         { "fieldPath": "membership", "order": "ASCENDING" },
         { "fieldPath": "directoryVisible", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "blog",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "published", "order": "ASCENDING" },
+        { "fieldPath": "kind", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

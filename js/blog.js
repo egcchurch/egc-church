@@ -1,8 +1,10 @@
 // js/blog.js
 
 let allPosts = [];
+let activeFilter = 'all';
 
 document.addEventListener('DOMContentLoaded', () => {
+  initFilterChips();
   waitForFirebase(() => loadPosts());
 });
 
@@ -12,6 +14,22 @@ function waitForFirebase(callback) {
   } else {
     setTimeout(() => waitForFirebase(callback), 100);
   }
+}
+
+function initFilterChips() {
+  document.querySelectorAll('.filter-chip').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      activeFilter = btn.dataset.filter;
+      document.querySelectorAll('.filter-chip').forEach((b) => {
+        const active = b === btn;
+        b.className = 'filter-chip px-4 py-1.5 rounded-full text-sm font-medium transition-all '
+          + (active
+            ? 'bg-[#0A3D62] text-white'
+            : 'bg-white text-gray-600 border border-gray-200 hover:bg-amber-50');
+      });
+      render();
+    });
+  });
 }
 
 function loadPosts() {
@@ -34,24 +52,33 @@ function loadPosts() {
 }
 
 function render() {
-  const grid = document.getElementById('blog-grid');
+  const grid  = document.getElementById('blog-grid');
   const empty = document.getElementById('blog-empty');
+
+  const filtered = activeFilter === 'all'
+    ? allPosts
+    : allPosts.filter((p) => (p.kind || 'article') === activeFilter);
 
   grid.innerHTML = '';
 
-  if (allPosts.length === 0) {
+  if (filtered.length === 0) {
     empty.classList.remove('hidden');
     return;
   }
   empty.classList.add('hidden');
 
-  allPosts.forEach((post) => {
+  filtered.forEach((post) => {
     grid.insertAdjacentHTML('beforeend', buildCard(post));
   });
 }
 
 function buildCard(post) {
   const dateStr = formatDate(toDate(post.publishedAt));
+  const isAnnouncement = (post.kind || 'article') === 'announcement';
+
+  const kindBadge = isAnnouncement
+    ? `<span class="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-medium">Announcement</span>`
+    : '';
 
   const imageHtml = post.imageUrl
     ? `<img src="${post.imageUrl}" alt="${escHtml(post.title)}" class="w-full h-48 object-cover">`
@@ -68,6 +95,7 @@ function buildCard(post) {
           <span>${dateStr}</span>
           ${post.author ? `<span class="text-gray-300">&bull;</span><span>${escHtml(post.author)}</span>` : ''}
         </div>
+        ${kindBadge ? `<div class="mb-2">${kindBadge}</div>` : ''}
         <h3 class="text-lg font-bold text-[#0A3D62] mb-2 leading-snug">${escHtml(post.title)}</h3>
         ${post.body ? `
         <p class="text-sm text-gray-600 leading-relaxed line-clamp-4 flex-1">${escHtml(post.body)}</p>
