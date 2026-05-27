@@ -121,6 +121,72 @@ exports.cleanupNonMemberTokens = functions.https.onCall(async (data, context) =>
   return { tokensDeleted, usersProcessed };
 });
 
+// ── requestMemberAccess ───────────────────────────────────────────────────────
+// Callable — any authenticated user with membership === 'public'.
+// Writes membershipRequestedAt to the user's doc (idempotent: 24h cooldown).
+// Writes an in-app notification to all users with users.approve permission.
+
+exports.requestMemberAccess = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
+  }
+  const uid = context.auth.uid;
+
+  const userDoc = await db.collection('users').doc(uid).get();
+  if (!userDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'User record not found.');
+  }
+  const userData = userDoc.data();
+
+  if (userData.membership !== 'public') {
+    throw new functions.https.HttpsError('failed-precondition', 'Only public users may request member access.');
+  }
+
+  // 24h idempotency — ignore if a request was already sent within the last 24 hours
+  if (userData.membershipRequestedAt) {
+    const requestedMs = userData.membershipRequestedAt.toDate().getTime();
+    if (Date.now() - requestedMs < 24 * 60 * 60 * 1000) {
+      return { success: true, alreadyRequested: true };
+    }
+  }
+
+  await db.collection('users').doc(uid).update({
+    membershipRequestedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Notify all admins with users.approve permission (superadmins + extraPermissions holders)
+  const displayName = userData.displayName || userData.email || 'A user';
+  const notifPayload = {
+    title: 'Membership Request',
+    body: `${displayName} has requested member access.`,
+    type: 'membership_request',
+    linkUrl: '/admin/users.html',
+    sentAt: admin.firestore.FieldValue.serverTimestamp(),
+    read: false,
+  };
+
+  const [superadminSnap, extraPermSnap] = await Promise.all([
+    db.collection('users').where('isSuperadmin', '==', true).get(),
+    db.collection('users').where('extraPermissions', 'array-contains', 'users.approve').get(),
+  ]);
+
+  const adminUids = new Set([
+    ...superadminSnap.docs.map(d => d.id),
+    ...extraPermSnap.docs.map(d => d.id),
+  ]);
+  adminUids.delete(uid); // don't notify the requester
+
+  const batch = db.batch();
+  adminUids.forEach(adminUid => {
+    const ref = db.collection('users').doc(adminUid).collection('notifications').doc();
+    batch.set(ref, notifPayload);
+  });
+  await batch.commit();
+
+  return { success: true, alreadyRequested: false };
+});
+
 // ── onUserCreate ──────────────────────────────────────────────────────────────
 // Triggered when a new user registers via Firebase Auth.
 // Auto-provisions a /users/{uid} document with default membership = 'pending'.
