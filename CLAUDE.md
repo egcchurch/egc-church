@@ -342,6 +342,12 @@ Functions are organised by trigger type:
 - `syncUserClaims` — trigger: `/users/{uid}` write — recomputes effective permissions from `user.roles` + `user.extraPermissions`, writes to Firebase Auth custom claims (`{ superadmin: true }` or `{ superadmin: false, perms: [...] }`). Skips if no permission-relevant fields changed. Helper logic in `functions/computePermissions.js` (pure module, tested independently).
 - `migrateRolesV1` — callable (superadmin only) — one-time Phase 6 migration: (1) seeds `/roles/` with 7 default roles if empty; (2) iterates all user docs in batches of 100 and sets `isSuperadmin`, `roles`, `extraPermissions` (idempotent — skips users where all three fields already exist). Returns `{ usersUpdated, rolesSeeded, errors }`. Already run on staging and production.
 
+### Phase 7
+
+- `requestMemberAccess` — callable from `/profile.html` — allows `public` users to request membership; writes `membershipRequestedAt: serverTimestamp()` to their user doc and sends in-app notification to all users with `users.approve` permission. 24h idempotency guard prevents repeat notifications.
+- `syncUserNotificationEligibility` — trigger: `/users/{uid}` write — if `membership` drops from `member` to anything else, deletes all docs in `/users/{uid}/fcmTokens` subcollection so the user stops receiving push notifications.
+- `cleanupNonMemberTokens` — callable (superadmin only) — one-time migration: deletes FCM token subcollections for all users where `membership !== 'member'`. Already run on production.
+
 ---
 
 ## Firestore Data Structure
@@ -356,6 +362,7 @@ Functions are organised by trigger type:
   roles: [string]                     ← Phase 6 — array of /roles/ doc IDs
   extraPermissions: [string]          ← Phase 6 — one-off per-user permission keys
   emailVerified: true | false
+  membershipRequestedAt: timestamp | null  ← Phase 7 — set when public user requests membership; cleared on approve/decline
   directoryVisible: true | false      ← appear in /members/directory at all
   directoryShowEmail: true | false    ← expose email in directory
   directoryShowPhone: true | false    ← expose phone in directory
@@ -388,6 +395,7 @@ Functions are organised by trigger type:
 /blog/{postId}
   title, body, author
   imageUrl (nullable — Firebase Storage)
+  kind: "announcement" | "article"    ← Phase 7 — announcements surface on home feed; articles on /blog only; defaults to "article"
   publishedAt, published: true | false
 
 /team/{memberId}
@@ -461,6 +469,19 @@ Functions are organised by trigger type:
   isSystem: true | false                    ← system roles cannot be deleted
   createdAt, updatedAt (timestamps)
   updatedBy: uid (nullable)
+
+/homepage/content                           ← singleton doc (Phase 5 + Phase 7)
+  tagline: string
+  announcement: { active: bool, title: string, body: string }
+  serviceTimes: [{ label, day, time }]
+  liveStream: {                             ← Phase 7 — managed from admin/homepage.html
+    active: true | false,
+    title: string,
+    youtubeId: string,
+    startedAt: timestamp | null,
+    updatedAt: timestamp,
+    updatedBy: uid
+  }
 ```
 
 ---
