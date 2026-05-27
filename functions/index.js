@@ -289,7 +289,10 @@ exports.sendBroadcast = functions.https.onCall(async (data, context) => {
     const result = await admin.messaging().sendEachForMulticast({
       tokens: chunk,
       notification: { title, body },
-      webpush: { notification: { icon: '/assets/images/icons/icon-192.png' } },
+      webpush: {
+        notification: { icon: '/assets/images/icons/icon-192.png' },
+        fcmOptions: { link: '/' },
+      },
     });
     sent += result.successCount;
   }
@@ -414,7 +417,10 @@ exports.weeklyDigest = functions.pubsub
         await admin.messaging().sendEachForMulticast({
           tokens: tokens.slice(i, i + 500),
           notification: { title, body },
-          webpush: { notification: { icon: '/assets/images/icons/icon-192.png' } },
+          webpush: {
+            notification: { icon: '/assets/images/icons/icon-192.png' },
+            fcmOptions: { link: '/members/' },
+          },
         });
       }
     }
@@ -466,7 +472,10 @@ exports.onNewMessage = functions.firestore
     await admin.messaging().sendEachForMulticast({
       tokens,
       notification: { title, body },
-      webpush: { notification: { icon: '/assets/images/icons/icon-192.png' } },
+      webpush: {
+        notification: { icon: '/assets/images/icons/icon-192.png' },
+        fcmOptions: { link },
+      },
       data: { linkUrl: link },
     });
   });
