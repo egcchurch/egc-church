@@ -56,6 +56,12 @@
       </div>
     </div>
 
+    <!-- Membership Status -->
+    <div id="membership-card" class="hidden bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+      <h2 class="text-lg font-bold text-[#0A3D62] mb-2">Membership</h2>
+      <div id="membership-body"></div>
+    </div>
+
     <!-- Profile Details -->
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
       <h2 class="text-lg font-bold text-[#0A3D62] mb-6">Personal Details</h2>
@@ -201,6 +207,34 @@
         if (d.membership === 'pending') {
           document.getElementById('pending-banner').classList.remove('hidden');
         }
+
+        // Membership section
+        const card = document.getElementById('membership-card');
+        const body = document.getElementById('membership-body');
+        if (d.membership === 'public') {
+          card.classList.remove('hidden');
+          if (d.membershipRequestedAt) {
+            const dateStr = d.membershipRequestedAt.toDate().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' });
+            body.innerHTML = `<p class="text-sm text-gray-600">You have a general account.</p>
+              <p class="text-sm text-amber-700 mt-2 font-medium">Member access requested on ${dateStr}. An administrator will review your request.</p>`;
+          } else {
+            body.innerHTML = `<p class="text-sm text-gray-600 mb-4">You have a general account. Request access to the members area to unlock the full church experience.</p>
+              <button id="request-access-btn" onclick="requestMemberAccess()"
+                      class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+                Request Member Access
+              </button>
+              <p id="request-status" class="text-sm mt-3 hidden"></p>`;
+          }
+        } else if (d.membership === 'member') {
+          card.classList.remove('hidden');
+          const sinceStr = d.createdAt
+            ? d.createdAt.toDate().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })
+            : '';
+          body.innerHTML = `<div class="flex items-center gap-2">
+            <i class="fas fa-circle-check text-green-500"></i>
+            <p class="text-sm text-gray-700 font-medium">You are a member${sinceStr ? ` &mdash; joined ${sinceStr}` : ''}.</p>
+          </div>`;
+        }
       });
     }
 
@@ -264,6 +298,28 @@
       currentUser.sendEmailVerification()
         .then(() => alert('Verification email sent. Please check your inbox.'))
         .catch(err => alert('Error: ' + err.message));
+    }
+
+    async function requestMemberAccess() {
+      const btn = document.getElementById('request-access-btn');
+      const status = document.getElementById('request-status');
+      if (!btn) return;
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      try {
+        const fn = firebase.functions().httpsCallable('requestMemberAccess');
+        await fn({});
+        btn.style.display = 'none';
+        status.textContent = 'Request sent! An administrator will review your request.';
+        status.className = 'text-sm mt-3 text-green-700 font-medium';
+        status.classList.remove('hidden');
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = 'Request Member Access';
+        status.textContent = 'Something went wrong. Please try again.';
+        status.className = 'text-sm mt-3 text-red-600';
+        status.classList.remove('hidden');
+      }
     }
 
     async function deleteAccount() {

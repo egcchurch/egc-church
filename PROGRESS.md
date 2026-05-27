@@ -10,7 +10,29 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-27
-**Current milestone:** Phase 7 — Adaptive Homepage (PR 7 of 7 in progress)
+**Current milestone:** Phase 7 — Adaptive Homepage (PR 7 of 7 open)
+
+---
+
+## Session: Phase 7 PR 7 — Request member access flow (Session 43)
+
+**Date:** 2026-05-27
+**Branch:** `phase7/request-access-flow`
+**Status:** PR open
+
+### What was done
+
+**`functions/index.js`** — new callable function `requestMemberAccess`. Authenticated users with `membership === 'public'` can call it to write `membershipRequestedAt` (server timestamp) to their user doc. 24h idempotency: if `membershipRequestedAt` is already set within the last 24 hours, returns `{ success: true, alreadyRequested: true }` without re-notifying. Notifies all superadmins and users with `users.approve` in `extraPermissions` via in-app notification with `linkUrl: '/admin/users.html'`.
+
+**`profile.html`** — new "Membership" card section inserted between the pending banner and the profile details card. Shows for `public` users (with or without a pending request) and for `member` users. Public users without a request see a "Request Member Access" button that calls the new callable function. Public users who already requested see the request date. Members see a green check with their join date.
+
+**`admin/users.html`** — added "Pending Requests" third tab. `loadUsers()` uses `where('membershipRequestedAt', '!=', null).orderBy('membershipRequestedAt', 'desc')` for that tab. `renderUserCard()` shows Approve + Decline buttons when `currentTab === 'requests'`. New `approveRequest` (sets `membership: 'member'`, deletes `membershipRequestedAt`) and `declineRequest` (deletes `membershipRequestedAt` only) functions.
+
+### Notes / decisions
+
+- `declineRequest` clears `membershipRequestedAt` without changing membership, allowing the user to request again after 24h.
+- The `!= null` query on `membershipRequestedAt` may need a single-field index if Firestore doesn't auto-create it — if a console index error appears after deploy, add it to `firestore.indexes.json`.
+- **Deploy reminder:** after this PR merges, manually run `firebase deploy --only functions` to deploy both PR 6 functions (if not yet done) and `requestMemberAccess`.
 
 ---
 

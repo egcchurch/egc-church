@@ -40,6 +40,10 @@
               class="tab-btn pb-3 px-1 text-sm font-semibold border-b-2 border-transparent text-gray-500 hover:text-gray-700">
         All Members
       </button>
+      <button onclick="setTab('requests')" id="tab-requests"
+              class="tab-btn pb-3 px-1 text-sm font-semibold border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+        Pending Requests
+      </button>
     </div>
 
     <!-- User List -->
@@ -142,9 +146,12 @@
 
       let query = db.collection('users');
       if (currentTab === 'pending') {
-        query = query.where('membership', '==', 'pending');
+        query = query.where('membership', '==', 'pending').orderBy('createdAt', 'desc');
+      } else if (currentTab === 'requests') {
+        query = query.where('membershipRequestedAt', '!=', null).orderBy('membershipRequestedAt', 'desc');
+      } else {
+        query = query.orderBy('createdAt', 'desc');
       }
-      query = query.orderBy('createdAt', 'desc');
 
       query.get().then((snapshot) => {
         if (snapshot.empty) {
@@ -232,17 +239,26 @@
         : '';
 
       // ── Membership / legacy role buttons ───────────────────────────────────
-      const membershipBtn = u.membership === 'pending'
-        ? `<button onclick="approveMember('${uid}')"
+      const membershipBtn = currentTab === 'requests' && u.membership === 'public'
+        ? `<button onclick="approveRequest('${uid}')"
                    class="bg-green-500 hover:bg-green-600 text-white text-sm px-4 py-2 rounded-full transition">
              Approve
+           </button>
+           <button onclick="declineRequest('${uid}')"
+                   class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm px-4 py-2 rounded-full transition">
+             Decline
            </button>`
-        : u.membership === 'member'
-          ? `<button onclick="setMembership('${uid}', 'pending')"
-                     class="bg-yellow-400 hover:bg-yellow-500 text-white text-sm px-4 py-2 rounded-full transition">
-               Revoke
+        : u.membership === 'pending'
+          ? `<button onclick="approveMember('${uid}')"
+                     class="bg-green-500 hover:bg-green-600 text-white text-sm px-4 py-2 rounded-full transition">
+               Approve
              </button>`
-          : '';
+          : u.membership === 'member'
+            ? `<button onclick="setMembership('${uid}', 'pending')"
+                       class="bg-yellow-400 hover:bg-yellow-500 text-white text-sm px-4 py-2 rounded-full transition">
+                 Revoke
+               </button>`
+            : '';
 
       return `
         <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -378,6 +394,21 @@
 
     function approveMember(uid) {
       setMembership(uid, 'member');
+    }
+
+    function approveRequest(uid) {
+      db.collection('users').doc(uid).update({
+        membership: 'member',
+        membershipRequestedAt: firebase.firestore.FieldValue.delete(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }).then(() => loadUsers()).catch(err => alert('Error: ' + err.message));
+    }
+
+    function declineRequest(uid) {
+      db.collection('users').doc(uid).update({
+        membershipRequestedAt: firebase.firestore.FieldValue.delete(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }).then(() => loadUsers()).catch(err => alert('Error: ' + err.message));
     }
 
     function setMembership(uid, membership) {
