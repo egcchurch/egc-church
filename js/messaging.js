@@ -103,12 +103,10 @@
     document.getElementById('thread-panel')?.classList.remove('hidden');
     document.getElementById('empty-state')?.classList.add('hidden');
 
-    // Mobile: swap panels using inline styles to bypass Tailwind class-scan timing.
+    // Mobile: swap panels via custom CSS classes (plain <style> block, no Tailwind).
     if (window.innerWidth < 768) {
-      const cp = document.getElementById('conv-panel');
-      if (cp) cp.style.display = 'none';
-      const tw = document.getElementById('thread-wrapper');
-      if (tw) tw.style.display = 'flex';
+      document.getElementById('conv-panel')?.classList.add('mobile-hidden');
+      document.getElementById('thread-wrapper')?.classList.add('mobile-active');
     }
 
     // Set mobile back-bar title
@@ -309,10 +307,8 @@
     bindNewConv();
 
     document.getElementById('back-to-list')?.addEventListener('click', () => {
-      const cp = document.getElementById('conv-panel');
-      if (cp) cp.style.display = '';
-      const tw = document.getElementById('thread-wrapper');
-      if (tw) tw.style.display = '';
+      document.getElementById('conv-panel')?.classList.remove('mobile-hidden');
+      document.getElementById('thread-wrapper')?.classList.remove('mobile-active');
       document.getElementById('thread-panel')?.classList.add('hidden');
       document.getElementById('empty-state')?.classList.remove('hidden');
       currentConvId = null;
