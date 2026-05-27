@@ -278,7 +278,7 @@ Workflow files:
 - Admin sends broadcast from `/admin/notifications`
 - A Cloud Function fans out to all relevant FCM tokens
 - **Cloud Functions are required here** — client-side JS cannot send to other users' devices
-- **Delivery caveat:** FCM push only reaches logged-in approved users with registered tokens. Non-registered visitors will not receive push notifications even for "public" broadcasts.
+- **Delivery caveat:** FCM push only reaches logged-in **members** with registered tokens. Pending and public users do not register FCM tokens (gated in `js/notifications.js` on `membership === 'member'`) and will not receive push notifications. The `syncUserNotificationEligibility` Cloud Function deletes tokens immediately when a user's membership drops below member.
 
 ### In-App Notifications (app open)
 
@@ -298,7 +298,7 @@ Workflow files:
 | Type                 | Audience    | Delivery                    |
 | -------------------- | ----------- | --------------------------- |
 | Service reminder     | All members | FCM push + in-app           |
-| Public event notice  | All users   | FCM push + in-app           |
+| Public event notice  | All members | FCM push + in-app           |
 | Emergency notice     | All members | FCM push + in-app           |
 | Weekly digest        | All members | FCM push (Sunday scheduled) |
 | Direct message       | Individual  | FCM push + in-app           |

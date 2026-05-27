@@ -56,6 +56,71 @@ exports.syncUserClaims = functions.firestore
     return null;
   });
 
+// ── syncUserNotificationEligibility ──────────────────────────────────────────
+// Triggered on any write to /users/{uid}.
+// When membership changes away from 'member', deletes all FCM tokens so the
+// user stops receiving push notifications immediately.
+// The inverse (member promotion) is handled client-side — the next sign-in
+// after approval calls registerFCMToken() and registers a fresh token.
+
+exports.syncUserNotificationEligibility = functions.firestore
+  .document('users/{uid}')
+  .onWrite(async (change, context) => {
+    if (!change.after.exists) return null; // deleteUserAccount handles token cleanup on full deletion
+
+    const after  = change.after.data();
+    const before = change.before.exists ? change.before.data() : null;
+
+    const wasMember = before && before.membership === 'member';
+    const isMember  = after.membership === 'member';
+
+    if (wasMember && !isMember) {
+      const { uid } = context.params;
+      const tokensSnap = await db.collection('users').doc(uid).collection('fcmTokens').get();
+      if (!tokensSnap.empty) {
+        const batch = db.batch();
+        tokensSnap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        console.log(`syncUserNotificationEligibility: deleted ${tokensSnap.size} FCM tokens for ${uid}`);
+      }
+    }
+    return null;
+  });
+
+// ── cleanupNonMemberTokens ────────────────────────────────────────────────────
+// Callable — superadmin only. One-time migration for Phase 7 PR 6.
+// Iterates all users and deletes fcmTokens subcollections for any user whose
+// membership is not 'member'. Run on staging then prod after deploying this PR.
+
+exports.cleanupNonMemberTokens = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
+  }
+  if (context.auth.token.superadmin !== true) {
+    throw new functions.https.HttpsError('permission-denied', 'Superadmin required.');
+  }
+
+  const usersSnap = await db.collection('users').get();
+  let tokensDeleted = 0;
+  let usersProcessed = 0;
+
+  for (const userDoc of usersSnap.docs) {
+    if (userDoc.data().membership !== 'member') {
+      const tokensSnap = await db.collection('users').doc(userDoc.id).collection('fcmTokens').get();
+      if (!tokensSnap.empty) {
+        const batch = db.batch();
+        tokensSnap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        tokensDeleted  += tokensSnap.size;
+        usersProcessed += 1;
+      }
+    }
+  }
+
+  console.log(`cleanupNonMemberTokens: ${tokensDeleted} tokens deleted across ${usersProcessed} non-member users`);
+  return { tokensDeleted, usersProcessed };
+});
+
 // ── onUserCreate ──────────────────────────────────────────────────────────────
 // Triggered when a new user registers via Firebase Auth.
 // Auto-provisions a /users/{uid} document with default membership = 'pending'.
