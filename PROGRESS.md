@@ -10,7 +10,40 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-27
-**Current milestone:** Phase 7 — Adaptive Homepage (PR 2 of 7 open)
+**Current milestone:** Phase 7 — Adaptive Homepage (PR 3 of 7 open)
+
+---
+
+## Session: Phase 7 PR 3 — adaptive home renderer (Session 38)
+
+**Date:** 2026-05-27
+**Branch:** `phase7/adaptive-home-render`
+**Status:** PR open
+
+### What was done
+
+**`index.html`**
+- Added `<div id="adaptive-section"></div>` between the service times section and the Explore cards. Populated by `js/homepage.js` once auth state resolves.
+
+**`js/homepage.js`** — full rewrite into an auth-aware four-state renderer.
+- `firebase.auth().onAuthStateChanged` drives the render. On each state change: (1) loads `/homepage/content`, (2) calls `applyContent()` (tagline, announcement banner, service times — identical for all states), (3) loads state-specific data, (4) renders the adaptive section.
+- **Visitor** (not logged in): `loadAnnouncements(2)` → live stream teaser (if active, links to `/login.html`) + latest 2 announcement cards + "Register or Sign In" CTA.
+- **Pending** (`membership: "pending"`): "Awaiting approval" card with clock icon; if `user.emailVerified == false`, amber prompt with "Resend verification email" button; sign-out button.
+- **Public** (`membership: "public"`): personalised greeting + live teaser + 2 announcements + "Become a church member" card linking to `/profile.html`.
+- **Member** (`membership: "member"`): personalised greeting + full live banner (LIVE NOW if active, "Next service" fallback from serviceTimes[0]) + quick links grid (Messages, Prayer, Directory, Groups) + Notice Board (top 5 announcements) + today's devotional snippet (if today's devotional exists) + upcoming events (next 2).
+- `loadTodaysDevotional()`: fetches latest devotional by date desc, checks date components in local time — only shows if it is actually today's entry.
+- `loadUpcomingEvents(2)`: uses existing `published + startDate` composite index.
+- `loadAnnouncements(n)`: uses the `published + kind + publishedAt` composite index from PR 1.
+- `window._resendVerification`: exposed globally for the pending state's inline onclick.
+- Service worker bumped `v20 → v21` — `homepage.js` is cache-first so clients need a new cache name.
+
+### Notes / decisions
+
+- The hero, announcement banner, and service times sections remain static HTML and are populated for all auth states (no state divergence there). The adaptive section adds state-specific content below them.
+- The `firebase.auth().onAuthStateChanged` listener re-fires on sign-in and sign-out, so the adaptive section automatically updates without a page reload.
+- Events query uses the existing `events(published ASC, startDate ASC)` composite index — already deployed. No new index needed.
+- Devotional query uses `orderBy('date', 'desc').limit(1)` + local-time date comparison rather than a range query — avoids timezone boundary issues with Firestore Timestamps.
+- Messages quick link has no unread count badge in this PR — the conversation/message query structure makes this non-trivial for a one-shot home-page fetch. Can be added in a follow-up.
 
 ---
 
