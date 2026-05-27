@@ -10,7 +10,38 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-28
-**Current milestone:** Post-Phase 7 fixes — messages page mobile two-panel layout
+**Current milestone:** Post-Phase 7 fixes — ongoing bug fixes
+
+---
+
+## Session: fix/messages-mobile-v3 — messages mobile panel swap (final fix) (Session 51)
+
+**Date:** 2026-05-28
+**Branch:** `fix/messages-mobile-v3`
+**Status:** Merged — confirmed working
+
+### What was done
+
+**Root cause:** Tailwind v4 CDN compiles classes at page-scan time. Dynamically adding `flex` or toggling `hidden` via JS class manipulation or `style.display` was being overridden by Tailwind's stylesheet ordering. Two prior attempts failed for this reason.
+
+**Fix:** Replaced all JS class/style toggling for the panel swap with a plain `<style>` block in `members/messages.html` using a `@media (max-width: 767px)` rule with `!important` — completely outside Tailwind's control. `#thread-wrapper { display: none !important }` by default on mobile; `.mobile-active` shows it; `#conv-panel.mobile-hidden` hides the list. JS adds/removes `.mobile-hidden` and `.mobile-active` class names. Also removed `hidden md:flex` from `thread-wrapper`'s Tailwind classes since the custom CSS owns mobile visibility.
+
+**`service-worker.js`** — cache bumped `v28 → v29`.
+
+### Notes / decisions
+
+- The `!important` in the plain `<style>` block guarantees no CSS framework can interfere regardless of load order or scan timing.
+- Desktop layout (≥768px) is unaffected — the media query doesn't apply and Tailwind's flex classes govern normally.
+
+---
+
+## Session: fix/messages-mobile-swap — messages mobile panel swap attempt 2 (Session 50)
+
+**Date:** 2026-05-28
+**Branch:** `fix/messages-mobile-swap`
+**Status:** Merged — did not fix (Tailwind CDN timing issue persisted)
+
+Replaced `classList.add('hidden')`/`classList.remove('hidden')` with `style.display = 'flex'`/`style.display = 'none'` to bypass Tailwind. Still failed — root cause not yet identified. Cache bumped `v27 → v28`.
 
 ---
 
