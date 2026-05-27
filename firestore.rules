@@ -127,11 +127,12 @@ service cloud.firestore {
     }
 
     // ── Notifications ─────────────────────────────────────────────────────────
+    // Global /notifications collection is the admin broadcast history panel only.
+    // Per-user inboxes live in /users/{uid}/notifications/ with their own rule.
+    // audience-based field checks cannot gate collection queries in Firestore,
+    // so we gate the whole collection on the permission that can also write it.
     match /notifications/{id} {
-      allow read: if isSignedIn() &&
-        (resource.data.audience == 'all' ||
-         resource.data.audience == 'members' && isMember() ||
-         resource.data.audience == 'admins' && hasPermission('notifications.send'));
+      allow read: if hasPermission('notifications.send');
       allow write: if hasPermission('notifications.send');
     }
 
