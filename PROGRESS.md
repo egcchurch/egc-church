@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-27
-**Current milestone:** Phase 7 — Adaptive Homepage (PR 7 of 7 open)
+**Current milestone:** Phase 7 complete — awaiting manual functions deploy
 
 ---
 
@@ -18,7 +18,7 @@
 
 **Date:** 2026-05-27
 **Branch:** `phase7/request-access-flow`
-**Status:** PR open
+**Status:** Merged (PR #53)
 
 ### What was done
 
