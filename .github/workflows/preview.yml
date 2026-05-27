@@ -15,6 +15,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Clean up stale PR preview channels
+        run: |
+          printf '%s' "$FIREBASE_SA" > /tmp/sa.json
+          gcloud auth activate-service-account --key-file=/tmp/sa.json --quiet 2>/dev/null || true
+          TOKEN=$(gcloud auth print-access-token 2>/dev/null || true)
+          rm -f /tmp/sa.json
+          [ -z "$TOKEN" ] && { echo "Skipping cleanup — no token"; exit 0; }
+          curl -sf -H "Authorization: Bearer $TOKEN" \
+            "https://firebasehosting.googleapis.com/v1beta1/projects/egc-church/sites/egc-staging777/channels?pageSize=50" \
+            > /tmp/channels.json || echo '{"channels":[]}' > /tmp/channels.json
+          CURRENT="pr-${{ github.event.number }}" TOKEN="$TOKEN" python3 << 'PYEOF'
+          import json, os, urllib.request
+          with open('/tmp/channels.json') as f:
+              data = json.load(f)
+          current = os.environ.get('CURRENT', '')
+          token = os.environ.get('TOKEN', '')
+          base = 'https://firebasehosting.googleapis.com/v1beta1/projects/egc-church/sites/egc-staging777/channels'
+          for ch in data.get('channels', []):
+              name = ch.get('name', '').split('/')[-1]
+              if name.startswith('pr-') and name != current:
+                  print(f'Deleting {name}')
+                  try:
+                      urllib.request.urlopen(urllib.request.Request(
+                          f'{base}/{name}', method='DELETE',
+                          headers={'Authorization': f'Bearer {token}'}))
+                      print(f'  Deleted')
+                  except Exception as e:
+                      print(f'  Warning: {e}')
+          PYEOF
+          rm -f /tmp/channels.json
+        env:
+          FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
       - name: Deploy preview to Firebase
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
