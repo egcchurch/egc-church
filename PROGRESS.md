@@ -10,7 +10,34 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-27
-**Current milestone:** Phase 7 — Adaptive Homepage (PR 5 of 7 open)
+**Current milestone:** Phase 7 — Adaptive Homepage (PR 6 of 7 open)
+
+---
+
+## Session: Phase 7 PR 6 — FCM members-only gate (Session 41)
+
+**Date:** 2026-05-27
+**Branch:** `phase7/fcm-members-only`
+**Status:** PR open
+
+### What was done
+
+**`js/notifications.js`** — `onAuthStateChanged` callback made async; reads the user's Firestore doc before calling `registerFCMToken`. Token registration only proceeds if `membership === 'member'`. Pending and public users get the notification bell (harmless, shows empty) but never register an FCM token.
+
+**`functions/index.js`** — two new Cloud Functions:
+- `syncUserNotificationEligibility` — Firestore onWrite trigger on `users/{uid}`. Checks if `membership` changed FROM `'member'` TO anything else; if so, deletes all docs in `fcmTokens` subcollection. No-ops on new user creation and document deletion (handled by `deleteUserAccount`).
+- `cleanupNonMemberTokens` — callable, superadmin only. One-time migration: iterates all users, deletes `fcmTokens` subcollection for any user where `membership !== 'member'`. Run on staging then prod after deploying.
+
+**`CLAUDE.md`** — updated broadcast types table ("Public event notice" audience changed from "All users" to "All members") and FCM delivery caveat updated to reflect members-only token registration.
+
+**`service-worker.js`** — cache version bumped `v23 → v24` (`notifications.js` is cache-first).
+
+### Notes / decisions
+
+- The notification bell (`setupBell`) is not gated — public/pending users see an empty bell, which is harmless. Gating the bell would require a separate membership check before calling `setupBell`, adding complexity for negligible benefit.
+- `syncUserNotificationEligibility` shares the same trigger path as `syncUserClaims` — Firebase runs both independently, which is fine.
+- Token promotion (pending/public → member) is handled naturally: at next sign-in after approval, `onAuthStateChanged` fires, the membership check passes, and `registerFCMToken` runs.
+- **Deploy reminder:** after this PR merges, manually run `firebase deploy --only functions`, then call `cleanupNonMemberTokens` from a superadmin session (e.g. browser console on admin page using `firebase.functions().httpsCallable('cleanupNonMemberTokens')({})`).
 
 ---
 

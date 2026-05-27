@@ -23,10 +23,19 @@
   }
 
   waitForAuth(() => {
-    auth.onAuthStateChanged((user) => {
+    auth.onAuthStateChanged(async (user) => {
       if (user) {
         setupBell(user.uid);
-        registerFCMToken(user.uid);
+        // FCM token registration is gated on membership === 'member'.
+        // Pending and public users do not receive push notifications.
+        try {
+          const snap = await firebase.firestore().collection('users').doc(user.uid).get();
+          if (snap.exists && snap.data().membership === 'member') {
+            registerFCMToken(user.uid);
+          }
+        } catch (e) {
+          console.warn('FCM eligibility check failed:', e);
+        }
       } else {
         teardownBell();
       }
