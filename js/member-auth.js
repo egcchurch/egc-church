@@ -1,47 +1,130 @@
 // js/member-auth.js
-// Shared auth guard for member pages.
-// Include this script on every /members/*.html page.
-// It redirects non-members away before the page loads.
+// Auth guard for member pages. Shows a contextual access-denied card instead
+// of silently redirecting when a user lacks member access.
+// Include on every /members/*.html page.
 
 (function () {
-  const MEMBER_TIERS = ['member'];
-  const REDIRECT_URL = '/login.html';
+  var MEMBER_TIERS = ['member'];
+
+  function showAccessDenied(reason, user) {
+    var configs = {
+      'not-logged-in': {
+        icon: 'fa-lock',
+        iconColor: '#d97706',
+        iconBg: '#fef3c7',
+        title: 'Sign in to access this page',
+        body: 'This content is available to registered church members.',
+        buttons: [
+          { href: '/login.html', label: 'Sign In', primary: true },
+          { href: '/login.html', label: 'Create Account', primary: false }
+        ]
+      },
+      'verify-email': {
+        icon: 'fa-envelope',
+        iconColor: '#2563eb',
+        iconBg: '#dbeafe',
+        title: 'Verify your email first',
+        body: 'We sent a verification link to your email address. Check your inbox and click the link, then return here.',
+        buttons: [
+          { action: 'resend', label: 'Resend verification email', primary: true },
+          { action: 'signout', label: 'Sign out', primary: false }
+        ]
+      },
+      'pending': {
+        icon: 'fa-clock',
+        iconColor: '#d97706',
+        iconBg: '#fef3c7',
+        title: 'Account awaiting approval',
+        body: 'Your account is being reviewed. Approvals usually happen within 24 hours — we’ll email you when you’re in.',
+        buttons: [
+          { action: 'signout', label: 'Sign out', primary: false }
+        ]
+      },
+      'public': {
+        icon: 'fa-users',
+        iconColor: '#0A3D62',
+        iconBg: '#dbeafe',
+        title: 'Members only',
+        body: 'This page is available to church members. You can request member access from your profile.',
+        buttons: [
+          { href: '/profile.html', label: 'Request member access', primary: true },
+          { action: 'signout', label: 'Sign out', primary: false }
+        ]
+      }
+    };
+
+    var cfg = configs[reason] || configs['not-logged-in'];
+
+    window._memberAuthSignOut = function () {
+      auth.signOut().then(function () { window.location.href = '/index.html'; });
+    };
+    window._memberAuthResend = function () {
+      if (!user) return;
+      user.sendEmailVerification()
+        .then(function () { alert('Verification email sent. Please check your inbox.'); })
+        .catch(function (err) { alert('Could not send email: ' + err.message); });
+    };
+
+    var btnHtml = cfg.buttons.map(function (b) {
+      var base = 'display:inline-block;padding:.5rem 1.25rem;border-radius:.5rem;font-weight:600;font-size:.9375rem;cursor:pointer;text-decoration:none;transition:opacity .15s;';
+      var style = b.primary
+        ? base + 'background:#F59E0B;color:#fff;border:none;'
+        : base + 'background:#fff;color:#374151;border:1.5px solid #d1d5db;';
+      if (b.href) {
+        return '<a href="' + b.href + '" style="' + style + '">' + b.label + '</a>';
+      }
+      var fn = b.action === 'signout' ? '_memberAuthSignOut()' : '_memberAuthResend()';
+      return '<button onclick="' + fn + '" style="' + style + '">' + b.label + '</button>';
+    }).join('');
+
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:#f9fafb;z-index:9999;display:flex;align-items:center;justify-content:center;padding:1.5rem;';
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,.12);max-width:26rem;width:100%;padding:2.5rem;text-align:center;">' +
+        '<div style="width:64px;height:64px;border-radius:50%;background:' + cfg.iconBg + ';display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;">' +
+          '<i class="fas ' + cfg.icon + '" style="font-size:1.75rem;color:' + cfg.iconColor + ';"></i>' +
+        '</div>' +
+        '<h2 style="font-size:1.25rem;font-weight:700;color:#111827;margin:0 0 .5rem;">' + cfg.title + '</h2>' +
+        '<p style="color:#6b7280;margin:0 0 1.75rem;font-size:.9375rem;line-height:1.5;">' + cfg.body + '</p>' +
+        '<div style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;">' + btnHtml + '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+  }
 
   function waitForFirebase(callback) {
     if (typeof firebase !== 'undefined' && typeof auth !== 'undefined') {
       callback();
     } else {
-      setTimeout(() => waitForFirebase(callback), 50);
+      setTimeout(function () { waitForFirebase(callback); }, 50);
     }
   }
 
-  waitForFirebase(() => {
-    auth.onAuthStateChanged((user) => {
+  waitForFirebase(function () {
+    auth.onAuthStateChanged(function (user) {
       if (!user) {
-        window.location.href = REDIRECT_URL;
+        showAccessDenied('not-logged-in', null);
         return;
       }
 
       if (!user.emailVerified) {
-        window.location.href = '/login.html?verify=1';
+        showAccessDenied('verify-email', user);
         return;
       }
 
       firebase.firestore().collection('users').doc(user.uid).get()
-        .then((doc) => {
+        .then(function (doc) {
           if (!doc.exists) {
-            window.location.href = REDIRECT_URL;
+            showAccessDenied('not-logged-in', user);
             return;
           }
-
-          const data = doc.data();
+          var data = doc.data();
           if (!MEMBER_TIERS.includes(data.membership)) {
-            window.location.href = '/login.html?pending=1';
+            showAccessDenied(data.membership === 'pending' ? 'pending' : 'public', user);
           }
         })
-        .catch((err) => {
+        .catch(function (err) {
           console.error('Member auth check failed:', err);
-          window.location.href = REDIRECT_URL;
+          showAccessDenied('not-logged-in', null);
         });
     });
   });
