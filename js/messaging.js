@@ -103,11 +103,12 @@
     document.getElementById('thread-panel')?.classList.remove('hidden');
     document.getElementById('empty-state')?.classList.add('hidden');
 
-    // Mobile: swap panels — hide conv list, show thread wrapper
+    // Mobile: swap panels using inline styles to bypass Tailwind class-scan timing.
     if (window.innerWidth < 768) {
-      document.getElementById('conv-panel')?.classList.add('hidden');
+      const cp = document.getElementById('conv-panel');
+      if (cp) cp.style.display = 'none';
       const tw = document.getElementById('thread-wrapper');
-      if (tw) { tw.classList.remove('hidden'); tw.classList.add('flex'); }
+      if (tw) tw.style.display = 'flex';
     }
 
     // Set mobile back-bar title
@@ -308,11 +309,13 @@
     bindNewConv();
 
     document.getElementById('back-to-list')?.addEventListener('click', () => {
-      document.getElementById('conv-panel')?.classList.remove('hidden');
+      const cp = document.getElementById('conv-panel');
+      if (cp) cp.style.display = '';
       const tw = document.getElementById('thread-wrapper');
-      if (tw) { tw.classList.add('hidden'); tw.classList.remove('flex'); }
+      if (tw) tw.style.display = '';
       document.getElementById('thread-panel')?.classList.add('hidden');
       document.getElementById('empty-state')?.classList.remove('hidden');
+      currentConvId = null;
     });
   });
 
