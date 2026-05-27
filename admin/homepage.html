@@ -80,6 +80,41 @@
       <div id="service-times-list" class="space-y-3"></div>
     </div>
 
+    <!-- Live Stream -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="text-lg font-bold text-[#0A3D62]">Live Stream</h2>
+        <span id="live-status-badge"
+              class="hidden text-xs px-3 py-1 rounded-full font-medium bg-red-100 text-red-700">
+          <i class="fas fa-circle text-red-500 mr-1 animate-pulse"></i>LIVE NOW
+        </span>
+      </div>
+      <p class="text-sm text-gray-500 mb-5">Toggle the live stream banner on the homepage. Members see the player; visitors see a sign-in prompt.</p>
+      <div class="space-y-4 mb-6">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Stream Title</label>
+          <input id="f-live-title" type="text" placeholder="e.g. Sunday Service — 1 June"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">YouTube Video ID</label>
+          <input id="f-live-youtube" type="text" placeholder="e.g. dQw4w9WgXcQ"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <p class="text-xs text-gray-400 mt-1">The ID from youtube.com/watch?v=<strong>this-part</strong></p>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <button id="btn-set-live" onclick="setLive()"
+                class="bg-red-500 hover:bg-red-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          <i class="fas fa-broadcast-tower mr-2"></i>Set Live
+        </button>
+        <button id="btn-end-stream" onclick="endStream()"
+                class="hidden bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          <i class="fas fa-stop mr-2"></i>End Stream
+        </button>
+      </div>
+    </div>
+
     <!-- Save -->
     <div class="flex justify-end">
       <button onclick="saveAll()"
@@ -120,6 +155,8 @@
         ];
         document.getElementById('service-times-list').innerHTML = '';
         times.forEach(t => appendServiceTimeRow(t));
+
+        renderLiveStatus(d.liveStream || {});
       }).catch(err => toast('Failed to load content: ' + err.message, true));
     }
 
@@ -171,6 +208,60 @@
 
       docRef.set(data, { merge: true })
         .then(() => toast('Homepage saved.'))
+        .catch(err => toast('Error: ' + err.message, true));
+    }
+
+    // ── Live stream ───────────────────────────────────────────────────────────
+
+    function renderLiveStatus(ls) {
+      const isLive = ls.active === true;
+      document.getElementById('live-status-badge').classList.toggle('hidden', !isLive);
+      document.getElementById('btn-set-live').classList.toggle('hidden', isLive);
+      document.getElementById('btn-end-stream').classList.toggle('hidden', !isLive);
+      document.getElementById('f-live-title').value   = ls.title     || '';
+      document.getElementById('f-live-youtube').value = ls.youtubeId || '';
+    }
+
+    function setLive() {
+      const title     = document.getElementById('f-live-title').value.trim();
+      const youtubeId = document.getElementById('f-live-youtube').value.trim();
+      if (!title || !youtubeId) {
+        toast('Stream title and YouTube ID are required.', true);
+        return;
+      }
+      const uid = firebase.auth().currentUser?.uid || null;
+      docRef.set({
+        liveStream: {
+          active:    true,
+          title,
+          youtubeId,
+          startedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedBy: uid,
+        }
+      }, { merge: true })
+        .then(() => {
+          renderLiveStatus({ active: true, title, youtubeId });
+          toast('Stream is live.');
+        })
+        .catch(err => toast('Error: ' + err.message, true));
+    }
+
+    function endStream() {
+      if (!confirm('End the live stream? The banner will be removed from the homepage.')) return;
+      const uid = firebase.auth().currentUser?.uid || null;
+      docRef.set({
+        liveStream: {
+          active:    false,
+          startedAt: null,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedBy: uid,
+        }
+      }, { merge: true })
+        .then(() => {
+          renderLiveStatus({ active: false });
+          toast('Stream ended.');
+        })
         .catch(err => toast('Error: ' + err.message, true));
     }
 

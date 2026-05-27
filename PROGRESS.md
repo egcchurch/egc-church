@@ -10,7 +10,32 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-27
-**Current milestone:** Phase 7 — Adaptive Homepage (PR 1 of 7 open)
+**Current milestone:** Phase 7 — Adaptive Homepage (PR 2 of 7 open)
+
+---
+
+## Session: Phase 7 PR 2 — live stream toggle (Session 37)
+
+**Date:** 2026-05-27
+**Branch:** `phase7/live-stream-toggle`
+**Status:** PR open
+
+### What was done
+
+**`admin/homepage.html`**
+- Added "Live Stream" section between Service Times and Save Changes.
+- UI: Stream Title input, YouTube Video ID input, pulsing "LIVE NOW" badge (hidden when inactive), "Set Live" button (red, shown when inactive), "End Stream" button (gray, shown when active).
+- `renderLiveStatus(ls)` — called from `loadContent()` to reflect current Firestore state on page load. Toggles badge and buttons; populates title/youtubeId inputs.
+- `setLive()` — validates title + youtubeId, writes `liveStream: { active: true, title, youtubeId, startedAt: serverTimestamp(), updatedAt, updatedBy }` via `set({ merge: true })`. Updates UI immediately on success.
+- `endStream()` — confirm dialog, writes `liveStream: { active: false, startedAt: null, updatedAt, updatedBy }` via `set({ merge: true })`. Updates UI immediately.
+- Live stream actions are independent of the main "Save Changes" button — time-sensitive, one-click operation.
+
+### Notes / decisions
+
+- No front-end display in this PR — the homepage banner that reads `liveStream.active` is wired in PR 3.
+- `set({ merge: true })` on `liveStream` as a nested object writes the whole sub-object, which is correct — Firestore merges at the document level, not field level for nested maps.
+- `firebase.auth().currentUser?.uid` used for `updatedBy` — reliable at click time since admin-auth.js has already confirmed auth before the page renders.
+- No SW cache bump — `admin/homepage.html` uses network-first; no new files added.
 
 ---
 
