@@ -66,7 +66,7 @@
             <button class="conv-item w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-amber-50 transition-colors border-b border-zinc-50 last:border-0
                            ${currentConvId === uid ? 'bg-amber-50' : ''}
                            ${unread ? 'bg-amber-50' : ''}"
-                    data-id="${uid}" data-other="${esc(other)}">
+                    data-id="${uid}" data-other="${esc(other)}" data-name="${esc(c.otherName || other)}">
               <div class="w-9 h-9 rounded-full bg-[#0A3D62] text-white text-sm font-bold flex items-center justify-center shrink-0 uppercase">
                 ${esc(c.otherName ? c.otherName[0] : '?')}
               </div>
@@ -102,6 +102,20 @@
     // Show thread panel, hide empty state
     document.getElementById('thread-panel')?.classList.remove('hidden');
     document.getElementById('empty-state')?.classList.add('hidden');
+
+    // Mobile: swap panels — hide conv list, show thread wrapper
+    if (window.innerWidth < 768) {
+      document.getElementById('conv-panel')?.classList.add('hidden');
+      const tw = document.getElementById('thread-wrapper');
+      if (tw) { tw.classList.remove('hidden'); tw.classList.add('flex'); }
+    }
+
+    // Set mobile back-bar title
+    const titleEl = document.getElementById('thread-title');
+    if (titleEl) {
+      const item = document.querySelector(`.conv-item[data-id="${convId}"]`);
+      titleEl.textContent = item?.dataset.name || '';
+    }
 
     // Mark as read
     firebase.firestore().collection('conversations').doc(convId).update({
@@ -292,6 +306,14 @@
   document.addEventListener('nav-loaded', () => {
     bindSendForm();
     bindNewConv();
+
+    document.getElementById('back-to-list')?.addEventListener('click', () => {
+      document.getElementById('conv-panel')?.classList.remove('hidden');
+      const tw = document.getElementById('thread-wrapper');
+      if (tw) { tw.classList.add('hidden'); tw.classList.remove('flex'); }
+      document.getElementById('thread-panel')?.classList.add('hidden');
+      document.getElementById('empty-state')?.classList.remove('hidden');
+    });
   });
 
   // ── Utility ──────────────────────────────────────────────────────────────────
