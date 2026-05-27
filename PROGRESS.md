@@ -9,8 +9,29 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-05-27
-**Current milestone:** Phase 7 complete — all deployment tasks done, ready for Phase 8
+**Last worked on:** 2026-05-28
+**Current milestone:** Post-Phase 7 fix — DM push notification tap handling
+
+---
+
+## Session: fix/dm-notification-click — DM push notification tap (Session 44)
+
+**Date:** 2026-05-28
+**Branch:** `fix/dm-notification-click`
+**Status:** PR open
+
+### What was done
+
+**`service-worker.js`** — added `notificationclick` event handler. When a user taps an FCM push notification on their phone, the handler closes the notification, reads `event.notification.data.linkUrl`, and navigates the app to that URL (re-using an existing open window on the same origin rather than opening a new tab). Falls back to `/` if no `linkUrl` is present. Cache bumped `v24 → v25` (service-worker.js is cache-first).
+
+**`functions/index.js`** — `onNewMessage` FCM payload updated to include `data: { linkUrl: link }` where `link` is `/members/messages.html?conv=${convId}`. This passes the conversation ID through to the service worker so tapping the notification opens the exact conversation, not just the messages list.
+
+### Notes / decisions
+
+- The `notificationclick` handler uses `clients.matchAll` to re-use any already-open window on the origin rather than `clients.openWindow` unconditionally — avoids duplicate tabs.
+- `link` already carried the conversation ID (`?conv=${convId}`) from the original PR 4 implementation; the `data` payload just makes it available to the SW handler.
+- **Deploy reminder:** after this PR merges, manually run `firebase deploy --only functions` to deploy the updated `onNewMessage`.
+- iOS requires PWA installed to home screen (Add to Home Screen in Safari) + iOS 16.4+ for web push to work at all. Android Chrome works without installation.
 
 ---
 

@@ -321,7 +321,7 @@ Functions are organised by trigger type:
 
 ### Firestore Triggers (Phase 4)
 
-- `onNewMessage` — trigger: `/conversations/{conversationId}/messages/{messageId}` created — pushes FCM to recipient and writes in-app notification
+- `onNewMessage` — trigger: `/conversations/{conversationId}/messages/{messageId}` created — pushes FCM to recipient (with `data: { linkUrl: '/members/messages.html?conv={convId}' }` for service worker navigation) and writes in-app notification
 - `onNewPrayerRequest` — trigger: `/prayerRequests/{requestId}` created — if `isPrivate: false`, writes in-app notification to all members; if `isPrivate: true`, writes in-app notification to admins only
 - `onNewConnectForm` — trigger: `/connectForms/{submissionId}` created — writes in-app notification to all admins
 
@@ -665,7 +665,7 @@ Storage rules enforce file size and type per path (see `storage.rules`):
 - Service worker: cache-first for static assets, network-first for HTML pages
 - Hero video (CloudVideo.mp4) excluded from caching — too large
 - Firebase auth/API calls excluded from SW interception — must always be live
-- Cache version: bump on each deploy with breaking changes (current: `egc-cache-v3`)
+- Cache version: bump on each deploy with breaking changes (current: `egc-cache-v25`)
 - Service worker cache list must be updated whenever a new page is added — CI check enforces this
 - Role checks in JS are UX only — Firestore Security Rules are the real enforcement layer
 - Firestore security rules are tested in CI via `@firebase/rules-unit-testing` against the Firebase emulator
