@@ -10,7 +10,30 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-28
-**Current milestone:** Post-Phase 7 fix — DM push notification tap handling
+**Current milestone:** Post-Phase 7 fixes — notification bell UX polish
+
+---
+
+## Session: fix/notif-bell-ux — notification bell UX polish (Session 46)
+
+**Date:** 2026-05-28
+**Branch:** `fix/notif-bell-ux`
+**Status:** PR open
+
+### What was done
+
+**`js/notifications.js`** — two UX improvements to the notification bell panel:
+- `renderPanel()` — notification items without a `linkUrl` now use `cursor-default` (no pointer, no hover highlight) instead of always showing `cursor-pointer hover:bg-gray-50`. The map callback changed from an arrow expression to a block body so `hasLink` can be computed per item.
+- Auto-mark-as-read on panel open — removed the per-click mark-as-read write from the item click handler. Instead, `markAllRead(uid, items)` is called (1) when the bell button is clicked to open the panel, and (2) in the `onSnapshot` callback when the panel is already visible (so newly-arrived notifications are marked read immediately without requiring a click).
+- New `markAllRead(uid, items)` helper iterates unread items and fires individual `update({ read: true })` writes.
+- Item click handler simplified to navigate (if `linkUrl`) or close the panel.
+
+**`service-worker.js`** — cache bumped `v25 → v26` (`notifications.js` is cache-first).
+
+### Notes / decisions
+
+- `currentItems` is a closure variable inside `setupBell` — captured by both the `onSnapshot` callback and the bell click handler so the latest item list is always available without threading it through function arguments.
+- The `onSnapshot` + panel-visible guard handles the edge case where a notification arrives while the panel is open — it gets marked read without the user having to close and reopen.
 
 ---
 
