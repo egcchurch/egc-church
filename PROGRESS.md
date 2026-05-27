@@ -10,7 +10,37 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-27
-**Current milestone:** Phase 7 — Adaptive Homepage (PR 4 of 7 open)
+**Current milestone:** Phase 7 — Adaptive Homepage (PR 5 of 7 open)
+
+---
+
+## Session: Phase 7 PR 5 — admin shortcuts strip (Session 40)
+
+**Date:** 2026-05-27
+**Branch:** `phase7/admin-shortcuts-strip`
+**Status:** PR open
+
+### What was done
+
+**`index.html`** — added `<script src="/js/permissions.js">` before `homepage.js` so `Permissions` global is available when the homepage renderer runs.
+
+**`js/homepage.js`** — admin shortcuts strip for member+admin users:
+- `loadAdminCounts()` — async function, runs only when `Permissions.init(user)` has resolved. Conditionally fires one Firestore query per relevant permission:
+  - `users.approve`: count of `users` where `membership == 'pending'`
+  - `connect.view`: count of `connect` where `read == false`
+  - `prayer.moderate`: count of `prayer` where `submittedAt >= 7 days ago`
+- `buildAdminShortcutsStrip(adminCounts)` — renders a light-blue band with count cards (amber icon for approvals, blue for connect, purple for prayer). Returns `''` if `adminCounts` is null or all keys are absent (i.e. user has no matching perms — regular members see nothing).
+- `renderMember` — added 6th param `adminCounts`; strip inserted between quick links and notice board.
+- Member branch in `onAuthStateChanged` — calls `Permissions.init(user)` before rendering, determines `hasAdminPerm`, fires `loadAdminCounts()` in parallel with other data loads via `Promise.all`.
+
+**`service-worker.js`** — cache version bumped `v22 → v23` (`homepage.js` is cache-first).
+
+### Notes / decisions
+
+- `Permissions.init(user)` is guarded with `typeof Permissions !== 'undefined'` in case the script tag is ever missing — strip degrades to hidden rather than crashing.
+- Prayer count uses a 7-day window (not an unread flag) since prayer docs have no `read` field.
+- `connect.read == false` query works because the Firestore rule `allow read: if hasPermission('connect.view')` permits collection queries for users with that claim.
+- Strip is positioned after quick links and before notice board — admins want to action tasks before reading notices.
 
 ---
 

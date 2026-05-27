@@ -86,6 +86,41 @@
       .catch(() => null);
   }
 
+  // Loads per-permission counts for the admin shortcuts strip.
+  // Only called when Permissions.init(user) has already resolved.
+  async function loadAdminCounts() {
+    const counts = {};
+    const jobs   = [];
+
+    if (Permissions.hasPermission('users.approve')) {
+      jobs.push(
+        db.collection('users').where('membership', '==', 'pending').get()
+          .then(s => { counts.pendingUsers = s.size; })
+          .catch(() => {})
+      );
+    }
+    if (Permissions.hasPermission('connect.view')) {
+      jobs.push(
+        db.collection('connect').where('read', '==', false).get()
+          .then(s => { counts.unreadConnect = s.size; })
+          .catch(() => {})
+      );
+    }
+    if (Permissions.hasPermission('prayer.moderate')) {
+      const cutoff = firebase.firestore.Timestamp.fromDate(
+        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      );
+      jobs.push(
+        db.collection('prayer').where('submittedAt', '>=', cutoff).get()
+          .then(s => { counts.recentPrayer = s.size; })
+          .catch(() => {})
+      );
+    }
+
+    await Promise.all(jobs);
+    return counts;
+  }
+
   function loadUpcomingEvents(limit) {
     const now = firebase.firestore.Timestamp.fromDate(new Date());
     return db.collection('events')
@@ -187,8 +222,8 @@
     );
   }
 
-  // Member — full dashboard
-  function renderMember(user, content, announcements, devotional, events) {
+  // Member — full dashboard (+ optional admin shortcuts strip)
+  function renderMember(user, content, announcements, devotional, events, adminCounts) {
     const firstName = (user.displayName || '').split(' ')[0] || 'there';
     setAdaptive(
       `<section class="bg-white border-b border-gray-100 py-6 px-6">
@@ -198,6 +233,7 @@
       </section>` +
       buildLiveBanner(content.liveStream, content.serviceTimes) +
       buildQuickLinks() +
+      buildAdminShortcutsStrip(adminCounts) +
       buildNoticeBoardFeed(announcements) +
       buildDevotionalSnippet(devotional) +
       buildUpcomingEvents(events)
@@ -369,6 +405,63 @@
       </section>`;
   }
 
+  function buildAdminShortcutsStrip(adminCounts) {
+    if (!adminCounts) return '';
+    const items = [];
+
+    if ('pendingUsers' in adminCounts) {
+      items.push(`
+        <a href="/admin/users.html"
+           class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 hover:shadow-md hover:border-amber-300 transition-all group">
+          <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-amber-200 transition-colors">
+            <i class="fas fa-user-check text-amber-600 text-sm"></i>
+          </div>
+          <div>
+            <p class="text-2xl font-bold text-[#0A3D62] leading-none">${adminCounts.pendingUsers}</p>
+            <p class="text-xs text-gray-500 mt-0.5">Pending approvals</p>
+          </div>
+        </a>`);
+    }
+    if ('unreadConnect' in adminCounts) {
+      items.push(`
+        <a href="/admin/connect.html"
+           class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 hover:shadow-md hover:border-amber-300 transition-all group">
+          <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-200 transition-colors">
+            <i class="fas fa-inbox text-blue-600 text-sm"></i>
+          </div>
+          <div>
+            <p class="text-2xl font-bold text-[#0A3D62] leading-none">${adminCounts.unreadConnect}</p>
+            <p class="text-xs text-gray-500 mt-0.5">Unread connect forms</p>
+          </div>
+        </a>`);
+    }
+    if ('recentPrayer' in adminCounts) {
+      items.push(`
+        <a href="/admin/prayer.html"
+           class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 hover:shadow-md hover:border-amber-300 transition-all group">
+          <div class="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-purple-200 transition-colors">
+            <i class="fas fa-praying-hands text-purple-600 text-sm"></i>
+          </div>
+          <div>
+            <p class="text-2xl font-bold text-[#0A3D62] leading-none">${adminCounts.recentPrayer}</p>
+            <p class="text-xs text-gray-500 mt-0.5">Prayer requests (7 days)</p>
+          </div>
+        </a>`);
+    }
+
+    if (!items.length) return '';
+    return `
+      <section class="bg-blue-50 border-b border-blue-100 py-6 px-6">
+        <div class="max-w-4xl mx-auto">
+          <div class="flex items-center gap-2 mb-4">
+            <i class="fas fa-bolt text-amber-500 text-sm"></i>
+            <span class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Admin Overview</span>
+          </div>
+          <div class="flex flex-col sm:flex-row gap-3">${items.join('')}</div>
+        </div>
+      </section>`;
+  }
+
   function buildUpcomingEvents(events) {
     if (!events || !events.length) return '';
     return `
@@ -455,12 +548,19 @@
             renderPublic(user, content, announcements);
           } else {
             // member
-            const [announcements, devotional, events] = await Promise.all([
+            await (typeof Permissions !== 'undefined' ? Permissions.init(user) : Promise.resolve());
+            const hasAdminPerm = typeof Permissions !== 'undefined' && (
+              Permissions.hasPermission('users.approve') ||
+              Permissions.hasPermission('connect.view')  ||
+              Permissions.hasPermission('prayer.moderate')
+            );
+            const [announcements, devotional, events, adminCounts] = await Promise.all([
               loadAnnouncements(5),
               loadTodaysDevotional(),
               loadUpcomingEvents(2),
+              hasAdminPerm ? loadAdminCounts() : Promise.resolve(null),
             ]);
-            renderMember(user, content, announcements, devotional, events);
+            renderMember(user, content, announcements, devotional, events, adminCounts);
           }
         } catch (err) {
           console.warn('Homepage render error:', err);
