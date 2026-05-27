@@ -10,7 +10,25 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-27
-**Current milestone:** Phase 7 — Adaptive Homepage (PR 6 of 7 open)
+**Current milestone:** Phase 7 — Adaptive Homepage (PR 7 of 7 in progress)
+
+---
+
+## Session: Phase 7 — Fix preview channel cleanup (Session 42)
+
+**Date:** 2026-05-27
+**Branch:** `phase7/fix-preview-channel-cleanup`
+**Status:** PR open
+
+### What was done
+
+**`.github/workflows/preview.yml`** — added a "Clean up stale PR preview channels" step before the deploy step. On each PR, it authenticates via `gcloud auth activate-service-account` using `FIREBASE_SERVICE_ACCOUNT`, fetches the list of all channels on `egc-staging777`, and deletes any `pr-*` channel that is NOT the current PR number. Uses Python to parse the JSON and issue DELETE requests via the Firebase Hosting REST API. Cleanup failure does not fail the workflow (`|| true` on auth commands, graceful Python exception handling).
+
+### Notes / decisions
+
+- Root cause of PR 6 failure: 50 stale `pr-*` channels accumulated (all within 7d TTL), hitting the per-site channel quota (~40 channels). Manually deleted pr-6 through pr-50 to unblock.
+- The cleanup step runs before the deploy to guarantee a slot is free before `action-hosting-deploy` tries to create the channel.
+- `|| true` on `gcloud auth` and `gcloud print-access-token` prevents workflow failure if the service account lacks the `cloudbuild.builds.list` role; the step just skips silently.
 
 ---
 
