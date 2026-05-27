@@ -10,7 +10,34 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-28
-**Current milestone:** Post-Phase 7 fixes — notification panel mobile positioning
+**Current milestone:** Post-Phase 7 fixes — messages page mobile two-panel layout
+
+---
+
+## Session: fix/messages-mobile-layout — messages page mobile layout (Session 48)
+
+**Date:** 2026-05-28
+**Branch:** `fix/messages-mobile-layout`
+**Status:** PR open
+
+### What was done
+
+**`members/messages.html`** — classic mobile two-panel pattern: one panel at a time on small screens, side-by-side on desktop.
+- Added `id="conv-panel"` to the conversation list wrapper.
+- Added `id="thread-wrapper"` to the thread column; changed its classes to `hidden md:flex flex-1 flex-col min-w-0` so it's hidden on mobile by default and shown by Tailwind on md+.
+- Added a mobile-only back bar as the first child of `#thread-panel`: arrow-left button (`#back-to-list`) and a `#thread-title` paragraph showing the other participant's name.
+
+**`js/messaging.js`**:
+- `conv-item` buttons get `data-name` attribute (other participant's display name) for the back bar title.
+- `openConversation()` — on mobile (`window.innerWidth < 768`): hides `#conv-panel`, shows `#thread-wrapper` (`hidden` removed, `flex` added). Also sets `#thread-title` from the clicked `conv-item`'s `data-name`.
+- `nav-loaded` handler — wires `#back-to-list` click: restores `#conv-panel`, hides `#thread-wrapper`, hides `#thread-panel`, shows `#empty-state`.
+
+**`service-worker.js`** — cache bumped `v26 → v27` (`messaging.js` is cache-first).
+
+### Notes / decisions
+
+- `thread-wrapper` starts as `hidden` (mobile) / `md:flex` (desktop) via Tailwind. JS adds/removes `flex` alongside `hidden` on mobile so the display value is explicit when toggling — avoids relying on Tailwind's responsive class being re-evaluated after class mutation.
+- `checkURLParam()` (opens a conv from `?conv=` URL) calls `openConversation()` which now handles the mobile swap, so deep-linked DM notifications work correctly on mobile too.
 
 ---
 
