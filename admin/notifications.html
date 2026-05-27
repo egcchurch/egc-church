@@ -215,6 +215,10 @@
                 <p class="text-[10px] text-gray-400 mt-2">${date}</p>
               </div>`;
           }).join('');
+        }, (err) => {
+          const list = document.getElementById('notif-list');
+          list.innerHTML = '<p class="text-sm text-red-500 text-center py-12">Could not load broadcast history.</p>';
+          console.error('notifications history onSnapshot error:', err);
         });
     }
 
