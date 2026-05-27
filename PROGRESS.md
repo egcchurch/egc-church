@@ -10,7 +10,25 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-28
-**Current milestone:** Post-Phase 7 fixes — notification bell UX polish
+**Current milestone:** Post-Phase 7 fixes — notification panel mobile positioning
+
+---
+
+## Session: fix/notif-panel-mobile — notification panel off-screen on mobile (Session 47)
+
+**Date:** 2026-05-28
+**Branch:** `fix/notif-panel-mobile`
+**Status:** PR open
+
+### What was done
+
+**`nav.html`** — `#notif-panel` div: added `max-sm:` responsive overrides so the panel uses fixed viewport positioning on screens narrower than 640px instead of absolute positioning relative to the bell wrapper. On mobile: `fixed`, `inset-x-2` (8px side margins, full usable width), `top-16` (below the 64px nav bar), `w-auto mt-0` (overrides desktop width/margin). Desktop layout unchanged.
+
+### Notes / decisions
+
+- Root cause: `absolute right-0` is relative to the bell wrapper div, which is near the right edge of the nav. On a narrow phone the panel extends left off-screen. `max-w-[calc(100vw-1rem)]` limits width but doesn't fix the anchor point.
+- No SW cache bump needed — `nav.html` is network-first.
+- Tailwind v4 CDN (in use) supports `max-sm:` variants natively.
 
 ---
 
