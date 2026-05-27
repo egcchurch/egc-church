@@ -32,6 +32,22 @@
 
   <div class="max-w-7xl mx-auto px-6 py-10">
 
+    <!-- Filter chips -->
+    <div id="filter-chips" class="flex flex-wrap gap-2 mb-8">
+      <button data-filter="all"
+              class="filter-chip px-4 py-1.5 rounded-full text-sm font-medium transition-all bg-[#0A3D62] text-white">
+        All
+      </button>
+      <button data-filter="announcement"
+              class="filter-chip px-4 py-1.5 rounded-full text-sm font-medium transition-all bg-white text-gray-600 border border-gray-200 hover:bg-amber-50">
+        Announcements
+      </button>
+      <button data-filter="article"
+              class="filter-chip px-4 py-1.5 rounded-full text-sm font-medium transition-all bg-white text-gray-600 border border-gray-200 hover:bg-amber-50">
+        Articles
+      </button>
+    </div>
+
     <!-- Posts grid -->
     <div id="blog-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
 

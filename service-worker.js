@@ -28,7 +28,7 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE_NAME = 'egc-cache-v19';
+const CACHE_NAME = 'egc-cache-v20';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [

@@ -9,8 +9,41 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-05-26
-**Current milestone:** Phase 7 — Adaptive Homepage (planned)
+**Last worked on:** 2026-05-27
+**Current milestone:** Phase 7 — Adaptive Homepage (PR 1 of 7 open)
+
+---
+
+## Session: Phase 7 PR 1 — blog kind field (Session 36)
+
+**Date:** 2026-05-27
+**Branch:** `phase7/blog-kind-field`
+**Status:** PR open
+
+### What was done
+
+**Schema prep for Phase 7 notice board feed**
+- Added `kind: "announcement" | "article"` field to `/blog/{postId}`. Existing posts without the field default to `"article"` at render time (no migration needed — `|| 'article'` fallback in all display code).
+- Added composite index to `firestore.indexes.json`: `blog` collection, `published ASC + kind ASC + publishedAt DESC`. Required for the Phase 7 home surface query `.where('published', '==', true).where('kind', '==', 'announcement').orderBy('publishedAt', 'desc')`.
+
+**`admin/blog.html`**
+- Added "Type" radio selector at the top of the create/edit form: Announcement (appears on member home feed) / Article (appears on /blog only). Defaults to Article.
+- `openForm()` pre-selects the correct radio when editing an existing post (`post.kind || 'article'`).
+- `savePost()` includes `kind` in the Firestore write.
+- Post list cards now show an Announcement (amber) or Article (blue) badge alongside the published/draft badge.
+
+**`blog.html` + `js/blog.js`**
+- Added filter chips row (All / Announcements / Articles) above the post grid.
+- Active chip is navy-filled; inactive chips are outlined with hover state.
+- `render()` filters `allPosts` by `(p.kind || 'article') === activeFilter` when a filter is selected.
+- Announcement cards on the public blog page show an amber "Announcement" badge; articles show no badge.
+- Service worker bumped `v19 → v20`.
+
+### Notes / decisions
+
+- No homepage changes in this PR — purely preparatory. The home surface queries `kind == "announcement"` in PR 3.
+- Existing posts without a `kind` field are treated as `"article"` everywhere via `|| 'article'` fallback — no Firestore migration or backfill required.
+- The composite index must be deployed (`firebase deploy --only firestore:indexes`) after this PR merges before the Phase 7 home surface PR can use the filtered query.
 
 ---
 
