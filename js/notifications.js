@@ -53,20 +53,26 @@
     const panel = document.getElementById('notif-panel');
     const btn   = document.getElementById('notif-bell-btn');
 
+    let currentItems = [];
+
     unsubscribeNotifs = firebase.firestore()
       .collection('users').doc(uid)
       .collection('notifications')
       .orderBy('sentAt', 'desc')
       .limit(20)
       .onSnapshot((snap) => {
-        const items  = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const unread = items.filter(n => !n.read).length;
+        currentItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const unread = currentItems.filter(n => !n.read).length;
 
         if (badge) {
           badge.textContent = unread > 9 ? '9+' : String(unread);
           badge.classList.toggle('hidden', unread === 0);
         }
-        if (panel) renderPanel(panel, items, uid);
+        if (panel) renderPanel(panel, currentItems, uid);
+        // If panel is already open when a new notification arrives, mark it read immediately.
+        if (panel && !panel.classList.contains('hidden')) {
+          markAllRead(uid, currentItems);
+        }
       }, (err) => {
         console.warn('Notification listener error:', err);
       });
@@ -74,7 +80,9 @@
     if (btn) {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
+        const isOpening = panel?.classList.contains('hidden');
         panel?.classList.toggle('hidden');
+        if (isOpening) markAllRead(uid, currentItems);
       });
     }
 
@@ -107,9 +115,12 @@
       return;
     }
 
-    content.innerHTML = items.map(n => `
-      <div class="notif-item flex flex-col gap-0.5 px-4 py-3 cursor-pointer transition-colors
-                  hover:bg-gray-50 border-b border-gray-50 last:border-0
+    content.innerHTML = items.map(n => {
+      const hasLink = !!(n.linkUrl);
+      return `
+      <div class="notif-item flex flex-col gap-0.5 px-4 py-3 transition-colors
+                  ${hasLink ? 'cursor-pointer hover:bg-gray-50' : 'cursor-default'}
+                  border-b border-gray-50 last:border-0
                   ${n.read ? '' : 'bg-amber-50'}"
            data-id="${n.id}" data-link="${esc(n.linkUrl || '')}">
         <div class="flex items-start justify-between gap-2">
@@ -119,21 +130,23 @@
         ${n.body ? `<p class="text-xs text-gray-500 line-clamp-2">${esc(n.body)}</p>` : ''}
         <p class="text-[10px] text-gray-400 mt-0.5">${relativeTime(n.sentAt)}</p>
       </div>
-    `).join('');
+    `}).join('');
 
     content.querySelectorAll('.notif-item').forEach(el => {
       el.addEventListener('click', () => {
-        const notif = items.find(n => n.id === el.dataset.id);
-        if (notif && !notif.read) {
-          firebase.firestore()
-            .collection('users').doc(uid)
-            .collection('notifications').doc(el.dataset.id)
-            .update({ read: true }).catch(() => {});
-        }
         const link = el.dataset.link;
         if (link) window.location.href = link;
         else document.getElementById('notif-panel')?.classList.add('hidden');
       });
+    });
+  }
+
+  function markAllRead(uid, items) {
+    items.filter(n => !n.read).forEach(n => {
+      firebase.firestore()
+        .collection('users').doc(uid)
+        .collection('notifications').doc(n.id)
+        .update({ read: true }).catch(() => {});
     });
   }
 
