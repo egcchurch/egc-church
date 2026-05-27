@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-27
-**Current milestone:** Phase 7 complete — awaiting manual functions deploy
+**Current milestone:** Phase 7 complete — all deployment tasks done, ready for Phase 8
 
 ---
 
