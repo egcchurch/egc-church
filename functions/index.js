@@ -467,6 +467,7 @@ exports.onNewMessage = functions.firestore
       tokens,
       notification: { title, body },
       webpush: { notification: { icon: '/assets/images/icons/icon-192.png' } },
+      data: { linkUrl: link },
     });
   });
 

@@ -28,7 +28,27 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE_NAME = 'egc-cache-v24';
+// Open/focus the app and navigate to the notification's linkUrl when tapped.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const linkUrl   = event.notification.data?.linkUrl || '/';
+  const targetUrl = new URL(linkUrl, self.location.origin).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Re-use any open window on this origin rather than opening a new tab.
+      for (const client of clientList) {
+        if (new URL(client.url).origin === self.location.origin && 'focus' in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(targetUrl);
+    })
+  );
+});
+
+const CACHE_NAME = 'egc-cache-v25';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
