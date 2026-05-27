@@ -10,7 +10,36 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-05-27
-**Current milestone:** Phase 7 — Adaptive Homepage (PR 3 of 7 open)
+**Current milestone:** Phase 7 — Adaptive Homepage (PR 4 of 7 open)
+
+---
+
+## Session: Phase 7 PR 4 — gated prompts (Session 39)
+
+**Date:** 2026-05-27
+**Branch:** `phase7/gated-prompts`
+**Status:** PR open
+
+### What was done
+
+**`js/member-auth.js`** — rewritten from silent-redirect to contextual access-denied card.
+- `showAccessDenied(reason, user)` injects a fixed full-page overlay with a centred card. No redirect; page rendering is blocked by the overlay.
+- Four reasons: `not-logged-in` (Sign In + Create Account buttons → `/login.html`), `verify-email` (Resend verification + Sign out), `pending` (Sign out only), `public` (Request member access → `/profile.html` + Sign out).
+- Global handlers `window._memberAuthSignOut` and `window._memberAuthResend` wired to the card buttons.
+- All inline styles — no dependency on Tailwind scanning dynamically injected HTML.
+
+**`js/admin-auth.js`** — unauthenticated path still redirects to `/index.html`; authenticated-but-unauthorised paths now show access-denied card.
+- `showAccessDenied(reason)` with two reasons: `no-permission` (user has zero admin claims → Home button) and `insufficient-permission` (user has some perms but not the required one → Admin Dashboard + Home buttons).
+- Amber (#F59E0B) primary button, neutral secondary, consistent with member-auth card design.
+
+**`service-worker.js`** — cache version bumped `v21 → v22` (both auth JS files are cache-first).
+
+### Notes / decisions
+
+- Admin pages redirect unauthenticated users without a card — admin page existence is not publicly hinted.
+- "Request member access" on the public card links to `/profile.html` now; the actual request form lands in PR 7.
+- Card uses inline styles rather than Tailwind classes to avoid relying on the Tailwind Play CDN scanning dynamically-injected nodes.
+- `onAuthStateChanged` still fires on every sign-in/sign-out cycle — if a user signs in while the overlay is visible (unlikely but possible), the overlay stays. A page reload would pick up the new auth state. Acceptable for now.
 
 ---
 
