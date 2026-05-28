@@ -48,7 +48,7 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-const CACHE_NAME = 'egc-cache-v30';
+const CACHE_NAME = 'egc-cache-v31';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
