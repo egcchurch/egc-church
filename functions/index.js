@@ -288,6 +288,7 @@ exports.sendBroadcast = functions.https.onCall(async (data, context) => {
     const chunk = tokenEntries.slice(i, i + 500);
     const result = await admin.messaging().sendEachForMulticast({
       tokens: chunk.map(e => e.token),
+      notification: { title, body },
       webpush: {
         notification: { title, body, icon: '/assets/images/icons/icon-192.png', badge: '/assets/images/icons/icon-72.png' },
         fcmOptions: { link: '/' },
@@ -431,6 +432,7 @@ exports.weeklyDigest = functions.pubsub
         const chunk = tokenEntries.slice(i, i + 500);
         const result = await admin.messaging().sendEachForMulticast({
           tokens: chunk.map(e => e.token),
+          notification: { title, body },
           webpush: {
             notification: { title, body, icon: '/assets/images/icons/icon-192.png', badge: '/assets/images/icons/icon-72.png' },
             fcmOptions: { link: '/members/' },
@@ -501,6 +503,7 @@ exports.onNewMessage = functions.firestore
 
     const result = await admin.messaging().sendEachForMulticast({
       tokens: tokenDocs.map(d => d.data().token),
+      notification: { title, body },
       webpush: {
         notification: { title, body, icon: '/assets/images/icons/icon-192.png', badge: '/assets/images/icons/icon-72.png' },
         fcmOptions: { link },
