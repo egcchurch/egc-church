@@ -18,14 +18,13 @@ if (!self.firebase?.apps?.length) {
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  const data  = payload.data  || {};
-  const title = data.title    || payload.notification?.title || 'EGC Notification';
-  const body  = data.body     || payload.notification?.body  || '';
+  const title = payload.notification?.title || 'EGC Notification';
+  const body  = payload.notification?.body  || '';
   self.registration.showNotification(title, {
     body,
     icon: '/assets/images/icons/icon-192.png',
     badge: '/assets/images/icons/icon-72.png',
-    data: { linkUrl: data.linkUrl || '/' },
+    data: payload.data || {},
   });
 });
 
@@ -49,7 +48,7 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-const CACHE_NAME = 'egc-cache-v29';
+const CACHE_NAME = 'egc-cache-v30';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
