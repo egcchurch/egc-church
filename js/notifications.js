@@ -153,6 +153,10 @@
   // ── FCM token registration ───────────────────────────────────────────────────
 
   async function registerFCMToken(uid) {
+    // Only register push tokens from the installed PWA (standalone mode).
+    // Browser Chrome and PWA have separate localStorage on Android, so both
+    // would generate different deviceIds and accumulate duplicate tokens.
+    if (!window.matchMedia('(display-mode: standalone)').matches) return;
     if (!('Notification' in window)) return;
     if (VAPID_KEY === 'YOUR_VAPID_KEY_HERE') return;
     if (Notification.permission === 'denied') return;
