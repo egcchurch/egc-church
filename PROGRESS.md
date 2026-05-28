@@ -14,6 +14,58 @@
 
 ---
 
+## Session: FCM push notification overhaul — background delivery, duplicates, click nav (Sessions 52–60)
+
+**Date:** 2026-05-28
+**Branches:** fix/fcm-restore-notification-field, fix/fcm-debug-logging, fix/fcm-webpush-notification, fix/fcm-restore-top-level-notification, fix/fcm-device-id-token-key, fix/sw-cache-bump-v31, fix/fcm-standalone-only, fix/fcm-remove-background-handler, chore/remove-fcm-debug-logs
+**Status:** All merged and deployed (functions deployed manually after each functions PR)
+
+### What was done
+
+A series of interconnected FCM bugs were diagnosed and fixed across 9 PRs:
+
+**Root cause chain:**
+- Data-only FCM payload (from a prior PR) broke background delivery — Android Chrome won't wake from a closed state for data-only messages
+- Top-level `notification` alone (no `webpush.notification`) reports FCM success=1 but Chrome on Android still doesn't display when fully closed
+- Adding `webpush.notification` made Chrome wake and auto-display, BUT `onBackgroundMessage` in the service worker also fires a handler → two notifications per push
+- Browser Chrome and installed PWA have separate `localStorage` on Android despite same origin → different `deviceId`s → two FCM tokens → two push deliveries
+- `event.notification.data.linkUrl` in `notificationclick` reads from `webpush.notification.data`, not from FCM top-level `data` → tapping a notification opened home instead of the correct page
+
+**Final FCM payload structure (all three sends: onNewMessage, sendBroadcast, weeklyDigest):**
+```js
+{
+  notification: { title, body },           // top-level: feeds onMessage foreground toast
+  webpush: {
+    notification: {
+      title, body,
+      icon: '/assets/images/icons/icon-192.png',
+      badge: '/assets/images/icons/icon-72.png',
+      data: { linkUrl },                   // for notificationclick handler
+    },
+    fcmOptions: { link },
+  },
+  data: { linkUrl },                       // backup
+}
+```
+
+**`service-worker.js`** — Removed `onBackgroundMessage` entirely. Chrome auto-displays from `webpush.notification` (one notification). `notificationclick` reads `event.notification.data?.linkUrl`. Cache bumped v29→v33.
+
+**`js/notifications.js`** — Two changes:
+1. Token registration gated to standalone PWA mode (`display-mode: standalone`) — prevents browser Chrome from registering a separate token alongside the installed PWA
+2. Stable `deviceId` (random string in localStorage under key `egcDeviceId`) replaces `token.substring(0,22)` as Firestore doc key — token rotation overwrites the same doc instead of accumulating stale entries; migrates old token-keyed docs on first run
+
+**`functions/index.js`** — `webpush.notification` with icon, badge, and `data:{linkUrl}` added to all three multicast sends. Temporary debug logging added then removed. Invalid token cleanup already present.
+
+### Notes / decisions
+
+- **`onBackgroundMessage` removal is intentional** — Firebase Messaging SDK calls `onBackgroundMessage` AND Chrome auto-displays from `webpush.notification` when both are present → two notifications. Removing the handler leaves display entirely to Chrome (one notification). Do not re-add it.
+- **Standalone-only token registration** — push notifications are a PWA-native feature. Browser Chrome visitors still get the in-app bell (Firestore listener) and foreground toasts via `onMessage`; background system push requires the installed PWA.
+- **SW cache must be bumped for any precached file change**, not only when `service-worker.js` itself changes. A missed bump on the `deviceId` PR required a follow-up v30→v31 bump PR.
+- **Confirmed working:** broadcast arrives with PWA closed; tapping the notification opens the app at the correct page.
+- **Not re-confirmed after all fixes:** DM notification tap → correct conversation; foreground toast when DM arrives while app is open.
+
+---
+
 ## Session: fix/messages-mobile-v3 — messages mobile panel swap (final fix) (Session 51)
 
 **Date:** 2026-05-28

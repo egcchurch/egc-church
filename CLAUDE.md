@@ -273,12 +273,19 @@ Workflow files:
 ### Push Notifications (works when app/browser is closed)
 
 - Firebase Cloud Messaging (FCM)
-- User grants notification permission on first visit
-- FCM token stored in `/users/{uid}/fcmTokens/{tokenId}`
+- User grants notification permission on first visit (from the installed PWA only — see below)
+- FCM token stored in `/users/{uid}/fcmTokens/{deviceId}` — keyed by a stable `deviceId` string (stored in `localStorage` as `egcDeviceId`), not by the FCM token itself, so token rotation overwrites the same doc
 - Admin sends broadcast from `/admin/notifications`
 - A Cloud Function fans out to all relevant FCM tokens
 - **Cloud Functions are required here** — client-side JS cannot send to other users' devices
-- **Delivery caveat:** FCM push only reaches logged-in **members** with registered tokens. Pending and public users do not register FCM tokens (gated in `js/notifications.js` on `membership === 'member'`) and will not receive push notifications. The `syncUserNotificationEligibility` Cloud Function deletes tokens immediately when a user's membership drops below member.
+- **Delivery caveat:** FCM push only reaches logged-in **members** with registered tokens. Pending and public users do not register FCM tokens (gated in `js/notifications.js` on `membership === 'member'` AND `display-mode: standalone`). The `syncUserNotificationEligibility` Cloud Function deletes tokens immediately when a user's membership drops below member.
+- **Standalone-only token registration:** `js/notifications.js` returns early if `!window.matchMedia('(display-mode: standalone)').matches`. Browser Chrome and the installed PWA have separate `localStorage` on Android (same origin, different contexts) and would generate different `deviceId`s and accumulate two tokens. Token registration is restricted to the installed PWA to avoid this. Browser Chrome visitors still get the in-app bell and foreground toasts.
+- **FCM payload structure** (all three sends — `onNewMessage`, `sendBroadcast`, `weeklyDigest`):
+  - `notification: { title, body }` — top-level field; feeds the `onMessage` foreground toast handler
+  - `webpush.notification: { title, body, icon, badge, data: { linkUrl } }` — Chrome on Android uses this field to wake from a closed state and auto-display; `data.linkUrl` is read by the `notificationclick` handler for tap navigation
+  - `webpush.fcmOptions: { link }` — fallback navigation
+  - `data: { linkUrl }` — backup
+- **`onBackgroundMessage` is intentionally NOT registered** in `service-worker.js`. When `onBackgroundMessage` is registered alongside `webpush.notification`, Chrome auto-displays AND the handler fires — two notifications per push. Removing the handler leaves display entirely to Chrome (one notification). Do not re-add it.
 
 ### In-App Notifications (app open)
 
@@ -321,7 +328,7 @@ Functions are organised by trigger type:
 
 ### Firestore Triggers (Phase 4)
 
-- `onNewMessage` — trigger: `/conversations/{conversationId}/messages/{messageId}` created — pushes FCM to recipient (with `data: { linkUrl: '/members/messages.html?conv={convId}' }` for service worker navigation) and writes in-app notification
+- `onNewMessage` — trigger: `/conversations/{conversationId}/messages/{messageId}` created — pushes FCM to recipient (with `webpush.notification.data: { linkUrl: '/members/messages.html?conv={convId}' }` for `notificationclick` tap navigation) and writes in-app notification
 - `onNewPrayerRequest` — trigger: `/prayerRequests/{requestId}` created — if `isPrivate: false`, writes in-app notification to all members; if `isPrivate: true`, writes in-app notification to admins only
 - `onNewConnectForm` — trigger: `/connectForms/{submissionId}` created — writes in-app notification to all admins
 
