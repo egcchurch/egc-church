@@ -498,7 +498,6 @@ exports.onNewMessage = functions.firestore
     // FCM push to recipient's tokens
     const tokensSnap = await db.collection('users').doc(recipientId).collection('fcmTokens').get();
     const tokenDocs  = tokensSnap.docs.filter(d => d.data().token);
-    console.log(`onNewMessage: recipient=${recipientId} tokens=${tokenDocs.length}`);
     if (!tokenDocs.length) return;
 
     const result = await admin.messaging().sendEachForMulticast({
@@ -509,11 +508,6 @@ exports.onNewMessage = functions.firestore
         fcmOptions: { link },
       },
       data: { linkUrl: link },
-    });
-
-    console.log(`onNewMessage: FCM result success=${result.successCount} failure=${result.failureCount}`);
-    result.responses.forEach((resp, idx) => {
-      if (!resp.success) console.warn(`onNewMessage: token[${idx}] error=${resp.error?.code} msg=${resp.error?.message}`);
     });
 
     // Delete tokens FCM reports as invalid so they stop causing duplicate sends
