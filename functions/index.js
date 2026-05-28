@@ -275,19 +275,19 @@ exports.sendBroadcast = functions.https.onCall(async (data, context) => {
     await batch.commit();
   }
 
-  // Collect FCM tokens
+  // Collect FCM tokens (keep docRef so we can clean up invalid ones)
   const tokenSnaps = await Promise.all(docs.map(d => db.collection('users').doc(d.id).collection('fcmTokens').get()));
-  const tokens = [];
-  tokenSnaps.forEach(snap => snap.docs.forEach(d => { if (d.data().token) tokens.push(d.data().token); }));
+  const tokenEntries = []; // { token, ref }
+  tokenSnaps.forEach(snap => snap.docs.forEach(d => { if (d.data().token) tokenEntries.push({ token: d.data().token, ref: d.ref }); }));
 
-  if (!tokens.length) return { sent: 0, inApp: docs.length };
+  if (!tokenEntries.length) return { sent: 0, inApp: docs.length };
 
   // Send FCM in batches of 500
   let sent = 0;
-  for (let i = 0; i < tokens.length; i += 500) {
-    const chunk = tokens.slice(i, i + 500);
+  for (let i = 0; i < tokenEntries.length; i += 500) {
+    const chunk = tokenEntries.slice(i, i + 500);
     const result = await admin.messaging().sendEachForMulticast({
-      tokens: chunk,
+      tokens: chunk.map(e => e.token),
       notification: { title, body },
       webpush: {
         notification: { icon: '/assets/images/icons/icon-192.png' },
@@ -295,6 +295,20 @@ exports.sendBroadcast = functions.https.onCall(async (data, context) => {
       },
     });
     sent += result.successCount;
+
+    if (result.failureCount > 0) {
+      const batch = db.batch();
+      result.responses.forEach((resp, idx) => {
+        if (!resp.success) {
+          const code = resp.error?.code;
+          if (code === 'messaging/registration-token-not-registered' ||
+              code === 'messaging/invalid-registration-token') {
+            batch.delete(chunk[idx].ref);
+          }
+        }
+      });
+      await batch.commit().catch(e => console.warn('sendBroadcast token cleanup:', e));
+    }
   }
 
   console.log(`Broadcast sent: ${sent} push, ${docs.length} in-app`);
@@ -409,23 +423,38 @@ exports.weeklyDigest = functions.pubsub
 
     // FCM push
     const tokenSnaps = await Promise.all(docs.map(d => db.collection('users').doc(d.id).collection('fcmTokens').get()));
-    const tokens = [];
-    tokenSnaps.forEach(snap => snap.docs.forEach(d => { if (d.data().token) tokens.push(d.data().token); }));
+    const tokenEntries = [];
+    tokenSnaps.forEach(snap => snap.docs.forEach(d => { if (d.data().token) tokenEntries.push({ token: d.data().token, ref: d.ref }); }));
 
-    if (tokens.length) {
-      for (let i = 0; i < tokens.length; i += 500) {
-        await admin.messaging().sendEachForMulticast({
-          tokens: tokens.slice(i, i + 500),
+    if (tokenEntries.length) {
+      for (let i = 0; i < tokenEntries.length; i += 500) {
+        const chunk = tokenEntries.slice(i, i + 500);
+        const result = await admin.messaging().sendEachForMulticast({
+          tokens: chunk.map(e => e.token),
           notification: { title, body },
           webpush: {
             notification: { icon: '/assets/images/icons/icon-192.png' },
             fcmOptions: { link: '/members/' },
           },
         });
+
+        if (result.failureCount > 0) {
+          const batch = db.batch();
+          result.responses.forEach((resp, idx) => {
+            if (!resp.success) {
+              const code = resp.error?.code;
+              if (code === 'messaging/registration-token-not-registered' ||
+                  code === 'messaging/invalid-registration-token') {
+                batch.delete(chunk[idx].ref);
+              }
+            }
+          });
+          await batch.commit().catch(e => console.warn('weeklyDigest token cleanup:', e));
+        }
       }
     }
 
-    console.log(`Weekly digest: ${docs.length} members, ${tokens.length} push tokens`);
+    console.log(`Weekly digest: ${docs.length} members, ${tokenEntries.length} push tokens`);
     return null;
   });
 
@@ -466,11 +495,11 @@ exports.onNewMessage = functions.firestore
 
     // FCM push to recipient's tokens
     const tokensSnap = await db.collection('users').doc(recipientId).collection('fcmTokens').get();
-    const tokens = tokensSnap.docs.map(d => d.data().token).filter(Boolean);
-    if (!tokens.length) return;
+    const tokenDocs  = tokensSnap.docs.filter(d => d.data().token);
+    if (!tokenDocs.length) return;
 
-    await admin.messaging().sendEachForMulticast({
-      tokens,
+    const result = await admin.messaging().sendEachForMulticast({
+      tokens: tokenDocs.map(d => d.data().token),
       notification: { title, body },
       webpush: {
         notification: { icon: '/assets/images/icons/icon-192.png' },
@@ -478,6 +507,21 @@ exports.onNewMessage = functions.firestore
       },
       data: { linkUrl: link },
     });
+
+    // Delete tokens FCM reports as invalid so they stop causing duplicate sends
+    if (result.failureCount > 0) {
+      const batch = db.batch();
+      result.responses.forEach((resp, idx) => {
+        if (!resp.success) {
+          const code = resp.error?.code;
+          if (code === 'messaging/registration-token-not-registered' ||
+              code === 'messaging/invalid-registration-token') {
+            batch.delete(tokenDocs[idx].ref);
+          }
+        }
+      });
+      await batch.commit().catch(e => console.warn('onNewMessage token cleanup:', e));
+    }
   });
 
 // ── deleteUserAccount ─────────────────────────────────────────────────────────
