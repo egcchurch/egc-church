@@ -179,25 +179,32 @@
       const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
 
       if (token) {
-        // If this browser previously registered a different token (e.g. after a
-        // PWA uninstall/reinstall), remove the stale Firestore entry so the user
-        // doesn't receive duplicate push notifications from both tokens.
-        const prevToken = localStorage.getItem('egcFcmToken');
-        if (prevToken && prevToken !== token) {
-          firebase.firestore()
-            .collection('users').doc(uid)
-            .collection('fcmTokens').doc(prevToken.substring(0, 22))
-            .delete().catch(() => {});
+        // Use a stable deviceId (persisted in localStorage) as the Firestore doc key.
+        // Browser Chrome and installed PWA share localStorage for the same origin, so
+        // both contexts resolve to the same doc — preventing duplicate tokens accumulating
+        // from reinstalls or PWA installation alongside an existing browser session.
+        let deviceId = localStorage.getItem('egcDeviceId');
+        if (!deviceId) {
+          deviceId = Math.random().toString(36).substring(2, 24);
+          localStorage.setItem('egcDeviceId', deviceId);
+          // First time on this scheme — delete the old token-keyed doc if one exists.
+          const prevToken = localStorage.getItem('egcFcmToken');
+          if (prevToken) {
+            firebase.firestore()
+              .collection('users').doc(uid)
+              .collection('fcmTokens').doc(prevToken.substring(0, 22))
+              .delete().catch(() => {});
+          }
         }
 
         await firebase.firestore()
           .collection('users').doc(uid)
-          .collection('fcmTokens').doc(token.substring(0, 22))
+          .collection('fcmTokens').doc(deviceId)
           .set({
             token,
             device: navigator.userAgent.substring(0, 200),
             registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
+          });
 
         localStorage.setItem('egcFcmToken', token);
       }
