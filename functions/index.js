@@ -290,7 +290,7 @@ exports.sendBroadcast = functions.https.onCall(async (data, context) => {
       tokens: chunk.map(e => e.token),
       notification: { title, body },
       webpush: {
-        notification: { title, body, icon: '/assets/images/icons/icon-192.png', badge: '/assets/images/icons/icon-72.png' },
+        notification: { title, body, icon: '/assets/images/icons/icon-192.png', badge: '/assets/images/icons/icon-72.png', data: { linkUrl: '/' } },
         fcmOptions: { link: '/' },
       },
       data: { linkUrl: '/' },
@@ -434,7 +434,7 @@ exports.weeklyDigest = functions.pubsub
           tokens: chunk.map(e => e.token),
           notification: { title, body },
           webpush: {
-            notification: { title, body, icon: '/assets/images/icons/icon-192.png', badge: '/assets/images/icons/icon-72.png' },
+            notification: { title, body, icon: '/assets/images/icons/icon-192.png', badge: '/assets/images/icons/icon-72.png', data: { linkUrl: '/members/' } },
             fcmOptions: { link: '/members/' },
           },
           data: { linkUrl: '/members/' },
@@ -505,7 +505,7 @@ exports.onNewMessage = functions.firestore
       tokens: tokenDocs.map(d => d.data().token),
       notification: { title, body },
       webpush: {
-        notification: { title, body, icon: '/assets/images/icons/icon-192.png', badge: '/assets/images/icons/icon-72.png' },
+        notification: { title, body, icon: '/assets/images/icons/icon-192.png', badge: '/assets/images/icons/icon-72.png', data: { linkUrl: link } },
         fcmOptions: { link },
       },
       data: { linkUrl: link },
