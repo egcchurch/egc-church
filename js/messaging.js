@@ -7,6 +7,7 @@
   let currentConvId = null;
   let unsubMessages = null;
   let unsubConvs    = null;
+  let pendingConvId = null; // conv to open once the list has loaded (from ?conv= URL param)
 
   // ── Entry point ──────────────────────────────────────────────────────────────
 
@@ -24,11 +25,12 @@
     });
   });
 
-  // If URL has ?conv=<id>, open that conversation immediately
+  // If URL has ?conv=<id>, defer opening until the conv-list has rendered so
+  // the thread title and active-item highlight are both correct.
   function checkURLParam() {
     const params = new URLSearchParams(window.location.search);
     const convId = params.get('conv');
-    if (convId) openConversation(convId);
+    if (convId) pendingConvId = convId;
   }
 
   // ── Conversation list ────────────────────────────────────────────────────────
@@ -86,6 +88,13 @@
             openConversation(el.dataset.id);
           });
         });
+
+        // Open the conversation from ?conv= URL param now that the list is ready
+        if (pendingConvId) {
+          const id = pendingConvId;
+          pendingConvId = null;
+          openConversation(id);
+        }
       }, err => console.warn('Conversation list error:', err));
   }
 
