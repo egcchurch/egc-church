@@ -179,6 +179,17 @@
       const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
 
       if (token) {
+        // If this browser previously registered a different token (e.g. after a
+        // PWA uninstall/reinstall), remove the stale Firestore entry so the user
+        // doesn't receive duplicate push notifications from both tokens.
+        const prevToken = localStorage.getItem('egcFcmToken');
+        if (prevToken && prevToken !== token) {
+          firebase.firestore()
+            .collection('users').doc(uid)
+            .collection('fcmTokens').doc(prevToken.substring(0, 22))
+            .delete().catch(() => {});
+        }
+
         await firebase.firestore()
           .collection('users').doc(uid)
           .collection('fcmTokens').doc(token.substring(0, 22))
@@ -187,6 +198,8 @@
             device: navigator.userAgent.substring(0, 200),
             registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
           }, { merge: true });
+
+        localStorage.setItem('egcFcmToken', token);
       }
 
       messaging.onMessage((payload) => {
