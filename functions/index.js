@@ -288,11 +288,8 @@ exports.sendBroadcast = functions.https.onCall(async (data, context) => {
     const chunk = tokenEntries.slice(i, i + 500);
     const result = await admin.messaging().sendEachForMulticast({
       tokens: chunk.map(e => e.token),
-      notification: { title, body },
-      webpush: {
-        notification: { icon: '/assets/images/icons/icon-192.png' },
-        fcmOptions: { link: '/' },
-      },
+      webpush: { fcmOptions: { link: '/' } },
+      data: { title, body, linkUrl: '/' },
     });
     sent += result.successCount;
 
@@ -431,11 +428,8 @@ exports.weeklyDigest = functions.pubsub
         const chunk = tokenEntries.slice(i, i + 500);
         const result = await admin.messaging().sendEachForMulticast({
           tokens: chunk.map(e => e.token),
-          notification: { title, body },
-          webpush: {
-            notification: { icon: '/assets/images/icons/icon-192.png' },
-            fcmOptions: { link: '/members/' },
-          },
+          webpush: { fcmOptions: { link: '/members/' } },
+          data: { title, body, linkUrl: '/members/' },
         });
 
         if (result.failureCount > 0) {
@@ -500,12 +494,8 @@ exports.onNewMessage = functions.firestore
 
     const result = await admin.messaging().sendEachForMulticast({
       tokens: tokenDocs.map(d => d.data().token),
-      notification: { title, body },
-      webpush: {
-        notification: { icon: '/assets/images/icons/icon-192.png' },
-        fcmOptions: { link },
-      },
-      data: { linkUrl: link },
+      webpush: { fcmOptions: { link } },
+      data: { title, body, linkUrl: link },
     });
 
     // Delete tokens FCM reports as invalid so they stop causing duplicate sends

@@ -18,13 +18,14 @@ if (!self.firebase?.apps?.length) {
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || 'EGC Notification';
-  const body  = payload.notification?.body  || '';
+  const data  = payload.data  || {};
+  const title = data.title    || payload.notification?.title || 'EGC Notification';
+  const body  = data.body     || payload.notification?.body  || '';
   self.registration.showNotification(title, {
     body,
     icon: '/assets/images/icons/icon-192.png',
     badge: '/assets/images/icons/icon-72.png',
-    data: payload.data || {},
+    data: { linkUrl: data.linkUrl || '/' },
   });
 });
 
