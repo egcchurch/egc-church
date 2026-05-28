@@ -15,18 +15,10 @@ if (!self.firebase?.apps?.length) {
   });
 }
 
-const messaging = firebase.messaging();
-
-messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || 'EGC Notification';
-  const body  = payload.notification?.body  || '';
-  self.registration.showNotification(title, {
-    body,
-    icon: '/assets/images/icons/icon-192.png',
-    badge: '/assets/images/icons/icon-72.png',
-    data: payload.data || {},
-  });
-});
+// Initialise Firebase Messaging so the SDK can receive push events.
+// Display is handled automatically by the browser from webpush.notification —
+// registering onBackgroundMessage would cause a second duplicate display.
+firebase.messaging();
 
 // Open/focus the app and navigate to the notification's linkUrl when tapped.
 self.addEventListener('notificationclick', (event) => {
@@ -48,7 +40,7 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-const CACHE_NAME = 'egc-cache-v32';
+const CACHE_NAME = 'egc-cache-v33';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
