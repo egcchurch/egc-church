@@ -10,7 +10,35 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-12
-**Current milestone:** Maintenance — security hardening and code cleanup
+**Current milestone:** Maintenance — working through roadmap quick wins
+
+---
+
+## Session: Roadmap quick wins — PWA install prompt + security tests (Session 62)
+
+**Date:** 2026-06-12
+**Branches:** `feat/pwa-install-prompt` (PR #81), `test/security-rule-escalation-tests` (PR #82), `chore/add-roadmap` (PR #83)
+**Status:** All merged
+
+### What was done
+
+**`docs/ROADMAP.md` created**
+Tracks all future improvement ideas across three priority tiers (quick wins, feature additions, technical improvements) plus explicit out-of-scope decisions. Also updated `CLAUDE.md` to mark Phase 6 complete (was still showing "in progress") and added a pointer to the roadmap.
+
+**PWA install prompt (`feat/pwa-install-prompt`)**
+Added a dismissible bottom banner to `js/main.js` that appears when the browser fires `beforeinstallprompt` (i.e. the app is installable and not already running in standalone mode). Navy background, amber Install button, × dismiss button. Dismissal stored in `localStorage` under `egcInstallDismissed` so it doesn't reappear. Uses inline styles — Tailwind CDN cannot reliably style dynamically injected HTML. SW cache bumped v33 → v34.
+
+**Security rule tests (`test/security-rule-escalation-tests`)**
+Added 8 targeted tests to `tests/firestore.rules.test.js` covering the three vulnerability paths fixed in the June 2026 security review (49 tests total, all passing):
+- `users.approve` can set membership (allowed) but not `isSuperadmin` or `roles` (denied)
+- `users.assign_roles` can set roles + extraPermissions (allowed) but not `membership` or `isSuperadmin` (denied)
+- Conversation participant can update metadata (allowed) but not overwrite `participants` array (denied)
+Added `approveOnlyUser()` and `assignRolesUser()` helper contexts.
+
+### Notes / decisions
+
+- No SW cache bump needed for the test file (tests are not served by the SW).
+- The install prompt is intentionally shown to all visitors (not just members) — installing the PWA benefits everyone, and the member-only FCM gating is handled separately in `js/notifications.js`.
 
 ---
 
