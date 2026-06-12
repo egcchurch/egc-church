@@ -9,8 +9,48 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-05-28
-**Current milestone:** Post-Phase 7 fixes — ongoing bug fixes
+**Last worked on:** 2026-06-12
+**Current milestone:** Maintenance — security hardening and code cleanup
+
+---
+
+## Session: Security review, code cleanup, branch housekeeping (Session 61)
+
+**Date:** 2026-06-12
+**Branches:** `chore/cleanup-debug-code` (PR #79), `fix/firestore-security-rules` (PR #80)
+**Status:** Both merged and deployed
+
+### What was done
+
+**Branch housekeeping**
+- Deleted 54 stale merged branches both locally and from GitHub remote, leaving only `main`.
+
+**Code cleanup (PR #79 — `chore/cleanup-debug-code`)**
+- Removed debug `console.log` calls from `js/auth.js` (login success messages that also leaked user email addresses to the browser console) and `js/main.js` (video autoplay notice, Firebase not loaded, SW registered).
+- Fixed `login.html` manifest path: `/egc-church/manifest.json` → `/manifest.json` — was the only page still using the old GitHub Pages subpath from before the Firebase Hosting migration.
+- Removed the dead `showRegister()` stub function (which showed a "not implemented" alert). Replaced the "Register here" link with plain text pointing new visitors to Google sign-in, which creates accounts automatically via `onUserCreate`.
+
+**Security review + fixes (PR #80 — `fix/firestore-security-rules`)**
+
+A full security audit was conducted across `firestore.rules`, `storage.rules`, `functions/index.js`, and all auth/messaging JS. Three confirmed vulnerabilities were found and fixed in `firestore.rules`. Firestore rules deployed manually after merge.
+
+**Vuln 1 (Critical) — `users.approve` privilege escalation:**
+The `users.approve` branch in the `/users/{uid}` update rule had no `affectedKeys()` restriction. A holder could write `{ isSuperadmin: true }` to any user doc via the Firestore SDK, triggering `syncUserClaims` server-side and gaining full superadmin custom claims. Fixed: locked to `hasOnly(['membership', 'membershipRequestedAt', 'updatedAt'])`.
+
+**Vuln 2 (High) — `users.assign_roles` field bypass:**
+The `users.assign_roles` branch only blocked `isSuperadmin` but allowed writing any other field. A holder could bypass the membership approval workflow (writing `membership: 'member'` directly), self-grant permissions via `extraPermissions`, or overwrite PII on other users. Fixed: locked to `hasOnly(['roles', 'extraPermissions', 'updatedAt'])`.
+
+**Vuln 3 (Medium) — Conversation participant swap exposing private messages:**
+The conversations `allow update` rule had no `affectedKeys` guard. Any participant could overwrite the `participants` array to inject a third party. The messages subcollection read rule resolves access via a live `get()` on the conversation doc (not a snapshot), so the injected user immediately gained read access to all historical messages. Fixed: `!affectedKeys().hasAny(['participants'])` added to the update rule.
+
+All 41 existing Firestore rules tests passed after the changes. No new test cases were added (existing tests do not cover the specific escalation paths — a follow-up could add targeted denial tests for each fixed branch).
+
+### Notes / decisions
+
+- Two findings were evaluated and dismissed as false positives by independent review:
+  - `javascript:` URL in `window.location.href` (notifications.js) — not independently exploitable; Firestore rules block client-side writes to notification subcollections and Cloud Functions use hardcoded `linkUrl` values only.
+  - Gallery Storage `allow read: if true` — not exploitable by unauthenticated users; Storage URLs are only discoverable via Firestore gallery documents, which are gated on membership. The design is documented and intentional.
+- `firebase deploy --only firestore:rules` was run manually after PR #80 merged (rules are never auto-deployed by CI).
 
 ---
 
