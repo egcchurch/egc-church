@@ -160,6 +160,15 @@
         <p class="text-sm text-zinc-500">Define and manage permission roles. Create/edit/delete by superadmin only.</p>
       </a>
 
+      <a href="/admin/settings.html" data-superadmin="true"
+         class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
+        <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-gray-200 transition-colors">
+          <i class="fas fa-gear text-gray-600 text-xl"></i>
+        </div>
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Site Settings</h2>
+        <p class="text-sm text-zinc-500">Church info, branding, notification routing, and feature flags. Superadmin only.</p>
+      </a>
+
     </div>
   </main>
 
@@ -170,8 +179,14 @@
       if (!user) return;
       Permissions.init(user).then(() => {
         document.querySelectorAll('#dashboard-grid [data-perm]').forEach((card) => {
-          if (!Permissions.hasPermission(card.dataset.perm)) {
-            card.classList.add('hidden');
+          if (!Permissions.hasPermission(card.dataset.perm)) card.classList.add('hidden');
+        });
+        // Settings card is superadmin-only
+        user.getIdTokenResult().then((result) => {
+          if (result.claims.superadmin !== true) {
+            document.querySelectorAll('#dashboard-grid [data-superadmin]').forEach((card) => {
+              card.classList.add('hidden');
+            });
           }
         });
       });

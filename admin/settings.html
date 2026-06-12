@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>Site Settings | EGC Admin</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans overflow-x-hidden">
+
+  <div id="nav-placeholder"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-3xl mx-auto">
+      <h1 class="text-3xl font-bold tracking-tight">Site Settings</h1>
+      <p class="text-blue-200 mt-1">Runtime configuration — superadmin only</p>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast"
+       class="hidden fixed bottom-6 right-6 z-50 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-xl text-sm transition-all">
+  </div>
+
+  <!-- ACCESS DENIED (hidden by default, shown for non-superadmins) -->
+  <div id="access-denied" class="hidden max-w-3xl mx-auto px-6 py-20 text-center">
+    <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+      <i class="fas fa-lock text-amber-600 text-2xl"></i>
+    </div>
+    <h2 class="text-xl font-bold text-gray-900 mb-2">Superadmin only</h2>
+    <p class="text-gray-500 mb-6">Site settings can only be changed by a superadmin.</p>
+    <a href="/admin/" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+      Back to Dashboard
+    </a>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <main id="main-content" class="hidden max-w-3xl mx-auto px-6 py-10 space-y-8">
+
+    <!-- Church Info -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+      <h2 class="text-lg font-bold text-[#0A3D62] mb-1">Church Info</h2>
+      <p class="text-sm text-gray-500 mb-6">Displayed in the nav, footer, and member-facing pages.</p>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
+          <input id="f-display-name" type="text" placeholder="e.g. Emmanuel Gospel Centre"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Tagline</label>
+          <input id="f-tagline" type="text" placeholder="e.g. A place to belong"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
+          <input id="f-address" type="text" placeholder="e.g. 123 Church Street, Cape Town"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Phone (optional)</label>
+            <input id="f-phone" type="tel" placeholder="e.g. +27 21 000 0000"
+                   class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Email (optional)</label>
+            <input id="f-email" type="email" placeholder="e.g. info@egc.church"
+                   class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-700 mb-2">Social Links (optional)</p>
+          <div class="space-y-3">
+            <div class="flex items-center gap-3">
+              <i class="fab fa-facebook text-blue-600 w-5 text-center"></i>
+              <input id="f-facebook" type="url" placeholder="https://facebook.com/yourpage"
+                     class="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+            </div>
+            <div class="flex items-center gap-3">
+              <i class="fab fa-youtube text-red-600 w-5 text-center"></i>
+              <input id="f-youtube" type="url" placeholder="https://youtube.com/@yourchannel"
+                     class="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+            </div>
+            <div class="flex items-center gap-3">
+              <i class="fab fa-instagram text-pink-600 w-5 text-center"></i>
+              <input id="f-instagram" type="url" placeholder="https://instagram.com/yourhandle"
+                     class="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end">
+        <button onclick="saveChurchInfo()"
+                class="bg-amber-500 hover:bg-amber-600 text-white px-8 py-2.5 rounded-full text-sm font-medium transition-all">
+          Save Church Info
+        </button>
+      </div>
+    </div>
+
+    <!-- Notifications -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+      <h2 class="text-lg font-bold text-[#0A3D62] mb-1">Notifications</h2>
+      <p class="text-sm text-gray-500 mb-6">Configure where automated alerts are sent.</p>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Connect Form Alert Email</label>
+          <input id="f-connect-email" type="email" placeholder="e.g. office@egc.church"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <p class="text-xs text-gray-400 mt-1">
+            Email address that receives an alert when a visitor submits the connect form.
+            Leave blank to disable email alerts (in-app notifications still sent to admins).
+          </p>
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end">
+        <button onclick="saveNotifications()"
+                class="bg-amber-500 hover:bg-amber-600 text-white px-8 py-2.5 rounded-full text-sm font-medium transition-all">
+          Save Notifications
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="/firebase-config.js"></script>
+  <script src="/js/permissions.js"></script>
+  <script src="/js/admin-auth.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    const db = firebase.firestore();
+
+    // ── Auth + superadmin gate ────────────────────────────────────────────────
+
+    firebase.auth().onAuthStateChanged(function (user) {
+      if (!user) return; // admin-auth.js handles redirect
+      user.getIdTokenResult().then(function (result) {
+        if (result.claims.superadmin !== true) {
+          document.getElementById('access-denied').classList.remove('hidden');
+          return;
+        }
+        document.getElementById('main-content').classList.remove('hidden');
+        loadSettings();
+      });
+    });
+
+    // ── Load ─────────────────────────────────────────────────────────────────
+
+    function loadSettings() {
+      Promise.all([
+        db.doc('config/church').get(),
+        db.doc('config/notifications').get(),
+      ]).then(function (results) {
+        var church = results[0].exists ? results[0].data() : {};
+        var notif  = results[1].exists ? results[1].data() : {};
+        var social = church.socialLinks || {};
+
+        document.getElementById('f-display-name').value = church.displayName || '';
+        document.getElementById('f-tagline').value      = church.tagline     || '';
+        document.getElementById('f-address').value      = church.address     || '';
+        document.getElementById('f-phone').value        = church.phone       || '';
+        document.getElementById('f-email').value        = church.email       || '';
+        document.getElementById('f-facebook').value     = social.facebook    || '';
+        document.getElementById('f-youtube').value      = social.youtube     || '';
+        document.getElementById('f-instagram').value    = social.instagram   || '';
+
+        document.getElementById('f-connect-email').value = notif.connectAlertEmail || '';
+      }).catch(function (err) {
+        toast('Failed to load settings: ' + err.message, true);
+      });
+    }
+
+    // ── Save church info ──────────────────────────────────────────────────────
+
+    function saveChurchInfo() {
+      var data = {
+        displayName: document.getElementById('f-display-name').value.trim(),
+        tagline:     document.getElementById('f-tagline').value.trim(),
+        address:     document.getElementById('f-address').value.trim(),
+        phone:       document.getElementById('f-phone').value.trim()    || null,
+        email:       document.getElementById('f-email').value.trim()    || null,
+        socialLinks: {
+          facebook:  document.getElementById('f-facebook').value.trim()  || null,
+          youtube:   document.getElementById('f-youtube').value.trim()   || null,
+          instagram: document.getElementById('f-instagram').value.trim() || null,
+        },
+      };
+      db.doc('config/church').set(data, { merge: true })
+        .then(function () { toast('Church info saved.'); })
+        .catch(function (err) { toast('Error: ' + err.message, true); });
+    }
+
+    // ── Save notifications ────────────────────────────────────────────────────
+
+    function saveNotifications() {
+      var data = {
+        connectAlertEmail: document.getElementById('f-connect-email').value.trim() || null,
+      };
+      db.doc('config/notifications').set(data, { merge: true })
+        .then(function () { toast('Notifications saved.'); })
+        .catch(function (err) { toast('Error: ' + err.message, true); });
+    }
+
+    // ── Toast ─────────────────────────────────────────────────────────────────
+
+    var toastTimer;
+    function toast(msg, isError) {
+      var el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.remove('hidden', 'bg-gray-900', 'bg-red-600');
+      el.classList.add(isError ? 'bg-red-600' : 'bg-gray-900');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { el.classList.add('hidden'); }, 3500);
+    }
+  </script>
+</body>
+</html>
