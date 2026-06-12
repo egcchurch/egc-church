@@ -2,7 +2,33 @@
 
 > Tracked ideas and improvements beyond Phase 7. Items move to a formal phase doc
 > (like `docs/PERMISSIONS.md`) once they are scoped and ready to build.
-> Updated: 2026-06-12
+> Updated: 2026-06-12 (Phase 8 and 9 added)
+
+---
+
+## Upcoming Phases
+
+### Phase 8 — Multi-Church Template (`docs/PHASE8.md`)
+
+Makes the codebase a reusable template. Any church can fork the repo, run a
+one-time setup script, and have a fully working site. Ongoing customisation
+(branding, feature toggles, contact info, notification routing) done entirely
+through an admin settings UI — no CLI or code changes needed after initial deploy.
+
+Sub-phases: 8a config foundation → 8b admin settings UI → 8c branding/theming →
+8d feature flags → 8e template packaging (setup scripts, `SETUP.md`, GitHub template flag).
+
+**Status:** Not started
+
+### Phase 9 — Page Composition
+
+Builds on Phase 8's `/config/` infrastructure. Adds a visual section manager for
+key pages (homepage, about, members dashboard): superadmins can toggle predefined
+sections on/off and reorder them. Each section has its own content editor. No
+free-form layout — sections are fixed in design, composable in order. Scope and
+page list to be defined in `docs/PHASE9.md` before starting.
+
+**Status:** Not started (depends on Phase 8)
 
 ---
 
@@ -28,12 +54,10 @@ June 2026 security review. Add targeted tests:
 See `tests/firestore.rules.test.js` for the existing test pattern.
 
 ### Connect form email alert
-**Status:** Not started
-New connect form submissions currently only trigger an in-app notification.
-Most admins aren't actively watching the bell. A Cloud Function that sends an
-email (via SendGrid, Resend, or Firebase Extensions) when `onNewConnectForm`
-fires would provide a more reliable admin alert. Low code cost — the trigger
-already exists; just add an email send alongside the in-app write.
+**Status:** Moved to Phase 8a (`docs/PHASE8.md`)
+Will be implemented as the first deliverable of Phase 8, using Resend and
+the `/config/notifications.connectAlertEmail` Firestore field so the
+destination address is changeable from the admin UI without a redeploy.
 
 ### `requestMemberAccess` — notify role-based `users.approve` holders
 **Status:** Not started

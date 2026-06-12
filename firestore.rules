@@ -153,6 +153,14 @@ service cloud.firestore {
       allow delete: if isSuperadmin() && resource.data.isSystem != true;
     }
 
+    // ── Site Config (Phase 8) ─────────────────────────────────────────────────
+    // /config/{document} holds runtime site settings: church info, branding,
+    // feature flags, notification routing. Written only by superadmins.
+    match /config/{document} {
+      allow read: if isSignedIn();
+      allow write: if isSuperadmin();
+    }
+
     // ── Homepage ──────────────────────────────────────────────────────────────
     match /homepage/{id} {
       allow read: if true;

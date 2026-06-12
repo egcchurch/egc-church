@@ -540,4 +540,42 @@ describe('Firestore Security Rules', () => {
     });
   });
 
+  describe('Config collection', () => {
+    it('unauthenticated user cannot read config', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'config', 'notifications'), { connectAlertEmail: 'office@egc.church' });
+      });
+      const db = unauthUser().firestore();
+      await assertFails(getDoc(doc(db, 'config', 'notifications')));
+    });
+
+    it('authenticated member can read config', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'config', 'notifications'), { connectAlertEmail: 'office@egc.church' });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'config', 'notifications')));
+    });
+
+    it('member cannot write config', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      const db = memberUser().firestore();
+      await assertFails(setDoc(doc(db, 'config', 'notifications'), { connectAlertEmail: 'hack@example.com' }));
+    });
+
+    it('editor cannot write config', async () => {
+      await seedUser('editor-uid', { membership: 'public', isSuperadmin: false, roles: ['content_editor'] });
+      const db = editorUser().firestore();
+      await assertFails(setDoc(doc(db, 'config', 'notifications'), { connectAlertEmail: 'hack@example.com' }));
+    });
+
+    it('superadmin can read and write config', async () => {
+      await seedUser('admin-uid', { membership: 'public', isSuperadmin: true, roles: [] });
+      const db = superAdmin().firestore();
+      await assertSucceeds(setDoc(doc(db, 'config', 'notifications'), { connectAlertEmail: 'office@egc.church' }));
+      await assertSucceeds(getDoc(doc(db, 'config', 'notifications')));
+    });
+  });
+
 });

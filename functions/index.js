@@ -8,6 +8,7 @@ const db = admin.firestore();
 
 const { computeEffectiveClaims, permissionFieldsChanged } = require('./computePermissions');
 const { DEFAULT_ROLES } = require('./rolesData');
+const { Resend } = require('resend');
 
 // ── syncUserClaims ────────────────────────────────────────────────────────────
 // Triggered on any write to /users/{uid}.
@@ -367,7 +368,45 @@ exports.onNewConnectForm = functions.firestore
     const title = 'New Connect Form Submission';
     const body  = `From ${form.name || 'Visitor'}: ${(form.message || '').substring(0, 100)}`;
 
-    const allUsersSnap = await db.collection('users').get();
+    // Fetch config and users in parallel
+    const [configSnap, allUsersSnap] = await Promise.all([
+      db.doc('config/notifications').get(),
+      db.collection('users').get(),
+    ]);
+
+    // ── Email alert ──────────────────────────────────────────────────────────
+    const connectAlertEmail = configSnap.exists
+      ? (configSnap.data().connectAlertEmail || null)
+      : null;
+    const resendCfg = functions.config().resend || {};
+
+    if (connectAlertEmail && resendCfg.api_key) {
+      try {
+        const resend = new Resend(resendCfg.api_key);
+        const domain = (functions.config().church || {}).domain || 'app.egc.church';
+        await resend.emails.send({
+          from:    `Connect Form <${resendCfg.from_email || 'noreply@egc.church'}>`,
+          to:      connectAlertEmail,
+          subject: `New connect form submission from ${form.name || 'Visitor'}`,
+          text: [
+            'A visitor has submitted a connect form.',
+            '',
+            `Name:  ${form.name  || 'Not provided'}`,
+            `Email: ${form.email || 'Not provided'}`,
+            `Phone: ${form.phone || 'Not provided'}`,
+            '',
+            'Message:',
+            form.message || '(no message)',
+            '',
+            `View submissions: https://${domain}/admin/connect.html`,
+          ].join('\n'),
+        });
+      } catch (err) {
+        console.error('onNewConnectForm: email alert failed:', err.message);
+      }
+    }
+
+    // ── In-app notification to all admins ────────────────────────────────────
     const adminDocs = allUsersSnap.docs.filter((d) => {
       const u = d.data();
       return u.isSuperadmin === true ||
@@ -375,10 +414,9 @@ exports.onNewConnectForm = functions.firestore
              (Array.isArray(u.extraPermissions) && u.extraPermissions.length > 0);
     });
     if (adminDocs.length === 0) return;
-    const adminsSnap = { docs: adminDocs };
 
     const batch = db.batch();
-    adminsSnap.docs.forEach((adminDoc) => {
+    adminDocs.forEach((adminDoc) => {
       const ref = db.collection('users').doc(adminDoc.id).collection('notifications').doc();
       batch.set(ref, { title, body, type: 'connect', sentAt, read: false, linkUrl: '/admin/connect.html' });
     });
