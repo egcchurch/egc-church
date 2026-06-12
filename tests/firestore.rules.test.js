@@ -52,6 +52,14 @@ function unauthUser() {
   return testEnv.unauthenticatedContext();
 }
 
+function approveOnlyUser() {
+  return testEnv.authenticatedContext('approve-uid', { perms: ['users.approve'] });
+}
+
+function assignRolesUser() {
+  return testEnv.authenticatedContext('assignroles-uid', { perms: ['users.assign_roles'] });
+}
+
 async function seedUser(uid, data) {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), 'users', uid), data);
@@ -431,6 +439,78 @@ describe('Firestore Security Rules', () => {
       });
       const db = superAdmin().firestore();
       await assertSucceeds(deleteDoc(doc(db, 'roles', 'custom-role')));
+    });
+  });
+
+  describe('User document — privilege escalation guards', () => {
+    it('users.approve holder can set membership on another user', async () => {
+      await seedUser('approve-uid', { membership: 'member' });
+      await seedUser('target-uid', { membership: 'pending', isSuperadmin: false, roles: [], extraPermissions: [] });
+      const db = approveOnlyUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'users', 'target-uid'), { membership: 'member' }));
+    });
+
+    it('users.approve holder cannot set isSuperadmin on another user', async () => {
+      await seedUser('approve-uid', { membership: 'member' });
+      await seedUser('target-uid', { membership: 'pending', isSuperadmin: false, roles: [], extraPermissions: [] });
+      const db = approveOnlyUser().firestore();
+      await assertFails(updateDoc(doc(db, 'users', 'target-uid'), { isSuperadmin: true }));
+    });
+
+    it('users.approve holder cannot set roles on another user', async () => {
+      await seedUser('approve-uid', { membership: 'member' });
+      await seedUser('target-uid', { membership: 'pending', isSuperadmin: false, roles: [], extraPermissions: [] });
+      const db = approveOnlyUser().firestore();
+      await assertFails(updateDoc(doc(db, 'users', 'target-uid'), { roles: ['administrator'] }));
+    });
+
+    it('users.assign_roles holder can set roles and extraPermissions on another user', async () => {
+      await seedUser('assignroles-uid', { membership: 'member' });
+      await seedUser('target-uid', { membership: 'member', isSuperadmin: false, roles: [], extraPermissions: [] });
+      const db = assignRolesUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'users', 'target-uid'), { roles: ['deacon'], extraPermissions: [] }));
+    });
+
+    it('users.assign_roles holder cannot set membership on another user', async () => {
+      await seedUser('assignroles-uid', { membership: 'member' });
+      await seedUser('target-uid', { membership: 'pending', isSuperadmin: false, roles: [], extraPermissions: [] });
+      const db = assignRolesUser().firestore();
+      await assertFails(updateDoc(doc(db, 'users', 'target-uid'), { membership: 'member' }));
+    });
+
+    it('users.assign_roles holder cannot set isSuperadmin on another user', async () => {
+      await seedUser('assignroles-uid', { membership: 'member' });
+      await seedUser('target-uid', { membership: 'member', isSuperadmin: false, roles: [], extraPermissions: [] });
+      const db = assignRolesUser().firestore();
+      await assertFails(updateDoc(doc(db, 'users', 'target-uid'), { isSuperadmin: true }));
+    });
+  });
+
+  describe('Conversation — participant write restrictions', () => {
+    it('participant can update conversation metadata', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          participants: ['member-uid', 'other-uid'],
+          lastMessage: 'Hello',
+          lastMessageAt: null,
+          unreadBy: []
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'conversations', 'conv1'), { lastMessage: 'Updated', unreadBy: ['other-uid'] }));
+    });
+
+    it('participant cannot overwrite participants array', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          participants: ['member-uid', 'other-uid'],
+          lastMessage: 'Hello'
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(updateDoc(doc(db, 'conversations', 'conv1'), { participants: ['member-uid', 'intruder-uid'] }));
     });
   });
 
