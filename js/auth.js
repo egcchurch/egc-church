@@ -20,8 +20,7 @@ function signInWithGoogle() {
   provider.setCustomParameters({ prompt: 'select_account' });
 
   auth.signInWithPopup(provider)
-    .then((result) => {
-      console.log("✅ Google login successful:", result.user.email);
+    .then(() => {
       window.location.href = "index.html";
     })
     .catch((error) => {
@@ -51,8 +50,7 @@ document.getElementById('email-form').addEventListener('submit', (e) => {
   }
 
   auth.signInWithEmailAndPassword(email, password)
-    .then((result) => {
-      console.log("✅ Email login successful");
+    .then(() => {
       window.location.href = "index.html";
     })
     .catch((error) => {
@@ -61,7 +59,3 @@ document.getElementById('email-form').addEventListener('submit', (e) => {
     });
 });
 
-// Helper function for future registration
-function showRegister() {
-  alert("Registration is not yet implemented.\n\nYou can create test users in Firebase Console > Authentication.");
-}

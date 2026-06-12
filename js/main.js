@@ -3,7 +3,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const video = document.getElementById('hero-video');
   if (video) {
-    video.play().catch(() => console.log("Video autoplay prevented"));
+    video.play().catch(() => {});
   }
 });
 
@@ -83,10 +83,7 @@ function initNavDropdowns() {
 // ==================== AUTH STATE ====================
 
 function checkAuthState() {
-  if (typeof firebase === 'undefined' || typeof auth === 'undefined') {
-    console.log("Firebase not loaded");
-    return;
-  }
+  if (typeof firebase === 'undefined' || typeof auth === 'undefined') return;
   auth.onAuthStateChanged((user) => {
     updateLoginButtons(user);
   });
@@ -245,7 +242,6 @@ function logoutUser() {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/service-worker.js')
-      .then((reg) => console.log('SW registered:', reg.scope))
       .catch((err) => console.error('SW registration failed:', err));
   });
 }
