@@ -10,7 +10,38 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-12
-**Current milestone:** Maintenance — working through roadmap quick wins
+**Current milestone:** Phase 8 — Multi-Church Template (Phase 8a complete)
+
+---
+
+## Session: Phase 8 design + Phase 8a config foundation (Session 63)
+
+**Date:** 2026-06-12
+**Branch:** `feat/phase8a-config-foundation` (PR #86)
+**Status:** Merged and deployed
+
+### What was done
+
+**Phase 8 + Phase 9 designed**
+Designed the full multi-church template architecture across two phases:
+- Phase 8 — two-layer config (deploy-time `church-config.js` + runtime Firestore `/config/`), branding via CSS custom properties, one-time setup scripts, admin settings UI, GitHub template packaging
+- Phase 9 — page composition / section manager (depends on Phase 8)
+Documented in `docs/PHASE8.md`. `docs/ROADMAP.md` updated with both phases. `CLAUDE.md` updated with phase checklist.
+
+**Phase 8a — config foundation (PR #86)**
+- Added `/config/{document}` Firestore security rule: signed-in users can read, superadmin only can write
+- Created `church-config.js` at repo root with deploy-time constants and inline instructions for Firebase Functions config vars
+- Updated `onNewConnectForm` Cloud Function: parallel-fetches `/config/notifications` + users, sends Resend email to `connectAlertEmail` if configured, silently skips if not. In-app notification unchanged.
+- Added `resend@^4.0.0` to `functions/package.json`
+- Added 5 `/config/` security rule tests (54 total, all passing)
+- Created `/config/notifications` Firestore doc with `connectAlertEmail: "egcstreaming@gmail.com"`
+- Connect form submission verified end-to-end via Playwright (success state confirmed)
+
+### Notes / decisions
+
+- Email provider (Resend) is wired but config vars (`resend.api_key`, `resend.from_email`, `church.domain`) are intentionally not set yet — email sending is silently skipped until a mail provider is chosen and configured. The Firestore `connectAlertEmail` field and all function code are in place as the placeholder.
+- Email provider decision deferred — options discussed: Resend (domain verified, emails appear from `egc.church`), or Nodemailer via existing SMTP (Google Workspace, M365, etc.). No new service required if existing email hosting is used.
+- `firebase deploy --only functions` and `firebase deploy --only firestore:rules` both run after merge.
 
 ---
 
