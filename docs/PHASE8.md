@@ -264,7 +264,7 @@ which builds on the `/config/` infrastructure established here.
 | Sub-phase | Status |
 |---|---|
 | 8a — Config foundation | Done (PR #86, 2026-06-12) |
-| 8b — Admin settings UI | Not started |
+| 8b — Admin settings UI | Done (PR #87, 2026-06-12) |
 | 8c — Branding/theming | Not started |
 | 8d — Feature flags | Not started |
 | 8e — Template packaging | Not started |
