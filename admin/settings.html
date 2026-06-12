@@ -13,6 +13,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
 </head>
 <body class="bg-zinc-50 font-sans overflow-x-hidden">
 
@@ -107,6 +108,51 @@
       </div>
     </div>
 
+    <!-- Branding -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+      <h2 class="text-lg font-bold text-[#0A3D62] mb-1">Branding</h2>
+      <p class="text-sm text-gray-500 mb-6">Colours and logo applied site-wide for authenticated users.</p>
+      <div class="space-y-5">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Primary Colour</label>
+          <div class="flex items-center gap-3">
+            <input id="f-primary-color-picker" type="color" value="#0A3D62"
+                   class="w-11 h-11 rounded-xl border border-gray-200 cursor-pointer p-0.5 bg-white">
+            <input id="f-primary-color" type="text" value="#0A3D62" maxlength="7" placeholder="#0A3D62"
+                   class="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Accent Colour</label>
+          <div class="flex items-center gap-3">
+            <input id="f-accent-color-picker" type="color" value="#F59E0B"
+                   class="w-11 h-11 rounded-xl border border-gray-200 cursor-pointer p-0.5 bg-white">
+            <input id="f-accent-color" type="text" value="#F59E0B" maxlength="7" placeholder="#F59E0B"
+                   class="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Logo</label>
+          <div id="logo-preview" class="hidden mb-3">
+            <img id="current-logo" src="" alt="Current logo"
+                 class="h-14 rounded-xl border border-gray-100 object-contain bg-gray-50 p-1">
+          </div>
+          <input id="f-logo" type="file" accept="image/*"
+                 class="w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-medium file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100 cursor-pointer">
+          <p class="text-xs text-gray-400 mt-1.5">
+            Optional — leave blank to keep the current logo. JPG/PNG, 5 MB max.
+            When set, replaces the text logo in the navigation bar for signed-in users.
+          </p>
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end">
+        <button onclick="saveBranding()"
+                class="bg-amber-500 hover:bg-amber-600 text-white px-8 py-2.5 rounded-full text-sm font-medium transition-all">
+          Save Branding
+        </button>
+      </div>
+    </div>
+
     <!-- Notifications -->
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
       <h2 class="text-lg font-bold text-[#0A3D62] mb-1">Notifications</h2>
@@ -133,6 +179,7 @@
   </main>
 
   <script src="/firebase-config.js"></script>
+  <script src="/js/storage-upload.js"></script>
   <script src="/js/permissions.js"></script>
   <script src="/js/admin-auth.js"></script>
   <script src="/js/nav.js"></script>
@@ -154,16 +201,32 @@
       });
     });
 
+    // ── Colour picker sync ────────────────────────────────────────────────────
+
+    function syncColorPair(pickerId, textId) {
+      var picker = document.getElementById(pickerId);
+      var text   = document.getElementById(textId);
+      picker.addEventListener('input', function () { text.value = picker.value; });
+      text.addEventListener('input', function () {
+        if (/^#[0-9A-Fa-f]{6}$/.test(text.value)) picker.value = text.value;
+      });
+    }
+
+    syncColorPair('f-primary-color-picker', 'f-primary-color');
+    syncColorPair('f-accent-color-picker',  'f-accent-color');
+
     // ── Load ─────────────────────────────────────────────────────────────────
 
     function loadSettings() {
       Promise.all([
         db.doc('config/church').get(),
         db.doc('config/notifications').get(),
+        db.doc('config/branding').get(),
       ]).then(function (results) {
-        var church = results[0].exists ? results[0].data() : {};
-        var notif  = results[1].exists ? results[1].data() : {};
-        var social = church.socialLinks || {};
+        var church   = results[0].exists ? results[0].data() : {};
+        var notif    = results[1].exists ? results[1].data() : {};
+        var branding = results[2].exists ? results[2].data() : {};
+        var social   = church.socialLinks || {};
 
         document.getElementById('f-display-name').value = church.displayName || '';
         document.getElementById('f-tagline').value      = church.tagline     || '';
@@ -175,6 +238,19 @@
         document.getElementById('f-instagram').value    = social.instagram   || '';
 
         document.getElementById('f-connect-email').value = notif.connectAlertEmail || '';
+
+        if (branding.primaryColor) {
+          document.getElementById('f-primary-color').value        = branding.primaryColor;
+          document.getElementById('f-primary-color-picker').value = branding.primaryColor;
+        }
+        if (branding.accentColor) {
+          document.getElementById('f-accent-color').value        = branding.accentColor;
+          document.getElementById('f-accent-color-picker').value = branding.accentColor;
+        }
+        if (branding.logoUrl) {
+          document.getElementById('current-logo').src = branding.logoUrl;
+          document.getElementById('logo-preview').classList.remove('hidden');
+        }
       }).catch(function (err) {
         toast('Failed to load settings: ' + err.message, true);
       });
@@ -208,6 +284,45 @@
       };
       db.doc('config/notifications').set(data, { merge: true })
         .then(function () { toast('Notifications saved.'); })
+        .catch(function (err) { toast('Error: ' + err.message, true); });
+    }
+
+    // ── Save branding ─────────────────────────────────────────────────────────
+
+    function saveBranding() {
+      var primaryColor = document.getElementById('f-primary-color').value.trim();
+      var accentColor  = document.getElementById('f-accent-color').value.trim();
+      var logoFile     = document.getElementById('f-logo').files[0];
+
+      if (primaryColor && !/^#[0-9A-Fa-f]{6}$/.test(primaryColor)) {
+        toast('Primary colour must be a valid hex (e.g. #0A3D62)', true);
+        return;
+      }
+      if (accentColor && !/^#[0-9A-Fa-f]{6}$/.test(accentColor)) {
+        toast('Accent colour must be a valid hex (e.g. #F59E0B)', true);
+        return;
+      }
+
+      var data = {
+        primaryColor: primaryColor || null,
+        accentColor:  accentColor  || null,
+      };
+
+      var uploadStep = logoFile
+        ? (function () {
+            toast('Uploading logo…');
+            return uploadMedia('branding/logo', logoFile).then(function (url) {
+              data.logoUrl = url;
+              document.getElementById('current-logo').src = url;
+              document.getElementById('logo-preview').classList.remove('hidden');
+              document.getElementById('f-logo').value = '';
+            });
+          }())
+        : Promise.resolve();
+
+      uploadStep
+        .then(function () { return db.doc('config/branding').set(data, { merge: true }); })
+        .then(function () { toast('Branding saved.'); })
         .catch(function (err) { toast('Error: ' + err.message, true); });
     }
 
