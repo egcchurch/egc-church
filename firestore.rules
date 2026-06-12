@@ -34,15 +34,17 @@ service cloud.firestore {
                   || (isMember() && resource.data.directoryVisible == true);
       allow create: if isOwner(uid);
       // isOwner: self-service profile fields (name, photo, privacy)
-      // users.approve: set membership tier
-      // users.assign_roles: set roles/extraPermissions (not isSuperadmin)
+      // users.approve: set membership tier and membershipRequestedAt only
+      // users.assign_roles: set roles/extraPermissions only (not isSuperadmin)
       // isSuperadmin: unrestricted
       allow update: if isOwner(uid)
                     || isSuperadmin()
-                    || hasPermission('users.approve')
+                    || (hasPermission('users.approve')
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['membership', 'membershipRequestedAt', 'updatedAt']))
                     || (hasPermission('users.assign_roles')
-                        && !request.resource.data.diff(resource.data).affectedKeys()
-                            .hasAny(['isSuperadmin']));
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['roles', 'extraPermissions', 'updatedAt']));
       allow delete: if isSuperadmin();
     }
 
@@ -172,7 +174,8 @@ service cloud.firestore {
         request.auth.uid in resource.data.participants;
       allow create: if isMember();
       allow update: if isSignedIn() &&
-        request.auth.uid in resource.data.participants;
+        request.auth.uid in resource.data.participants &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['participants']);
       allow delete: if false;
 
       match /messages/{msgId} {
