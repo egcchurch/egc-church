@@ -1,0 +1,8 @@
+/* Custom CSS for EGC church PWA.
+ * CSS custom properties set here are overridden at runtime by js/main.js
+ * from Firestore /config/branding for authenticated users. */
+
+:root {
+  --color-primary: #0A3D62;
+  --color-accent:  #F59E0B;
+}

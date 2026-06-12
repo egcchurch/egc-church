@@ -109,6 +109,8 @@ async function updateLoginButtons(user) {
       Permissions.init(user).then(() => Permissions.filterAdminNav());
     }
 
+    applyBranding();
+
     const displayName = user.displayName ? user.displayName.split(' ')[0] : 'Member';
     const isAdmin  = userData.isSuperadmin === true ||
                     (Array.isArray(userData.roles) && userData.roles.length > 0) ||
@@ -222,6 +224,32 @@ function buildMobileHTML(displayName, isMember, isAdmin) {
     </div>`;
 
   return html;
+}
+
+// ── Branding ──
+
+async function applyBranding() {
+  if (typeof firebase === 'undefined') return;
+  try {
+    const doc = await firebase.firestore().doc('config/branding').get();
+    if (!doc.exists) return;
+    const b = doc.data();
+    if (b.primaryColor) document.documentElement.style.setProperty('--color-primary', b.primaryColor);
+    if (b.accentColor)  document.documentElement.style.setProperty('--color-accent',  b.accentColor);
+    if (b.logoUrl) {
+      const area = document.getElementById('nav-logo-area');
+      if (area) {
+        const img = document.createElement('img');
+        img.src   = b.logoUrl;
+        img.alt   = 'Church Logo';
+        img.style.cssText = 'height:40px;width:auto;object-fit:contain;';
+        area.innerHTML = '';
+        area.appendChild(img);
+      }
+    }
+  } catch (_) {
+    // fail silently — defaults remain
+  }
 }
 
 // ── Logout ──

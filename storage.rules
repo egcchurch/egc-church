@@ -88,5 +88,11 @@ service firebase.storage {
       allow read: if true;
       allow write: if isAdminUser() && isValidImage();
     }
+
+    // ── Site branding (logo) ──────────────────────────────────────────────
+    match /branding/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.token.superadmin == true && isValidImage();
+    }
   }
 }
