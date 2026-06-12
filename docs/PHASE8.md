@@ -263,8 +263,15 @@ which builds on the `/config/` infrastructure established here.
 
 | Sub-phase | Status |
 |---|---|
-| 8a — Config foundation | Not started |
+| 8a — Config foundation | Done (PR #86, 2026-06-12) |
 | 8b — Admin settings UI | Not started |
 | 8c — Branding/theming | Not started |
 | 8d — Feature flags | Not started |
 | 8e — Template packaging | Not started |
+
+### 8a notes
+
+- `/config/notifications` doc created in Firestore with `connectAlertEmail: "egcstreaming@gmail.com"`
+- Email provider (Resend) wired in code but Functions config vars not set — email silently skipped until provider is configured
+- To activate: set `resend.api_key`, `resend.from_email`, `church.domain` via `firebase functions:config:set` and redeploy functions
+- Alternative to Resend: Nodemailer via existing SMTP (Google Workspace, M365) — only `functions/index.js` changes
