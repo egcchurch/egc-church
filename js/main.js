@@ -245,3 +245,58 @@ if ('serviceWorker' in navigator) {
       .catch((err) => console.error('SW registration failed:', err));
   });
 }
+
+// ── PWA install prompt ──
+// Shows a dismissible bottom banner when the browser signals the app can be
+// installed. Skipped if already running in standalone mode or previously dismissed.
+
+(function initPwaInstallPrompt() {
+  if (window.matchMedia('(display-mode: standalone)').matches) return;
+  if (localStorage.getItem('egcInstallDismissed')) return;
+
+  let deferredPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+
+    const banner = document.createElement('div');
+    banner.id = 'pwa-install-banner';
+    banner.setAttribute('style',
+      'position:fixed;bottom:0;left:0;right:0;z-index:9999;' +
+      'background:#0A3D62;color:#fff;padding:12px 16px;' +
+      'display:flex;align-items:center;gap:12px;' +
+      'font-family:sans-serif;font-size:14px;line-height:1.4;' +
+      'box-shadow:0 -2px 10px rgba(0,0,0,0.25);'
+    );
+    banner.innerHTML =
+      '<span style="flex:1">' +
+        '<strong>Add EGC to your home screen</strong> — get push notifications and faster access.' +
+      '</span>' +
+      '<button id="pwa-install-btn" style="' +
+        'background:#F59E0B;color:#fff;border:none;padding:8px 18px;' +
+        'border-radius:20px;font-weight:600;cursor:pointer;white-space:nowrap;font-size:14px' +
+      '">Install</button>' +
+      '<button id="pwa-dismiss-btn" aria-label="Dismiss" style="' +
+        'background:transparent;color:#fff;border:none;padding:8px;' +
+        'cursor:pointer;font-size:20px;line-height:1;opacity:0.7;flex-shrink:0' +
+      '">&times;</button>';
+
+    document.body.appendChild(banner);
+
+    function dismiss() {
+      localStorage.setItem('egcInstallDismissed', '1');
+      banner.remove();
+    }
+
+    document.getElementById('pwa-install-btn').addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      dismiss();
+    });
+
+    document.getElementById('pwa-dismiss-btn').addEventListener('click', dismiss);
+  });
+}());
