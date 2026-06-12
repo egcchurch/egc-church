@@ -10,7 +10,30 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-12
-**Current milestone:** Phase 8 — Multi-Church Template (Phase 8a complete)
+**Current milestone:** Phase 8 — Multi-Church Template (Phase 8b complete)
+
+---
+
+## Session: Phase 8b admin settings UI (Session 64)
+
+**Date:** 2026-06-12
+**Branch:** `feat/phase8b-admin-settings-ui` (PR #87)
+**Status:** Merged
+
+### What was done
+
+- Added `/admin/settings.html` — superadmin-only page with two independently saving sections:
+  - **Church Info** → `/config/church`: display name, tagline, address, phone, email, Facebook/YouTube/Instagram social links
+  - **Notifications** → `/config/notifications`: connect alert email
+- Superadmin gate enforced both on the page (token claim check, shows access-denied card for non-superadmins) and on the admin dashboard (Settings card hidden via `data-superadmin` attribute)
+- Added Settings card to `/admin/index.html`
+- Bumped SW cache v34 → v35, added `/admin/settings.html` to precache list
+
+### Notes / decisions
+
+- Each section saves independently with its own Save button — no risk of wiping unsaved changes in another section on error
+- Saving `connectAlertEmail` via the UI replaces the manually created Firestore doc from Phase 8a — same document, now editable from the admin UI as intended
+- No new permission key needed — superadmin claim is the gate
 
 ---
 
