@@ -11,7 +11,7 @@
 Small effort, immediate value. Do these next.
 
 ### PWA install prompt
-**Status:** In progress
+**Status:** Done (PR #81, 2026-06-12)
 Encourage members to install the PWA to their home screen. FCM push notifications
 only work from standalone (installed) mode, so prompt visibility directly drives
 push delivery rates. Show a one-time dismissible banner when the browser fires the
@@ -19,7 +19,7 @@ push delivery rates. Show a one-time dismissible banner when the browser fires t
 reappear on every visit.
 
 ### Security rule tests for the three fixed vulnerabilities
-**Status:** Not started
+**Status:** Done (PR #82, 2026-06-12)
 The existing 41-test suite does not cover the specific denial paths fixed in the
 June 2026 security review. Add targeted tests:
 - `users.approve` holder cannot write `isSuperadmin: true`
