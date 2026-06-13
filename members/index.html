@@ -19,7 +19,7 @@
   <script src="/firebase-config.js"></script>
   <script src="/js/member-auth.js"></script>
 </head>
-<body class="bg-zinc-50 font-sans">
+<body class="bg-zinc-50 font-sans" data-page-sections="members">
 
   <!-- Navigation (shared — see members-nav.html, injected by js/nav.js) -->
   <div id="nav-placeholder"></div>
@@ -34,10 +34,10 @@
 
   <!-- DASHBOARD CARDS -->
   <main class="max-w-7xl mx-auto px-6 py-10">
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" data-sections-container="members">
 
       <!-- Directory -->
-      <a href="/members/directory.html"
+      <a data-section="directory" href="/members/directory.html"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-amber-200 transition-colors">
           <i class="fas fa-address-book text-amber-600 text-xl"></i>
@@ -47,7 +47,7 @@
       </a>
 
       <!-- Groups -->
-      <a href="/members/groups.html"
+      <a data-section="groups" data-feature="groups" href="/members/groups.html"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-blue-200 transition-colors">
           <i class="fas fa-people-group text-blue-600 text-xl"></i>
@@ -57,7 +57,7 @@
       </a>
 
       <!-- Prayer -->
-      <a href="/members/prayer.html"
+      <a data-section="prayer" href="/members/prayer.html"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-colors">
           <i class="fas fa-hands-praying text-purple-600 text-xl"></i>
@@ -67,7 +67,7 @@
       </a>
 
       <!-- Devotional -->
-      <a href="/members/devotional.html"
+      <a data-section="devotional" data-feature="devotional" href="/members/devotional.html"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
           <i class="fas fa-book-open text-green-600 text-xl"></i>
@@ -77,7 +77,7 @@
       </a>
 
       <!-- Gallery -->
-      <a href="/members/gallery.html"
+      <a data-section="gallery" data-feature="gallery" href="/members/gallery.html"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-rose-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-rose-200 transition-colors">
           <i class="fas fa-images text-rose-600 text-xl"></i>
@@ -87,7 +87,7 @@
       </a>
 
       <!-- Live Stream -->
-      <a href="/members/live.html"
+      <a data-section="liveStream" data-feature="liveStream" href="/members/live.html"
          class="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 hover:shadow-md hover:border-amber-300 transition-all group">
         <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-red-200 transition-colors">
           <i class="fas fa-circle-play text-red-600 text-xl"></i>

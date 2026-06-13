@@ -121,6 +121,40 @@
     return counts;
   }
 
+  function loadLatestSermons(limit) {
+    return db.collection('sermons')
+      .where('published', '==', true)
+      .orderBy('date', 'desc')
+      .limit(limit)
+      .get()
+      .then(snap => snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      .catch(() => []);
+  }
+
+  function renderLatestSermons(sermons) {
+    const grid = document.getElementById('latest-sermons-grid');
+    if (!grid) return;
+    if (!sermons || !sermons.length) {
+      grid.closest('[data-section="latestSermons"]').style.display = 'none';
+      return;
+    }
+    grid.innerHTML = sermons.map(s => {
+      const thumb = s.youtubeId
+        ? `https://img.youtube.com/vi/${esc(s.youtubeId)}/hqdefault.jpg`
+        : 'assets/images/icons/icon-192.png';
+      return `
+        <a href="/sermons.html" class="group bg-zinc-50 rounded-2xl overflow-hidden border border-zinc-200 hover:shadow-md hover:border-amber-300 transition-all">
+          <div class="aspect-video w-full overflow-hidden bg-zinc-200">
+            <img src="${thumb}" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+          </div>
+          <div class="p-4">
+            <p class="font-semibold text-[#0A3D62] leading-snug line-clamp-2">${esc(s.title)}</p>
+            <p class="text-xs text-gray-500 mt-1">${esc(s.speaker || '')}${s.speaker && s.date ? ' · ' : ''}${esc(s.date || '')}</p>
+          </div>
+        </a>`;
+    }).join('');
+  }
+
   function loadUpcomingEvents(limit) {
     const now = firebase.firestore.Timestamp.fromDate(new Date());
     return db.collection('events')
@@ -525,6 +559,9 @@
 
     waitForFirebase(() => {
       db = firebase.firestore();
+
+      // Public sections — load for all visitors regardless of auth state
+      loadLatestSermons(3).then(renderLatestSermons);
 
       firebase.auth().onAuthStateChanged(async (user) => {
         try {
