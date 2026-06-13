@@ -30,6 +30,10 @@ document.addEventListener('nav-loaded', () => {
 
   initNavDropdowns();
   checkAuthState();
+
+  // Section composition — publicly readable, fires for all visitors
+  const pageSectionId = document.body.dataset.pageSections;
+  if (pageSectionId && typeof firebase !== 'undefined') applySections(pageSectionId);
 });
 
 // ==================== NAV DROPDOWNS ====================
@@ -281,6 +285,38 @@ async function applyFeatures() {
   } catch (_) {
     // fail silently — all features default to enabled
   }
+}
+
+// ── Section composition ──
+// Reads /config/pages (publicly readable) and applies section order + visibility
+// to [data-section] elements. Standalone sections (outside any container) are
+// toggled only. Sections inside [data-sections-container] are also reordered.
+
+async function applySections(pageId) {
+  if (typeof firebase === 'undefined') return;
+  try {
+    const doc = await firebase.firestore().doc('config/pages').get();
+    if (!doc.exists) return;
+    const cfg = doc.data()[pageId];
+    if (!cfg || !Array.isArray(cfg.sections)) return;
+
+    const sorted = [...cfg.sections].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    // Toggle visibility for all [data-section] elements on the page
+    sorted.forEach(s => {
+      const el = document.querySelector(`[data-section="${s.id}"]`);
+      if (el && s.enabled === false) el.style.display = 'none';
+    });
+
+    // Reorder sections within their container (container sections only)
+    const container = document.querySelector(`[data-sections-container="${pageId}"]`);
+    if (!container) return;
+    sorted.forEach(s => {
+      if (s.enabled === false) return;
+      const el = container.querySelector(`[data-section="${s.id}"]`);
+      if (el) container.appendChild(el);
+    });
+  } catch (_) {}
 }
 
 // ── Logout ──

@@ -157,7 +157,8 @@ service cloud.firestore {
     // /config/{document} holds runtime site settings: church info, branding,
     // feature flags, notification routing. Written only by superadmins.
     match /config/{document} {
-      allow read: if isSignedIn();
+      // 'pages' is publicly readable — section order is not sensitive
+      allow read: if isSignedIn() || document == 'pages';
       allow write: if isSuperadmin();
     }
 
