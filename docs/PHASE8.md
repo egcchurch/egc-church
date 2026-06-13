@@ -265,9 +265,21 @@ which builds on the `/config/` infrastructure established here.
 |---|---|
 | 8a — Config foundation | Done (PR #86, 2026-06-12) |
 | 8b — Admin settings UI | Done (PR #87, 2026-06-12) |
-| 8c — Branding/theming | Not started |
-| 8d — Feature flags | Not started |
+| 8c — Branding/theming | Done (PR #89, 2026-06-12) |
+| 8d — Feature flags | Done (PR #90, 2026-06-13) |
 | 8e — Template packaging | Not started |
+
+### 8d notes
+
+- No `/config/features` doc needed — missing doc defaults all features to enabled
+- Nav hiding and page redirects apply to authenticated users only (Firestore `/config/` requires auth)
+- `saveFeatures()` uses `.set()` (not merge) — stored state always exactly matches the UI
+
+### 8c notes
+
+- `assets/css/custom.css` created with CSS custom properties as defaults
+- Branding (colours + logo) applies for authenticated users only
+- Logo stored at `branding/logo` in Firebase Storage; `firebase deploy --only storage` run after merge
 
 ### 8a notes
 

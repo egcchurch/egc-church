@@ -9,8 +9,59 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-06-12
-**Current milestone:** Phase 8 — Multi-Church Template (Phase 8b complete)
+**Last worked on:** 2026-06-13
+**Current milestone:** Phase 8 — Multi-Church Template (Phase 8d complete)
+
+---
+
+## Session: Phase 8d feature flags (Session 66)
+
+**Date:** 2026-06-13
+**Branch:** `feat/phase8d-feature-flags` (PR #90)
+**Status:** Merged
+
+### What was done
+
+- **`admin/settings.html`** — new Features section with 7 toggle switches (music, gallery, youthGallery, liveStream, messaging, groups, devotional); loads from `/config/features`; `saveFeatures()` writes the full flag set with `.set()` (not merge — full document is authoritative)
+- **`js/main.js`** — `applyFeatures()` reads `/config/features` after auth: hides `[data-feature]` nav links for disabled features, hides `[data-feature-tab]` elements (e.g. Youth tab), redirects the current page to `/admin/` or `/members/` if `document.body.dataset.featureGate` is set and that feature is disabled
+- **`nav.html`** — `data-feature="gallery"` and `data-feature="music"` on Gallery and Music links (desktop + mobile)
+- **`members-nav.html`** — `data-feature` on Groups, Devotional, Gallery, Live Stream, Messages (desktop dropdown + mobile menu)
+- **`admin-nav.html`** — `data-feature` on Gallery, Music, Groups, Devotional (desktop + mobile)
+- **4 admin pages** (`music`, `gallery`, `groups`, `devotional`) — `data-feature-gate` added to `<body>` tag
+- **5 member pages** (`live`, `messages`, `groups`, `devotional`, `gallery`) — `data-feature-gate` added to `<body>` tag
+- **`members/gallery.html`** — `data-feature-tab="youthGallery"` on the Youth tab button (independent of main gallery flag)
+- **`service-worker.js`** — cache v36 → v37
+
+### Notes / decisions
+
+- No `/config/features` Firestore doc needs to exist — missing doc means all features enabled (safe default, no action required for EGC)
+- `saveFeatures()` uses `.set()` not `.set({ merge: true })` — the full 7-flag document is always written so the stored state exactly matches the UI
+- Nav hiding applies to authenticated users only (Firestore `/config/` requires auth to read). Unauthenticated visitors see all nav items — acceptable since all EGC features are enabled
+- Page-level `data-feature-gate` redirect fires after auth resolves — there is a brief flash of page content before redirect for disabled pages, consistent with the existing auth guard behaviour
+- `applyFeatures()` called alongside `applyBranding()` in `updateLoginButtons(user)`
+
+---
+
+## Session: Phase 8c branding — colour pickers, logo upload, CSS vars (Session 65)
+
+**Date:** 2026-06-12
+**Branch:** `feat/phase8c-branding` (PR #89)
+**Status:** Merged and deployed
+
+### What was done
+
+- **`assets/css/custom.css`** — new file with `--color-primary` (`#0A3D62`) and `--color-accent` (`#F59E0B`) CSS custom properties
+- **`admin/settings.html`** — new Branding section: primary/accent colour inputs synced bidirectionally with `<input type="color">` pickers; logo upload with live preview; backed by `/config/branding`; added `firebase-storage-compat.js` and `storage-upload.js`
+- **`js/main.js`** — `applyBranding()` reads `/config/branding` after auth, sets CSS vars on `:root`, swaps `#nav-logo-area` to a custom `<img>` when `logoUrl` is set
+- **`nav.html` / `admin-nav.html` / `members-nav.html`** — `id="nav-logo-area"` on logo wrapper div in all three nav files
+- **`storage.rules`** — `/branding/{fileName}` path: public read, superadmin-only write
+- **`service-worker.js`** — cache v35 → v36; `/assets/css/custom.css` added to precache
+
+### Notes / decisions
+
+- Branding applies for authenticated users only — `/config/` requires auth to read
+- Logo stored at `branding/logo` in Firebase Storage; uploading a new file overwrites the same path
+- `firebase deploy --only storage` run after merge
 
 ---
 
