@@ -10,8 +10,16 @@
         "functions/**",
         "CLAUDE.md",
         "PROGRESS.md",
+        "PROGRESS-archive.md",
         "ENVIRONMENT.md",
-        "README.md"
+        "README.md",
+        "SETUP.md",
+        "setup.ps1",
+        "setup.sh",
+        "docs/**",
+        "tests/**",
+        "package.json",
+        "package-lock.json"
       ],
       "rewrites": [
         { "source": "/feed.xml", "function": "podcastFeed" }
@@ -27,8 +35,16 @@
         "functions/**",
         "CLAUDE.md",
         "PROGRESS.md",
+        "PROGRESS-archive.md",
         "ENVIRONMENT.md",
-        "README.md"
+        "README.md",
+        "SETUP.md",
+        "setup.ps1",
+        "setup.sh",
+        "docs/**",
+        "tests/**",
+        "package.json",
+        "package-lock.json"
       ],
       "rewrites": [
         { "source": "/feed.xml", "function": "podcastFeed" }
