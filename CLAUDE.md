@@ -787,6 +787,6 @@ The agentic-style local workflow:
 - [x] **Phase 6 — Permissions & Roles** — complete and deployed (`docs/PERMISSIONS.md`)
 - [x] **Phase 7 — Adaptive Homepage** — complete and deployed (`docs/HOMEPAGE.md`)
 - [x] **Phase 8 — Multi-Church Template** — complete and deployed (`docs/PHASE8.md`)
-- [ ] **Phase 9 — Page Composition** — not started (depends on Phase 8)
+- [x] **Phase 9 — Page Composition** — complete and deployed (`docs/PHASE9.md`)
 
 Future improvements and backlog tracked in `docs/ROADMAP.md`.
