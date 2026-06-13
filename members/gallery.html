@@ -23,7 +23,7 @@
     }
   </style>
 </head>
-<body class="bg-zinc-50 font-sans">
+<body class="bg-zinc-50 font-sans" data-feature-gate="gallery">
 
   <div id="nav-placeholder"></div>
 
@@ -46,7 +46,7 @@
               class="audience-btn px-4 py-2 rounded-full text-sm font-medium border border-zinc-200 text-zinc-600 hover:border-zinc-300 transition-all">
         Members
       </button>
-      <button onclick="setAudience('youth')" id="btn-youth"
+      <button onclick="setAudience('youth')" id="btn-youth" data-feature-tab="youthGallery"
               class="audience-btn px-4 py-2 rounded-full text-sm font-medium border border-zinc-200 text-zinc-600 hover:border-zinc-300 transition-all">
         Youth
       </button>

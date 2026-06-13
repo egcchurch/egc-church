@@ -176,6 +176,98 @@
       </div>
     </div>
 
+    <!-- Features -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+      <h2 class="text-lg font-bold text-[#0A3D62] mb-1">Features</h2>
+      <p class="text-sm text-gray-500 mb-6">Disable unused modules to hide them from navigation and redirect their admin pages.</p>
+      <div class="divide-y divide-gray-50">
+
+        <div class="flex items-center justify-between py-4">
+          <div>
+            <p class="text-sm font-medium text-gray-700">Music Library</p>
+            <p class="text-xs text-gray-400">Public music page, streaming, and admin music management</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="f-feat-music" class="sr-only peer" checked>
+            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-amber-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+          </label>
+        </div>
+
+        <div class="flex items-center justify-between py-4">
+          <div>
+            <p class="text-sm font-medium text-gray-700">Photo Gallery</p>
+            <p class="text-xs text-gray-400">Public gallery, members gallery, and admin gallery management</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="f-feat-gallery" class="sr-only peer" checked>
+            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-amber-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+          </label>
+        </div>
+
+        <div class="flex items-center justify-between py-4">
+          <div>
+            <p class="text-sm font-medium text-gray-700">Youth Gallery</p>
+            <p class="text-xs text-gray-400">Youth tab within the members gallery page</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="f-feat-youthGallery" class="sr-only peer" checked>
+            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-amber-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+          </label>
+        </div>
+
+        <div class="flex items-center justify-between py-4">
+          <div>
+            <p class="text-sm font-medium text-gray-700">Live Stream</p>
+            <p class="text-xs text-gray-400">Members live stream page</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="f-feat-liveStream" class="sr-only peer" checked>
+            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-amber-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+          </label>
+        </div>
+
+        <div class="flex items-center justify-between py-4">
+          <div>
+            <p class="text-sm font-medium text-gray-700">Direct Messaging</p>
+            <p class="text-xs text-gray-400">Member-to-member direct messaging</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="f-feat-messaging" class="sr-only peer" checked>
+            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-amber-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+          </label>
+        </div>
+
+        <div class="flex items-center justify-between py-4">
+          <div>
+            <p class="text-sm font-medium text-gray-700">Small Groups</p>
+            <p class="text-xs text-gray-400">Members groups page and admin groups management</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="f-feat-groups" class="sr-only peer" checked>
+            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-amber-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+          </label>
+        </div>
+
+        <div class="flex items-center justify-between py-4">
+          <div>
+            <p class="text-sm font-medium text-gray-700">Daily Devotional</p>
+            <p class="text-xs text-gray-400">Members devotional page and admin devotional management</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="f-feat-devotional" class="sr-only peer" checked>
+            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-amber-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+          </label>
+        </div>
+
+      </div>
+      <div class="mt-6 flex justify-end">
+        <button onclick="saveFeatures()"
+                class="bg-amber-500 hover:bg-amber-600 text-white px-8 py-2.5 rounded-full text-sm font-medium transition-all">
+          Save Features
+        </button>
+      </div>
+    </div>
+
   </main>
 
   <script src="/firebase-config.js"></script>
@@ -222,10 +314,12 @@
         db.doc('config/church').get(),
         db.doc('config/notifications').get(),
         db.doc('config/branding').get(),
+        db.doc('config/features').get(),
       ]).then(function (results) {
-        var church   = results[0].exists ? results[0].data() : {};
-        var notif    = results[1].exists ? results[1].data() : {};
-        var branding = results[2].exists ? results[2].data() : {};
+        var church    = results[0].exists ? results[0].data() : {};
+        var notif     = results[1].exists ? results[1].data() : {};
+        var branding  = results[2].exists ? results[2].data() : {};
+        var features  = results[3].exists ? results[3].data() : {};
         var social   = church.socialLinks || {};
 
         document.getElementById('f-display-name').value = church.displayName || '';
@@ -251,6 +345,11 @@
           document.getElementById('current-logo').src = branding.logoUrl;
           document.getElementById('logo-preview').classList.remove('hidden');
         }
+
+        ['music', 'gallery', 'youthGallery', 'liveStream', 'messaging', 'groups', 'devotional'].forEach(function (key) {
+          var el = document.getElementById('f-feat-' + key);
+          if (el && features[key] === false) el.checked = false;
+        });
       }).catch(function (err) {
         toast('Failed to load settings: ' + err.message, true);
       });
@@ -323,6 +422,23 @@
       uploadStep
         .then(function () { return db.doc('config/branding').set(data, { merge: true }); })
         .then(function () { toast('Branding saved.'); })
+        .catch(function (err) { toast('Error: ' + err.message, true); });
+    }
+
+    // ── Save features ────────────────────────────────────────────────────────
+
+    function saveFeatures() {
+      var data = {
+        music:        document.getElementById('f-feat-music').checked,
+        gallery:      document.getElementById('f-feat-gallery').checked,
+        youthGallery: document.getElementById('f-feat-youthGallery').checked,
+        liveStream:   document.getElementById('f-feat-liveStream').checked,
+        messaging:    document.getElementById('f-feat-messaging').checked,
+        groups:       document.getElementById('f-feat-groups').checked,
+        devotional:   document.getElementById('f-feat-devotional').checked,
+      };
+      db.doc('config/features').set(data)
+        .then(function () { toast('Features saved.'); })
         .catch(function (err) { toast('Error: ' + err.message, true); });
     }
 
