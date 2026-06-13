@@ -110,6 +110,7 @@ async function updateLoginButtons(user) {
     }
 
     applyBranding();
+    applyFeatures();
 
     const displayName = user.displayName ? user.displayName.split(' ')[0] : 'Member';
     const isAdmin  = userData.isSuperadmin === true ||
@@ -249,6 +250,36 @@ async function applyBranding() {
     }
   } catch (_) {
     // fail silently — defaults remain
+  }
+}
+
+// ── Feature flags ──
+
+async function applyFeatures() {
+  if (typeof firebase === 'undefined') return;
+  try {
+    const doc = await firebase.firestore().doc('config/features').get();
+    const flags = doc.exists ? doc.data() : {};
+
+    // Hide nav links and any element tagged with a disabled feature
+    document.querySelectorAll('[data-feature]').forEach(el => {
+      if (flags[el.dataset.feature] === false) el.style.display = 'none';
+    });
+
+    // Hide tabs/sections within a page (e.g. Youth tab in members/gallery.html)
+    document.querySelectorAll('[data-feature-tab]').forEach(el => {
+      if (flags[el.dataset.featureTab] === false) el.style.display = 'none';
+    });
+
+    // Redirect away from a page whose feature is disabled
+    const gate = document.body.dataset.featureGate;
+    if (gate && flags[gate] === false) {
+      window.location.replace(
+        window.location.pathname.startsWith('/admin/') ? '/admin/' : '/members/'
+      );
+    }
+  } catch (_) {
+    // fail silently — all features default to enabled
   }
 }
 
