@@ -238,5 +238,5 @@ Two PRs. 9a wires the client-side plumbing; 9b adds the admin control surface.
 
 | Sub-phase | Status |
 |---|---|
-| 9a — Foundation | Not started |
-| 9b — Admin pages UI | Not started |
+| 9a — Foundation | Complete — PR #96 |
+| 9b — Admin pages UI | Complete — PR #97 |

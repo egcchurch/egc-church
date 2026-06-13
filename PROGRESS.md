@@ -10,7 +10,42 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-14
-**Current milestone:** Phase 8 — Multi-Church Template (Phase 8e complete — Phase 8 DONE)
+**Current milestone:** Phase 9 — Page Composition (complete — both sub-phases done)
+
+---
+
+## Session: Phase 9 — page composition (Session 68)
+
+**Date:** 2026-06-14
+**Branches:** `feat/phase9-page-composition` (PR #96), `feat/phase9b-admin-pages-ui` (PR #97)
+**Status:** Merged
+
+### What was done
+
+**9a — Foundation (PR #96)**
+
+- **`js/main.js`** — `applySections(pageId)` added. Reads `/config/pages` Firestore doc (publicly readable), sorts sections by `order`, hides disabled `[data-section]` elements, reorders sections within `[data-sections-container]`; called on `nav-loaded` for all visitors
+- **`index.html`** — restructured with `data-page-sections="homepage"` on `<body>`. Service times section tagged `data-section="serviceTimes"`. New `<div data-sections-container="homepage">` wraps three composable sections: `latestSermons`, `explore`, `connectCta`. `latestSermons` is a new section populated by `homepage.js`; `connectCta` is a new "Plan a visit" CTA banner.
+- **`about.html`** — `data-page-sections="about"` on body. Both sections (mission + leadership) wrapped in `<div data-sections-container="about">` with `data-section` attributes.
+- **`members/index.html`** — `data-page-sections="members"` on body. Grid gets `data-sections-container="members"`. Each card gets `data-section` + `data-feature` (Groups, Devotional, Gallery, LiveStream).
+- **`js/homepage.js`** — `loadLatestSermons(3)` + `renderLatestSermons(sermons)` added. Populates `#latest-sermons-grid` with YouTube thumbnail, title, speaker, date for 3 most recent published sermons. Runs for all visitors (not gated behind auth).
+- **`firestore.rules`** — `/config/{document}` rule updated: `allow read: if isSignedIn() || document == 'pages'` — makes section order publicly readable for unauthenticated visitors.
+- **`service-worker.js`** — cache v37 → v38
+- **`docs/PHASE9.md`** — full spec created
+
+**9b — Admin UI (PR #97)**
+
+- **`admin/pages.html`** — new superadmin-only page. Three tabs (Homepage, About, Members). Each section row shows: name, description, "Edit content" link, toggle switch (hero non-hideable), up/down reorder buttons. Changes save to `/config/pages` on every action with a "Saved" toast. Non-superadmins see an access-denied state.
+- **`admin/index.html`** — "Page Layout" dashboard card added (teal icon, `data-superadmin` gate, hidden for non-superadmins)
+- **`service-worker.js`** — `/admin/pages.html` added to precache; cache v38 → v39
+
+### Notes / decisions
+
+- `/config/pages` is a single Firestore doc (not subcollections): `{ homepage: { sections: [...] }, about: {...}, members: {...} }` — one write per tab update
+- Hero section is excluded from toggle in the admin UI (non-hideable by design — removing it would break the page)
+- `latestSermons` query uses `orderBy('date','desc')` — `date` is a string field (YYYY-MM-DD), so lexicographic sort is correct
+- `members/index.html` dashboard cards now have both `data-section` (section composition) and `data-feature` (feature flags) — feature flags take precedence (hiding a feature also hides its card regardless of section config)
+- Kept `upcomingEvents` out of the homepage composable sections (adaptive section already shows upcoming events for members; adding a public version would cause visible duplication)
 
 ---
 
