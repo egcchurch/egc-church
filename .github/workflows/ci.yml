@@ -1,5 +1,28 @@
 name: CI Checks
 
+# Runs on every PR. Three checks must pass before a PR can be merged:
+#   1. lint-links    — scans HTML files for broken internal links
+#   2. sw-cache-check — verifies service-worker.js cache list matches the HTML pages on disk
+#                       (add new HTML pages to both the site AND service-worker.js PRECACHE_URLS)
+#   3. security-rules — runs Firestore security rules tests against a local emulator
+#
+# NEW CHURCH SETUP — two GitHub secrets required for this workflow:
+#   FIREBASE_SERVICE_ACCOUNT
+#     Used by the Firebase emulator to authenticate during rules tests.
+#     Firebase console > Project settings > Service accounts > Generate new private key
+#     GitHub repo > Settings > Secrets and variables > Actions > New repository secret
+#     Name:  FIREBASE_SERVICE_ACCOUNT
+#     Value: paste the full contents of the downloaded JSON key file
+#
+#   FIREBASE_TOKEN
+#     A CI login token for the Firebase CLI (alternative to service account for CLI commands).
+#     Run `firebase login:ci` in your terminal and copy the token it prints.
+#     GitHub repo > Settings > Secrets and variables > Actions > New repository secret
+#     Name:  FIREBASE_TOKEN
+#     Value: paste the token
+#
+# No values in this file need to change for a new church — the secrets above are all that is needed.
+
 on:
   pull_request:
     branches: [main]

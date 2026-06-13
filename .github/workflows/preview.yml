@@ -1,5 +1,17 @@
 name: PR Preview Deploy
 
+# Deploys each PR to a temporary Firebase Hosting preview channel on your
+# staging site. The preview URL is posted as a comment on the PR automatically.
+# Old preview channels are cleaned up when a new PR is opened.
+#
+# NEW CHURCH SETUP — three values to change in this file:
+#   1. projectId (near the bottom) — replace "egc-church" with your Firebase project ID
+#   2. The two occurrences of "egc-staging777" — replace with your staging site name
+#      (the site name you created in Firebase Hosting for staging, e.g. "grace-staging")
+#   3. Add FIREBASE_SERVICE_ACCOUNT to your GitHub repo secrets (see deploy.yml for instructions)
+#
+# Your staging and production site names are set in .firebaserc under "targets".
+
 on:
   pull_request:
     branches: [main]
@@ -31,6 +43,7 @@ jobs:
               data = json.load(f)
           current = os.environ.get('CURRENT', '')
           token = os.environ.get('TOKEN', '')
+          # CHANGE: replace egc-church with your project ID, egc-staging777 with your staging site name
           base = 'https://firebasehosting.googleapis.com/v1beta1/projects/egc-church/sites/egc-staging777/channels'
           for ch in data.get('channels', []):
               name = ch.get('name', '').split('/')[-1]
@@ -53,6 +66,6 @@ jobs:
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: egc-church
+          projectId: egc-church   # <-- CHANGE THIS to your Firebase project ID
           target: staging
           channelId: pr-${{ github.event.number }}
