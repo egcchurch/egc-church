@@ -156,7 +156,10 @@ exports.requestMemberAccess = functions.https.onCall(async (data, context) => {
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  // Notify all admins with users.approve permission (superadmins + extraPermissions holders)
+  // Notify all admins with users.approve permission:
+  //   1. isSuperadmin === true
+  //   2. 'users.approve' in extraPermissions (direct grant)
+  //   3. roles array contains a role whose permissions includes 'users.approve'
   const displayName = userData.displayName || userData.email || 'A user';
   const notifPayload = {
     title: 'Membership Request',
@@ -167,15 +170,26 @@ exports.requestMemberAccess = functions.https.onCall(async (data, context) => {
     read: false,
   };
 
-  const [superadminSnap, extraPermSnap] = await Promise.all([
+  // Step 1: find role IDs that grant users.approve
+  const rolesSnap = await db.collection('roles')
+    .where('permissions', 'array-contains', 'users.approve')
+    .get();
+  const approveRoleIds = rolesSnap.docs.map(d => d.id);
+
+  // Step 2: query all three approval paths in parallel
+  const queries = [
     db.collection('users').where('isSuperadmin', '==', true).get(),
     db.collection('users').where('extraPermissions', 'array-contains', 'users.approve').get(),
-  ]);
+  ];
+  // Firestore array-contains-any supports up to 30 values
+  if (approveRoleIds.length > 0) {
+    queries.push(
+      db.collection('users').where('roles', 'array-contains-any', approveRoleIds).get()
+    );
+  }
 
-  const adminUids = new Set([
-    ...superadminSnap.docs.map(d => d.id),
-    ...extraPermSnap.docs.map(d => d.id),
-  ]);
+  const snaps = await Promise.all(queries);
+  const adminUids = new Set(snaps.flatMap(s => s.docs.map(d => d.id)));
   adminUids.delete(uid); // don't notify the requester
 
   const batch = db.batch();
