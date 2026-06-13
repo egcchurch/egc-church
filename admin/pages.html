@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>Page Layout | EGC Admin</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans overflow-x-hidden">
+
+  <div id="nav-placeholder"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-3xl mx-auto">
+      <h1 class="text-3xl font-bold tracking-tight">Page Layout</h1>
+      <p class="text-blue-200 mt-1">Toggle and reorder sections on key pages — superadmin only</p>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast"
+       class="hidden fixed bottom-6 right-6 z-50 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-xl text-sm transition-all">
+  </div>
+
+  <!-- ACCESS DENIED -->
+  <div id="access-denied" class="hidden max-w-3xl mx-auto px-6 py-20 text-center">
+    <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+      <i class="fas fa-lock text-amber-600 text-2xl"></i>
+    </div>
+    <h2 class="text-xl font-bold text-gray-900 mb-2">Superadmin only</h2>
+    <p class="text-gray-500 mb-6">Page layout can only be changed by a superadmin.</p>
+    <a href="/admin/" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+      Back to Dashboard
+    </a>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <main id="main-content" class="hidden max-w-3xl mx-auto px-6 py-10">
+
+    <!-- Tabs -->
+    <div class="flex gap-1 bg-zinc-100 rounded-2xl p-1 mb-8">
+      <button class="page-tab flex-1 py-2 rounded-xl text-sm font-medium transition-all"
+              data-page="homepage">Homepage</button>
+      <button class="page-tab flex-1 py-2 rounded-xl text-sm font-medium transition-all"
+              data-page="about">About</button>
+      <button class="page-tab flex-1 py-2 rounded-xl text-sm font-medium transition-all"
+              data-page="members">Members</button>
+    </div>
+
+    <!-- Section list (rendered by JS) -->
+    <div id="section-list" class="space-y-3"></div>
+
+    <p class="text-xs text-gray-400 mt-6 text-center">
+      Changes save instantly. If no config exists, all sections are shown in their natural order.
+    </p>
+
+  </main>
+
+  <script src="/firebase-config.js"></script>
+  <script src="/js/permissions.js"></script>
+  <script src="/js/admin-auth.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    var db = firebase.firestore();
+
+    // ── Page definitions ───────────────────────────────────────────────────────
+    // hideable: false  => toggle is greyed out (hero cannot be hidden)
+    // editUrl: null    => no "Edit content" link shown
+
+    var PAGE_DEFS = {
+      homepage: {
+        label: 'Homepage',
+        sections: [
+          { id: 'hero',          label: 'Video Hero',       desc: 'Full-screen video with tagline',                    hideable: false, editUrl: '/admin/homepage.html' },
+          { id: 'serviceTimes',  label: 'Service Times',    desc: '"Join Us" schedule grid',                           hideable: true,  editUrl: '/admin/homepage.html' },
+          { id: 'latestSermons', label: 'Latest Sermons',   desc: '3 most recent published sermons',                   hideable: true,  editUrl: '/admin/sermons.html'  },
+          { id: 'explore',       label: 'Explore',          desc: 'Quick-links grid (Sermons, Events, Music, Connect)', hideable: true,  editUrl: null                   },
+          { id: 'connectCta',    label: 'Plan a Visit CTA', desc: 'Call-to-action banner linking to /connect',          hideable: true,  editUrl: '/admin/settings.html' },
+        ]
+      },
+      about: {
+        label: 'About Page',
+        sections: [
+          { id: 'mission',    label: 'Who We Are',    desc: 'Church mission statement and intro text', hideable: true, editUrl: null                },
+          { id: 'leadership', label: 'Our Leadership', desc: 'Leadership team profile grid',            hideable: true, editUrl: '/admin/team.html'  },
+        ]
+      },
+      members: {
+        label: 'Members Dashboard',
+        sections: [
+          { id: 'directory',  label: 'Member Directory', desc: 'Directory of approved members',   hideable: true, editUrl: null                      },
+          { id: 'groups',     label: 'Small Groups',     desc: 'Browse and join small groups',    hideable: true, editUrl: '/admin/groups.html'       },
+          { id: 'prayer',     label: 'Prayer Requests',  desc: 'Submit and view prayer requests', hideable: true, editUrl: '/admin/prayer.html'       },
+          { id: 'devotional', label: 'Daily Devotional', desc: 'Daily devotional messages',       hideable: true, editUrl: '/admin/devotional.html'   },
+          { id: 'gallery',    label: 'Members Gallery',  desc: 'Members and youth galleries',     hideable: true, editUrl: '/admin/gallery.html'      },
+          { id: 'liveStream', label: 'Live Stream',      desc: 'Live service streaming page',     hideable: true, editUrl: '/admin/homepage.html'     },
+        ]
+      }
+    };
+
+    // ── State ──────────────────────────────────────────────────────────────────
+    // pageState[pageId] = [{id, enabled, order}, ...]
+    var pageState = {};
+    var activePage = 'homepage';
+
+    // ── Auth gate ──────────────────────────────────────────────────────────────
+
+    firebase.auth().onAuthStateChanged(function (user) {
+      if (!user) return;
+      user.getIdTokenResult().then(function (result) {
+        if (result.claims.superadmin !== true) {
+          document.getElementById('access-denied').classList.remove('hidden');
+          return;
+        }
+        document.getElementById('main-content').classList.remove('hidden');
+        init();
+      });
+    });
+
+    // ── Init ───────────────────────────────────────────────────────────────────
+
+    function init() {
+      // Wire tab buttons
+      document.querySelectorAll('.page-tab').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          activePage = btn.dataset.page;
+          renderTabs();
+          renderSections();
+        });
+      });
+
+      // Load Firestore config and merge with defaults
+      db.doc('config/pages').get().then(function (snap) {
+        var saved = snap.exists ? snap.data() : {};
+        Object.keys(PAGE_DEFS).forEach(function (pageId) {
+          pageState[pageId] = mergeWithDefaults(pageId, saved[pageId]);
+        });
+        renderTabs();
+        renderSections();
+      }).catch(function () {
+        Object.keys(PAGE_DEFS).forEach(function (pageId) {
+          pageState[pageId] = mergeWithDefaults(pageId, null);
+        });
+        renderTabs();
+        renderSections();
+      });
+    }
+
+    // Build a merged, sorted sections array from saved Firestore data + defaults.
+    // New sections (not in Firestore) are appended at the end, enabled by default.
+    function mergeWithDefaults(pageId, saved) {
+      var defs = PAGE_DEFS[pageId].sections;
+      var savedList = (saved && Array.isArray(saved.sections)) ? saved.sections : [];
+
+      // Index saved sections by id for fast lookup
+      var savedById = {};
+      savedList.forEach(function (s) { savedById[s.id] = s; });
+
+      var result = defs.map(function (def, i) {
+        var s = savedById[def.id];
+        return {
+          id:      def.id,
+          enabled: s ? (s.enabled !== false) : true,
+          order:   s ? (s.order || i + 1) : i + 1,
+        };
+      });
+
+      // Sort by order so the list reflects current Firestore ordering
+      result.sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+      return result;
+    }
+
+    // ── Render tabs ────────────────────────────────────────────────────────────
+
+    function renderTabs() {
+      document.querySelectorAll('.page-tab').forEach(function (btn) {
+        var isActive = btn.dataset.page === activePage;
+        btn.className = isActive
+          ? 'page-tab flex-1 py-2 rounded-xl text-sm font-medium transition-all bg-white shadow-sm text-[#0A3D62]'
+          : 'page-tab flex-1 py-2 rounded-xl text-sm font-medium transition-all text-gray-500 hover:text-gray-700';
+      });
+    }
+
+    // ── Render section list ────────────────────────────────────────────────────
+
+    function renderSections() {
+      var list  = pageState[activePage];
+      var defs  = PAGE_DEFS[activePage].sections;
+      var defById = {};
+      defs.forEach(function (d) { defById[d.id] = d; });
+
+      var html = list.map(function (s, idx) {
+        var def = defById[s.id] || {};
+        var isFirst  = idx === 0;
+        var isLast   = idx === list.length - 1;
+        var notHideable = def.hideable === false;
+        var toggleBg = notHideable
+          ? 'bg-gray-200 cursor-not-allowed'
+          : (s.enabled ? 'bg-amber-500' : 'bg-gray-200');
+        var thumbPos = s.enabled ? 'translate-x-5' : 'translate-x-0';
+
+        return `
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4" data-section-idx="${idx}">
+            <!-- Reorder buttons -->
+            <div class="flex flex-col gap-1">
+              <button
+                class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-zinc-100 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                onclick="moveSection(${idx}, -1)" ${isFirst ? 'disabled' : ''}
+                title="Move up">
+                <i class="fas fa-chevron-up text-xs"></i>
+              </button>
+              <button
+                class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-zinc-100 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                onclick="moveSection(${idx}, 1)" ${isLast ? 'disabled' : ''}
+                title="Move down">
+                <i class="fas fa-chevron-down text-xs"></i>
+              </button>
+            </div>
+
+            <!-- Section info -->
+            <div class="flex-1 min-w-0">
+              <p class="font-semibold text-[#0A3D62] text-sm">${esc(def.label || s.id)}</p>
+              <p class="text-xs text-gray-400 mt-0.5">${esc(def.desc || '')}</p>
+              ${def.editUrl ? `<a href="${def.editUrl}" class="text-xs text-amber-600 hover:text-amber-700 mt-1 inline-block">Edit content →</a>` : ''}
+            </div>
+
+            <!-- Toggle -->
+            <button
+              class="shrink-0 flex items-center gap-2 ${notHideable ? 'cursor-not-allowed' : 'cursor-pointer'}"
+              onclick="${notHideable ? '' : `toggleSection(${idx})`}"
+              title="${notHideable ? 'This section cannot be hidden' : (s.enabled ? 'Click to hide' : 'Click to show')}">
+              <span class="text-xs ${s.enabled ? 'text-gray-700' : 'text-gray-400'}">${s.enabled ? 'Shown' : 'Hidden'}</span>
+              <div class="w-11 h-6 rounded-full ${toggleBg} transition-colors relative">
+                <div class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${thumbPos}"></div>
+              </div>
+              ${notHideable ? `<i class="fas fa-lock text-gray-300 text-xs ml-1" title="Cannot be hidden"></i>` : ''}
+            </button>
+          </div>`;
+      }).join('');
+
+      document.getElementById('section-list').innerHTML = html;
+    }
+
+    // ── Actions ────────────────────────────────────────────────────────────────
+
+    function toggleSection(idx) {
+      var list = pageState[activePage];
+      var def  = PAGE_DEFS[activePage].sections.find(function (d) { return d.id === list[idx].id; });
+      if (def && def.hideable === false) return;
+      list[idx] = Object.assign({}, list[idx], { enabled: !list[idx].enabled });
+      renderSections();
+      savePageState();
+    }
+
+    function moveSection(idx, direction) {
+      var list  = pageState[activePage];
+      var swapIdx = idx + direction;
+      if (swapIdx < 0 || swapIdx >= list.length) return;
+      var tmp       = list[idx];
+      list[idx]     = list[swapIdx];
+      list[swapIdx] = tmp;
+      renderSections();
+      savePageState();
+    }
+
+    // Persist current state for activePage to Firestore
+    function savePageState() {
+      var list = pageState[activePage];
+      var sections = list.map(function (s, i) {
+        return { id: s.id, enabled: s.enabled, order: i + 1 };
+      });
+
+      var update = {};
+      update[activePage] = { sections: sections };
+
+      db.doc('config/pages').set(update, { merge: true })
+        .then(function () { showToast('Saved'); })
+        .catch(function (err) { showToast('Error: ' + err.message); });
+    }
+
+    // ── Toast ──────────────────────────────────────────────────────────────────
+
+    var toastTimer;
+    function showToast(msg) {
+      var el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { el.classList.add('hidden'); }, 2000);
+    }
+
+    // ── Escape helper ──────────────────────────────────────────────────────────
+
+    function esc(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>

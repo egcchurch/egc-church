@@ -40,7 +40,7 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-const CACHE_NAME = 'egc-cache-v38';
+const CACHE_NAME = 'egc-cache-v39';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -80,6 +80,7 @@ const PRECACHE_URLS = [
   '/admin/homepage.html',
   '/admin/notifications.html',
   '/admin/settings.html',
+  '/admin/pages.html',
   '/admin/gallery.html',
   '/admin/music.html',
   '/firebase-config.js',
