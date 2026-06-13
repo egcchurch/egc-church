@@ -9,8 +9,31 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-06-13
-**Current milestone:** Phase 8 — Multi-Church Template (Phase 8d complete)
+**Last worked on:** 2026-06-14
+**Current milestone:** Phase 8 — Multi-Church Template (Phase 8e complete — Phase 8 DONE)
+
+---
+
+## Session: Phase 8e template packaging (Session 67)
+
+**Date:** 2026-06-14
+**Branch:** `feat/phase8e-template-packaging` (PR #92)
+**Status:** Merged
+
+### What was done
+
+- **`setup.ps1`** — Windows PowerShell setup script. Takes `-ChurchName`, `-ShortName`, and optional `-Domain` parameters. Replaces all EGC/Emmanuel Gospel Centre placeholder text in: HTML page titles, nav logo spans (`>EMMANUEL<` / `>GOSPEL CENTRE<`), `manifest.json` name/short_name/description, `church-config.js` name/shortName/domain, and the PWA install prompt in `js/main.js`. Uses `UTF8Encoding(false)` to preserve file encoding without BOM. Idempotent.
+- **`setup.sh`** — Bash equivalent for Mac/Linux. Auto-detects BSD (`macOS`) vs GNU (`Linux`) `sed` for cross-platform in-place edits. Produces identical replacements.
+- **`SETUP.md`** — 10-step new-church setup guide: Firebase project creation, Auth/Firestore/Storage/Hosting/Functions enablement, `firebase-config.js` replacement, running the setup script, editing `church-config.js`, setting Functions config vars, updating `.firebaserc`/`firebase.json`, `firebase deploy`, first superadmin via Firestore console, and completing branding/features via `/admin/settings`.
+- **Repo marked as GitHub template** — `is_template: true` set via GitHub API. "Use this template" button now appears on the repo page.
+
+### Notes / decisions
+
+- Single-word church names (e.g. "Bethel") use the short name as the nav logo second line to avoid an empty span
+- Script is a one-time utility, not a build tool — run once at fork time and never again
+- `setup.sh` uses `cksum` to detect whether each file changed (prints "Updated" only for modified files)
+- `setup.ps1` stores the UTF-8 no-BOM encoder in a variable and reuses it across all file writes
+- No SW cache change needed — no new HTML pages added in this phase
 
 ---
 

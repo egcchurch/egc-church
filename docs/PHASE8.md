@@ -267,7 +267,14 @@ which builds on the `/config/` infrastructure established here.
 | 8b — Admin settings UI | Done (PR #87, 2026-06-12) |
 | 8c — Branding/theming | Done (PR #89, 2026-06-12) |
 | 8d — Feature flags | Done (PR #90, 2026-06-13) |
-| 8e — Template packaging | Not started |
+| 8e — Template packaging | Done (PR #92, 2026-06-14) |
+
+### 8e notes
+
+- `setup.ps1` / `setup.sh` are one-time utilities — run once at fork time, never again
+- Single-word church names fall back to ShortName for the nav logo second line
+- Repo is now a GitHub template (`is_template: true`) — new churches click "Use this template"
+- No SW cache bump needed — no new pages
 
 ### 8d notes
 
