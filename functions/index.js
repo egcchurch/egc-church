@@ -88,6 +88,37 @@ exports.syncUserNotificationEligibility = functions.firestore
     return null;
   });
 
+// ── welcomeNewMember ──────────────────────────────────────────────────────────
+// Triggered on any write to /users/{uid}.
+// When membership is promoted to 'member' for the first time, writes a
+// welcome in-app notification so the user sees it on their next visit.
+
+exports.welcomeNewMember = functions.firestore
+  .document('users/{uid}')
+  .onWrite(async (change, context) => {
+    if (!change.after.exists) return null;
+
+    const after  = change.after.data();
+    const before = change.before.exists ? change.before.data() : null;
+
+    const wasMember = before && before.membership === 'member';
+    const isMember  = after.membership === 'member';
+
+    if (!wasMember && isMember) {
+      const { uid } = context.params;
+      await db.collection('users').doc(uid).collection('notifications').add({
+        title: 'Welcome to the members area!',
+        body: 'Your account has been approved. Explore the members area, join a group, or share a prayer request.',
+        type: 'welcome',
+        linkUrl: '/members/index.html',
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+      });
+      console.log(`welcomeNewMember: sent welcome notification to ${uid}`);
+    }
+    return null;
+  });
+
 // ── cleanupNonMemberTokens ────────────────────────────────────────────────────
 // Callable — superadmin only. One-time migration for Phase 7 PR 6.
 // Iterates all users and deletes fcmTokens subcollections for any user whose
