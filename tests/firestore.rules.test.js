@@ -191,6 +191,50 @@ describe('Firestore Security Rules', () => {
       const db = memberUser().firestore();
       await assertSucceeds(getDoc(doc(db, 'prayer', 'p1')));
     });
+
+    it('author can update status and testimony on own request', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), {
+          uid: 'member-uid', body: 'Pray for me', isAnonymous: false, isPrivate: false, prayedFor: [], status: 'active'
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'prayer', 'p1'), { status: 'answered', testimony: 'God provided!' }));
+    });
+
+    it('author cannot update body or uid on own request', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), {
+          uid: 'member-uid', body: 'Pray for me', isAnonymous: false, isPrivate: false, prayedFor: [], status: 'active'
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(updateDoc(doc(db, 'prayer', 'p1'), { body: 'Changed text' }));
+    });
+
+    it('other member cannot update status on someone else\'s request', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), {
+          uid: 'other-uid', body: 'Pray for me', isAnonymous: false, isPrivate: false, prayedFor: [], status: 'active'
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(updateDoc(doc(db, 'prayer', 'p1'), { status: 'answered' }));
+    });
+
+    it('moderator can update status on any prayer request', async () => {
+      await seedUser('editor-uid', { membership: 'member', isSuperadmin: false });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), {
+          uid: 'other-uid', body: 'Pray for me', isAnonymous: false, isPrivate: false, prayedFor: [], status: 'active'
+        });
+      });
+      const db = editorUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'prayer', 'p1'), { status: 'answered' }));
+    });
   });
 
   describe('Devotionals collection', () => {

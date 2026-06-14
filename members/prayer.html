@@ -71,13 +71,21 @@
 
   <!-- FILTER TABS -->
   <div class="bg-white border-b px-6">
-    <div class="max-w-7xl mx-auto flex gap-6 text-sm font-medium">
+    <div class="max-w-7xl mx-auto flex gap-6 text-sm font-medium overflow-x-auto">
       <button onclick="setFilter('all')" id="tab-all"
-              class="py-3 border-b-2 border-amber-500 text-amber-600 transition-colors">
-        All Requests
+              class="py-3 border-b-2 border-amber-500 text-amber-600 transition-colors whitespace-nowrap">
+        All
+      </button>
+      <button onclick="setFilter('active')" id="tab-active"
+              class="py-3 border-b-2 border-transparent text-zinc-500 hover:text-zinc-700 transition-colors whitespace-nowrap">
+        Active
+      </button>
+      <button onclick="setFilter('answered')" id="tab-answered"
+              class="py-3 border-b-2 border-transparent text-zinc-500 hover:text-zinc-700 transition-colors whitespace-nowrap">
+        Answered
       </button>
       <button onclick="setFilter('mine')" id="tab-mine"
-              class="py-3 border-b-2 border-transparent text-zinc-500 hover:text-zinc-700 transition-colors">
+              class="py-3 border-b-2 border-transparent text-zinc-500 hover:text-zinc-700 transition-colors whitespace-nowrap">
         My Requests
       </button>
     </div>
@@ -91,7 +99,7 @@
     </div>
     <div id="empty" class="hidden text-center py-16 text-zinc-400">
       <i class="fas fa-hands-praying text-5xl mb-4 opacity-30"></i>
-      <p class="text-lg font-medium">No prayer requests yet</p>
+      <p class="text-lg font-medium">No prayer requests</p>
     </div>
     <div id="prayer-list" class="space-y-4"></div>
   </main>
@@ -112,10 +120,12 @@
       document.getElementById('form-msg').classList.add('hidden');
     }
 
+    const FILTER_IDS = ['all', 'active', 'answered', 'mine'];
+
     function setFilter(filter) {
       currentFilter = filter;
-      ['all', 'mine'].forEach((f) => {
-        const tab = document.getElementById(`tab-${f}`);
+      FILTER_IDS.forEach((f) => {
+        const tab = document.getElementById('tab-' + f);
         if (f === filter) {
           tab.classList.add('border-amber-500', 'text-amber-600');
           tab.classList.remove('border-transparent', 'text-zinc-500', 'hover:text-zinc-700');
@@ -128,11 +138,13 @@
     }
 
     function renderList() {
-      const list = document.getElementById('prayer-list');
+      const list  = document.getElementById('prayer-list');
       const empty = document.getElementById('empty');
       list.innerHTML = '';
 
       let filtered = allRequests.filter((r) => !r.isPrivate);
+      if (currentFilter === 'active')   filtered = filtered.filter((r) => (r.status || 'active') === 'active');
+      if (currentFilter === 'answered') filtered = filtered.filter((r) => r.status === 'answered');
       if (currentFilter === 'mine' && currentUser) {
         filtered = allRequests.filter((r) => r.uid === currentUser.uid);
       }
@@ -144,20 +156,53 @@
       empty.classList.add('hidden');
 
       filtered.forEach((r) => {
-        const hasPrayed = currentUser && (r.prayedFor || []).includes(currentUser.uid);
-        const prayCount = (r.prayedFor || []).length;
+        const isAnswered   = r.status === 'answered';
+        const hasPrayed    = currentUser && (r.prayedFor || []).includes(currentUser.uid);
+        const prayCount    = (r.prayedFor || []).length;
+        const isOwn        = currentUser && r.uid === currentUser.uid;
+        const authorDisplay = r.isAnonymous ? 'Anonymous' : (r.authorName || 'Member');
         const date = r.submittedAt?.toDate
           ? r.submittedAt.toDate().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
           : '';
-        const authorDisplay = r.isAnonymous ? 'Anonymous' : (r.authorName || 'Member');
-        const isOwn = currentUser && r.uid === currentUser.uid;
+
+        const answeredBadge = isAnswered
+          ? '<span class="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs font-medium px-2.5 py-0.5 rounded-full"><i class="fas fa-check-circle text-xs"></i>Answered</span>'
+          : '';
+
+        const testimonyHtml = isAnswered && r.testimony
+          ? `<div class="mt-3 p-3 bg-green-50 border border-green-100 rounded-xl text-sm text-green-800">
+               <p class="font-medium text-xs text-green-600 mb-1"><i class="fas fa-quote-left mr-1"></i>Testimony</p>
+               <p class="whitespace-pre-wrap">${escapeHtml(r.testimony)}</p>
+             </div>`
+          : '';
+
+        // Controls for the request author
+        let ownerControls = '';
+        if (isOwn) {
+          if (!isAnswered) {
+            ownerControls = `
+              <button onclick="showTestimonyForm('${r.id}')"
+                      class="text-xs text-green-600 hover:text-green-700 font-medium border border-green-200 hover:border-green-300 px-3 py-1.5 rounded-full transition-all">
+                <i class="fas fa-check mr-1"></i>Mark as Answered
+              </button>`;
+          } else {
+            ownerControls = `
+              <button onclick="setStatus('${r.id}', 'active')"
+                      class="text-xs text-zinc-500 hover:text-zinc-700 font-medium border border-zinc-200 px-3 py-1.5 rounded-full transition-all">
+                Mark as Active
+              </button>`;
+          }
+        }
 
         const card = document.createElement('div');
-        card.className = 'bg-white rounded-2xl border border-zinc-200 shadow-sm p-6';
+        card.className = `bg-white rounded-2xl border shadow-sm p-6 ${isAnswered ? 'border-green-200' : 'border-zinc-200'}`;
+        card.id = 'card-' + r.id;
         card.innerHTML = `
           <div class="flex justify-between items-start gap-4">
             <div class="flex-1 min-w-0">
+              <div class="flex flex-wrap gap-2 mb-2">${answeredBadge}</div>
               <p class="text-zinc-700 leading-relaxed whitespace-pre-wrap">${escapeHtml(r.body)}</p>
+              ${testimonyHtml}
               <div class="mt-3 flex flex-wrap items-center gap-3 text-xs text-zinc-400">
                 <span><i class="fas fa-user mr-1"></i>${escapeHtml(authorDisplay)}</span>
                 ${date ? `<span><i class="fas fa-calendar mr-1"></i>${date}</span>` : ''}
@@ -166,30 +211,71 @@
             </div>
             ${isOwn ? `<button onclick="deleteRequest('${r.id}')" title="Delete" class="text-zinc-300 hover:text-red-400 transition-colors flex-shrink-0"><i class="fas fa-trash text-sm"></i></button>` : ''}
           </div>
-          <div class="mt-4 flex items-center gap-2">
+
+          <!-- Testimony form (hidden until Mark as Answered clicked) -->
+          <div id="testimony-form-${r.id}" class="hidden mt-4 space-y-3">
+            <textarea id="testimony-text-${r.id}" rows="3"
+                      placeholder="Share how God answered this prayer (optional)..."
+                      class="w-full border border-zinc-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none"></textarea>
+            <div class="flex gap-2">
+              <button onclick="confirmAnswered('${r.id}')"
+                      class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full text-xs font-medium transition-all">
+                <i class="fas fa-check mr-1"></i>Confirm Answered
+              </button>
+              <button onclick="hideTestimonyForm('${r.id}')"
+                      class="border border-zinc-200 text-zinc-500 px-4 py-2 rounded-full text-xs font-medium transition-all">
+                Cancel
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-4 flex flex-wrap items-center gap-2">
             <button onclick="togglePray('${r.id}', ${hasPrayed})"
                     class="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${hasPrayed ? 'bg-purple-50 border-purple-200 text-purple-600' : 'border-zinc-200 text-zinc-500 hover:border-purple-200 hover:text-purple-600'}">
               <i class="fas fa-hands-praying"></i>
-              <span>Praying${prayCount > 0 ? ` (${prayCount})` : ''}</span>
+              <span>Praying${prayCount > 0 ? ' (' + prayCount + ')' : ''}</span>
             </button>
+            ${ownerControls}
           </div>
         `;
         list.appendChild(card);
       });
     }
 
+    function showTestimonyForm(id) {
+      document.getElementById('testimony-form-' + id).classList.remove('hidden');
+    }
+
+    function hideTestimonyForm(id) {
+      document.getElementById('testimony-form-' + id).classList.add('hidden');
+    }
+
+    async function confirmAnswered(id) {
+      const testimony = document.getElementById('testimony-text-' + id).value.trim();
+      await setStatus(id, 'answered', testimony || null);
+    }
+
+    async function setStatus(id, status, testimony) {
+      try {
+        const update = { status };
+        if (testimony !== undefined) update.testimony = testimony;
+        await db.collection('prayer').doc(id).update(update);
+      } catch (err) {
+        console.error('Status update failed:', err);
+        alert('Failed to update. Please try again.');
+      }
+    }
+
     function escapeHtml(str) {
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
     async function submitPrayer() {
       if (!currentUser) return;
       const body = document.getElementById('prayer-body').value.trim();
-      const msg = document.getElementById('form-msg');
+      const msg  = document.getElementById('form-msg');
       if (!body) {
         msg.textContent = 'Please enter your prayer request.';
         msg.className = 'text-sm font-medium text-red-500';
@@ -198,7 +284,7 @@
       }
 
       const isAnonymous = document.getElementById('is-anonymous').checked;
-      const isPrivate = document.getElementById('is-private').checked;
+      const isPrivate   = document.getElementById('is-private').checked;
 
       try {
         await db.collection('prayer').add({
@@ -207,12 +293,14 @@
           body,
           isAnonymous,
           isPrivate,
+          status: 'active',
+          testimony: null,
           prayedFor: [],
           submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
         document.getElementById('prayer-body').value = '';
         document.getElementById('is-anonymous').checked = false;
-        document.getElementById('is-private').checked = false;
+        document.getElementById('is-private').checked  = false;
         msg.textContent = 'Prayer request submitted. Thank you.';
         msg.className = 'text-sm font-medium text-green-600';
         msg.classList.remove('hidden');
@@ -227,12 +315,11 @@
 
     async function togglePray(id, hasPrayed) {
       if (!currentUser) return;
-      const ref = db.collection('prayer').doc(id);
       const op = hasPrayed
         ? firebase.firestore.FieldValue.arrayRemove(currentUser.uid)
         : firebase.firestore.FieldValue.arrayUnion(currentUser.uid);
       try {
-        await ref.update({ prayedFor: op });
+        await db.collection('prayer').doc(id).update({ prayedFor: op });
       } catch (err) {
         console.error('Pray toggle failed:', err);
       }
