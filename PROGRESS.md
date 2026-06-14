@@ -14,6 +14,36 @@
 
 ---
 
+## Session: backlog — YouTube auto-detect, content search, roadmap cleanup (Session 73)
+
+**Date:** 2026-06-14
+**Branches:** `chore/update-roadmap-phases` (PR #112), `feat/youtube-livestream-autodetect` (PR #113), `feat/content-search` (PR #114)
+**Status:** Merged
+
+### What was done
+
+**ROADMAP.md update (PR #112)**
+- Marked Phase 8 and Phase 9 as Done in ROADMAP.md (were still showing "Not started")
+- Added YouTube auto-detection and content search entries
+- Moved Tailwind CDN → compiled CSS to "Out of Scope" (build step prohibited; dynamic JS classes can't be statically scanned)
+
+**YouTube live stream auto-detection (PR #113)**
+- `checkYoutubeLiveStatus` Cloud Function — scheduled every 5 minutes; calls YouTube Data API v3 `search.list` with `eventType=live, type=video`; if a live broadcast is found, sets `/homepage/content` liveStream to `active: true` with the `youtubeId`; if not, sets `active: false`
+- Reads `youtube.apikey` and `youtube.channelid` from Firebase Functions config
+- Skips update if live status hasn't changed (avoids unnecessary writes)
+- Admin UI note on `/admin/homepage.html` explaining auto-detection is active
+- To activate: `firebase functions:config:set youtube.apikey="YOUR_KEY" youtube.channelid="UCxxxxxxxx"` then `firebase deploy --only functions`
+
+**Global content search (PR #114)**
+- Search overlay triggered by `/` key, `Ctrl+K`/`⌘K`, or nav magnifier icon
+- Fetches published sermons, events, and blog posts from Firestore on first open (cached for session)
+- Client-side fuzzy match on title, speaker, author, description
+- Results grouped by type with icons, keyboard navigable (↑↓ arrows, Enter, Esc)
+- Clicking a result navigates to the correct page/anchor
+- Works on all public pages via `js/search.js` loaded in `js/main.js`
+
+---
+
 ## Session: chore — sync firestore.indexes.json with production (Session 72)
 
 **Date:** 2026-06-14

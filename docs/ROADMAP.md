@@ -2,11 +2,11 @@
 
 > Tracked ideas and improvements beyond Phase 7. Items move to a formal phase doc
 > (like `docs/PERMISSIONS.md`) once they are scoped and ready to build.
-> Updated: 2026-06-14 (all Priority 2 and 3 items completed)
+> Updated: 2026-06-14 (all phases and Priority 1/2/3 items completed)
 
 ---
 
-## Upcoming Phases
+## Completed Phases
 
 ### Phase 8 — Multi-Church Template (`docs/PHASE8.md`)
 
@@ -18,17 +18,16 @@ through an admin settings UI — no CLI or code changes needed after initial dep
 Sub-phases: 8a config foundation → 8b admin settings UI → 8c branding/theming →
 8d feature flags → 8e template packaging (setup scripts, `SETUP.md`, GitHub template flag).
 
-**Status:** Not started
+**Status:** Done — see `docs/PHASE8.md`
 
-### Phase 9 — Page Composition
+### Phase 9 — Page Composition (`docs/PHASE9.md`)
 
 Builds on Phase 8's `/config/` infrastructure. Adds a visual section manager for
 key pages (homepage, about, members dashboard): superadmins can toggle predefined
 sections on/off and reorder them. Each section has its own content editor. No
-free-form layout — sections are fixed in design, composable in order. Scope and
-page list to be defined in `docs/PHASE9.md` before starting.
+free-form layout — sections are fixed in design, composable in order.
 
-**Status:** Not started (depends on Phase 8)
+**Status:** Done — see `docs/PHASE9.md`
 
 ---
 
@@ -118,14 +117,21 @@ Migrate to R2 when approaching **4 GB used** or when egress charges first appear
 Migration is a zero-schema-change operation — rewrite only `js/storage-upload.js`.
 
 ### YouTube API live stream auto-detection
+**Status:** Done (PR #112, 2026-06-14)
 Replace the manual "Set Live / End Stream" admin toggle with automatic detection
 via the YouTube Data API v3 (`liveBroadcasts.list` with `broadcastStatus=active`).
 Eliminates the risk of forgetting to end the stream (which would show a stale
-LIVE NOW banner to members).
+LIVE NOW banner to members). Requires YouTube Data API key set via
+`firebase functions:config:set youtube.apikey="..."` and YouTube channel ID set
+via `firebase functions:config:set youtube.channelid="..."`.
 
-**Consideration:** Requires a YouTube Data API key (server-side in Cloud Functions
-to avoid exposing the key client-side). Quota: 10,000 units/day free; a polling
-function every 5 minutes uses ~288 units/day — well within free tier.
+Quota: 10,000 units/day free; polling every 5 minutes uses ~288 units/day — well within free tier.
+
+### Global content search
+**Status:** Done (PR #113, 2026-06-14)
+Search overlay (⌘K / Ctrl+K or nav magnifier) that searches sermons, events, and
+blog posts fetched from Firestore. Client-side fuzzy match, debounced, keyboard
+navigable. Results link directly to the content page.
 
 ### Offline Firestore content
 **Status:** Done (PR #107, 2026-06-14)
@@ -153,5 +159,6 @@ These were considered and deliberately excluded:
 - **Membership tiers beyond pending / public / member** — current three-tier model
   covers the church's needs. Adding tiers would complicate the auth guard logic
   significantly.
-- **Auto-detecting YouTube live status** — deferred pending API key management
-  decision. Manual toggle is working reliably.
+- **Tailwind CDN → compiled CSS** — CLAUDE.md prohibits a build step; Tailwind
+  classes are also generated dynamically in JS, so static CLI scanning would miss
+  them. CDN runtime is acceptable at current traffic.
