@@ -10,7 +10,27 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-14
-**Current milestone:** Phase 9 — Page Composition (complete — both sub-phases done)
+**Current milestone:** Maintenance — all phases complete, working through backlog
+
+---
+
+## Session: fix requestMemberAccess role-based notify (Session 69)
+
+**Date:** 2026-06-14
+**Branch:** `fix/request-member-access-role-notify` (PR #99)
+**Status:** Merged + deployed
+
+### What was done
+
+- **`functions/index.js`** — `requestMemberAccess` now correctly notifies users who hold `users.approve` via a role assignment, not just via `isSuperadmin` or `extraPermissions`.
+- Fix: query `/roles` for docs whose `permissions` array contains `'users.approve'`, collect the role IDs, then add a third parallel users query using `array-contains-any` on the `roles` field. All three result sets merged into a `Set` for deduplication. Role query is guarded (`approveRoleIds.length > 0`) to avoid Firestore error on empty `array-contains-any`.
+- Deployed manually: `firebase deploy --only functions`
+
+### Notes / decisions
+
+- `array-contains-any` supports up to 30 values — no practical limit risk at church scale
+- Adds one extra Firestore read (the `/roles` query) per invocation — negligible
+- This was the last Priority 1 backlog item from `docs/ROADMAP.md`
 
 ---
 

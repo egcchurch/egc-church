@@ -60,7 +60,7 @@ the `/config/notifications.connectAlertEmail` Firestore field so the
 destination address is changeable from the admin UI without a redeploy.
 
 ### `requestMemberAccess` — notify role-based `users.approve` holders
-**Status:** Not started
+**Status:** Done (PR #99, 2026-06-14)
 `functions/index.js` `requestMemberAccess` only notifies superadmins and users
 with `users.approve` in `extraPermissions`. Users who hold `users.approve` via
 a *role* assignment are silently missed. Fix: after fetching the two existing
