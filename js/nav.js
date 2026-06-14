@@ -27,13 +27,21 @@
       .then((html) => {
         placeholder.innerHTML = html;
         highlightActiveLink();
-        // Load the notification bell module, then signal nav-ready so main.js
-        // can bind the mobile toggle and auth-state buttons.
-        const s = document.createElement('script');
-        s.src = '/js/notifications.js';
-        s.onload = () => document.dispatchEvent(new CustomEvent('nav-loaded'));
-        s.onerror = () => document.dispatchEvent(new CustomEvent('nav-loaded'));
-        document.head.appendChild(s);
+        // Load notifications and search in parallel, then fire nav-loaded.
+        let loaded = 0;
+        const onReady = () => { if (++loaded === 2) document.dispatchEvent(new CustomEvent('nav-loaded')); };
+
+        const notifScript = document.createElement('script');
+        notifScript.src = '/js/notifications.js';
+        notifScript.onload = onReady;
+        notifScript.onerror = onReady;
+        document.head.appendChild(notifScript);
+
+        const searchScript = document.createElement('script');
+        searchScript.src = '/js/search.js';
+        searchScript.onload = onReady;
+        searchScript.onerror = onReady;
+        document.head.appendChild(searchScript);
       })
       .catch((err) => {
         // Don't crash the page if the nav fails to load.

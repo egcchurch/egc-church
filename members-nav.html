@@ -34,6 +34,12 @@
       </div>
 
       <div class="flex items-center gap-1">
+        <!-- Search trigger -->
+        <button onclick="openSearch()" title="Search (/ or Ctrl+K)"
+                class="p-2 text-gray-500 hover:text-amber-600 transition-colors">
+          <i class="fas fa-magnifying-glass text-lg"></i>
+        </button>
+
         <!-- Notification bell (shown when signed in by notifications.js) -->
         <div id="notif-bell-wrapper" class="hidden relative">
           <button id="notif-bell-btn"

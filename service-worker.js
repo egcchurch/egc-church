@@ -40,7 +40,7 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-const CACHE_NAME = 'egc-cache-v40';
+const CACHE_NAME = 'egc-cache-v41';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -102,6 +102,7 @@ const PRECACHE_URLS = [
   '/js/homepage.js',
   '/js/notifications.js',
   '/js/messaging.js',
+  '/js/search.js',
   '/assets/css/custom.css',
   '/manifest.json',
   '/assets/images/icons/icon-192.png',
