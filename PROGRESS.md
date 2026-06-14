@@ -14,6 +14,25 @@
 
 ---
 
+## Session: chore — sync firestore.indexes.json with production (Session 72)
+
+**Date:** 2026-06-14
+**Branch:** `chore/sync-firestore-indexes` (PR #109)
+**Status:** Merged
+
+### What was done
+
+- Added missing `blog (published ASC, publishedAt DESC)` composite index to `firestore.indexes.json`
+- This index existed in production (auto-created by Firestore) but was absent from the local file, causing `firebase deploy --only firestore:indexes` to offer to delete it
+- Local file now matches production — future index deploys will not prompt about this index
+
+### Deploy checklist (manual — still outstanding from sessions 70–71)
+- `firebase deploy --only firestore:rules` — RSVP rule change (PR #105)
+- `firebase deploy --only functions` — welcomeNewMember (PR #103)
+- `firebase deploy --only firestore:indexes` — group chat index + blog index
+
+---
+
 ## Session: backlog — event RSVP, sermon series, offline persistence, group chat (Session 71)
 
 **Date:** 2026-06-14
