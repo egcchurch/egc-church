@@ -3,11 +3,12 @@
 // Loaded by members/messages.html. Requires Firebase auth + Firestore.
 
 (function () {
-  let currentUser   = null;
-  let currentConvId = null;
-  let unsubMessages = null;
-  let unsubConvs    = null;
-  let pendingConvId = null; // conv to open once the list has loaded (from ?conv= URL param)
+  let currentUser    = null;
+  let currentConvId  = null;
+  let currentConvData = null; // cached conversation doc data
+  let unsubMessages  = null;
+  let unsubConvs     = null;
+  let pendingConvId  = null; // conv to open once the list has loaded (from ?conv= URL param)
 
   // ── Entry point ──────────────────────────────────────────────────────────────
 
@@ -56,25 +57,32 @@
         }
 
         convList.innerHTML = snap.docs.map(d => {
-          const c   = d.data();
-          const uid = d.id;
-          const other = (c.participants || []).find(p => p !== currentUser.uid) || '';
+          const c      = d.data();
+          const uid    = d.id;
+          const isGroup = c.type === 'group';
+          const other   = (c.participants || []).find(p => p !== currentUser.uid) || '';
+          const displayName = isGroup ? (c.groupName || 'Group') : (c.otherName || other);
           const unread = (c.unreadBy || []).includes(currentUser.uid);
-          const time  = c.lastMessageAt?.toDate
+          const time   = c.lastMessageAt?.toDate
             ? relativeTime(c.lastMessageAt.toDate())
             : '';
+
+          const avatarIcon = isGroup
+            ? '<i class="fas fa-users text-xs"></i>'
+            : esc(displayName ? displayName[0] : '?');
+          const avatarBg = isGroup ? 'bg-indigo-600' : 'bg-[#0A3D62]';
 
           return `
             <button class="conv-item w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-amber-50 transition-colors border-b border-zinc-50 last:border-0
                            ${currentConvId === uid ? 'bg-amber-50' : ''}
                            ${unread ? 'bg-amber-50' : ''}"
-                    data-id="${uid}" data-other="${esc(other)}" data-name="${esc(c.otherName || other)}">
-              <div class="w-9 h-9 rounded-full bg-[#0A3D62] text-white text-sm font-bold flex items-center justify-center shrink-0 uppercase">
-                ${esc(c.otherName ? c.otherName[0] : '?')}
+                    data-id="${uid}" data-other="${esc(other)}" data-name="${esc(displayName)}" data-group="${isGroup ? '1' : '0'}">
+              <div class="w-9 h-9 rounded-full ${avatarBg} text-white text-sm font-bold flex items-center justify-center shrink-0 uppercase">
+                ${avatarIcon}
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex justify-between items-baseline gap-1">
-                  <p class="text-sm font-semibold text-gray-800 truncate">${esc(c.otherName || other)}</p>
+                  <p class="text-sm font-semibold text-gray-800 truncate">${esc(displayName)}</p>
                   <span class="text-[10px] text-gray-400 shrink-0">${time}</span>
                 </div>
                 <p class="text-xs text-gray-500 truncate mt-0.5">${esc(c.lastMessage || '')}</p>
@@ -100,8 +108,15 @@
 
   // ── Open a conversation ──────────────────────────────────────────────────────
 
-  function openConversation(convId) {
+  async function openConversation(convId) {
     currentConvId = convId;
+    // Cache conversation metadata for group chat sender name display
+    try {
+      const snap = await firebase.firestore().collection('conversations').doc(convId).get();
+      currentConvData = snap.exists ? snap.data() : null;
+    } catch (_) {
+      currentConvData = null;
+    }
 
     // Highlight in list
     document.querySelectorAll('.conv-item').forEach(el => {
@@ -150,6 +165,7 @@
           return;
         }
 
+        const isGroup = currentConvData?.type === 'group';
         feed.innerHTML = snap.docs.map(d => {
           const m    = d.data();
           const mine = m.senderId === currentUser.uid;
@@ -157,9 +173,21 @@
             ? m.sentAt.toDate().toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })
             : '';
 
+          // Show sender name + avatar for others in group conversations
+          const senderLabel = isGroup && !mine && m.senderName
+            ? `<p class="text-[10px] font-semibold text-indigo-600 mb-0.5 pl-1">${esc(m.senderName)}</p>`
+            : '';
+          const avatarHtml  = isGroup && !mine
+            ? `<div class="w-6 h-6 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 self-end mb-4 uppercase">
+                 ${esc((m.senderName || '?')[0])}
+               </div>`
+            : '';
+
           return `
-            <div class="flex ${mine ? 'justify-end' : 'justify-start'} mb-2">
+            <div class="flex ${mine ? 'justify-end' : 'justify-start'} items-end gap-1.5 mb-2">
+              ${avatarHtml}
               <div class="max-w-[75%]">
+                ${senderLabel}
                 <div class="px-3.5 py-2 rounded-2xl text-sm leading-relaxed
                             ${mine
                               ? 'bg-[#0A3D62] text-white rounded-br-sm'
@@ -192,26 +220,34 @@
       input.disabled = true;
 
       try {
-        const convRef = firebase.firestore().collection('conversations').doc(currentConvId);
-        const convSnap = await convRef.get();
-        const conv = convSnap.data() || {};
-        const participants = conv.participants || [];
-        const recipientId = participants.find(uid => uid !== currentUser.uid);
+        const convRef  = firebase.firestore().collection('conversations').doc(currentConvId);
+        const conv     = currentConvData || {};
+        const participants  = conv.participants || [];
+        const otherUids = participants.filter(uid => uid !== currentUser.uid);
+
+        // Resolve sender display name (use cached conv data or fetch)
+        let senderName = currentUser.displayName || '';
+        if (!senderName) {
+          const meSnap = await firebase.firestore().collection('users').doc(currentUser.uid).get();
+          senderName = meSnap.data()?.displayName || 'Member';
+        }
 
         // Add message
         await convRef.collection('messages').add({
-          senderId: currentUser.uid,
+          senderId  : currentUser.uid,
+          senderName,
           body,
-          sentAt: firebase.firestore.FieldValue.serverTimestamp(),
+          sentAt    : firebase.firestore.FieldValue.serverTimestamp(),
         });
 
-        // Update conversation summary
+        // Update conversation summary — mark ALL other participants as unread
+        const unreadUpdate = otherUids.length > 0
+          ? firebase.firestore.FieldValue.arrayUnion(...otherUids)
+          : firebase.firestore.FieldValue.arrayRemove();
         await convRef.update({
-          lastMessage: body,
-          lastMessageAt: firebase.firestore.FieldValue.serverTimestamp(),
-          unreadBy: recipientId
-            ? firebase.firestore.FieldValue.arrayUnion(recipientId)
-            : firebase.firestore.FieldValue.arrayRemove(),
+          lastMessage   : body,
+          lastMessageAt : firebase.firestore.FieldValue.serverTimestamp(),
+          unreadBy      : unreadUpdate,
         });
       } catch (err) {
         console.error('Send failed:', err);
