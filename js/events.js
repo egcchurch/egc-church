@@ -2,6 +2,8 @@
 
 let allEvents = [];
 let activeCategory = 'all';
+let currentUser = null;
+let userIsMember = false;
 
 const CATEGORY_LABELS = {
   service: 'Service',
@@ -18,7 +20,24 @@ const CATEGORY_COLORS = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-  waitForFirebase(() => loadEvents());
+  waitForFirebase(() => {
+    firebase.auth().onAuthStateChanged(async (user) => {
+      currentUser = user;
+      if (user) {
+        try {
+          const snap = await firebase.firestore().collection('users').doc(user.uid).get();
+          userIsMember = snap.exists && snap.data().membership === 'member';
+        } catch (_) {
+          userIsMember = false;
+        }
+      } else {
+        userIsMember = false;
+      }
+      // Re-render so RSVP buttons appear/disappear on sign-in state change
+      if (allEvents.length > 0) render();
+    });
+    loadEvents();
+  });
 });
 
 function waitForFirebase(callback) {
@@ -73,7 +92,6 @@ function render() {
   renderGrid('upcoming-grid', upcoming);
   renderGrid('past-grid', past);
 
-  // Toggle empty state for upcoming
   const upcomingEmpty = document.getElementById('upcoming-empty');
   if (upcoming.length === 0) {
     upcomingEmpty.classList.remove('hidden');
@@ -81,7 +99,6 @@ function render() {
     upcomingEmpty.classList.add('hidden');
   }
 
-  // Show past section only when there are past events
   const pastSection = document.getElementById('past-section');
   if (past.length > 0) {
     pastSection.classList.remove('hidden');
@@ -93,7 +110,6 @@ function render() {
 function renderGrid(gridId, events) {
   const grid = document.getElementById(gridId);
   grid.innerHTML = '';
-
   events.forEach((event) => {
     grid.insertAdjacentHTML('beforeend', buildCard(event));
   });
@@ -116,8 +132,37 @@ function buildCard(event) {
 
   const opacityClass = isPast ? 'opacity-60' : '';
 
+  const rsvps = event.rsvps || [];
+  const rsvpCount = rsvps.length;
+  const hasRsvped = currentUser && rsvps.includes(currentUser.uid);
+
+  // RSVP row: count shown to all; button shown to members on upcoming events only
+  let rsvpHtml = '';
+  if (!isPast) {
+    const countLabel = rsvpCount > 0
+      ? `<span class="text-xs text-gray-400">${rsvpCount} attending</span>`
+      : '';
+    let rsvpBtn = '';
+    if (userIsMember) {
+      if (hasRsvped) {
+        rsvpBtn = `<button onclick="toggleRsvp('${event.id}', true)"
+                           class="text-xs font-medium px-3 py-1.5 rounded-full border transition-all bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100">
+                     <i class="fas fa-check mr-1"></i>Going
+                   </button>`;
+      } else {
+        rsvpBtn = `<button onclick="toggleRsvp('${event.id}', false)"
+                           class="text-xs font-medium px-3 py-1.5 rounded-full border transition-all border-zinc-200 text-zinc-500 hover:border-amber-300 hover:text-amber-600">
+                     <i class="fas fa-calendar-plus mr-1"></i>RSVP
+                   </button>`;
+      }
+    }
+    if (rsvpBtn || countLabel) {
+      rsvpHtml = `<div class="mt-3 flex items-center gap-3">${rsvpBtn}${countLabel}</div>`;
+    }
+  }
+
   return `
-    <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100 flex flex-col ${opacityClass}">
+    <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100 flex flex-col ${opacityClass}" id="event-card-${event.id}">
       ${imageHtml}
       <div class="p-6 flex flex-col flex-1">
         <div class="flex items-start justify-between gap-2 mb-3">
@@ -137,18 +182,47 @@ function buildCard(event) {
         ${event.description ? `
         <p class="text-sm text-gray-600 leading-relaxed line-clamp-3 flex-1">${escHtml(event.description)}</p>
         ` : ''}
+        ${rsvpHtml}
       </div>
     </div>
   `;
+}
+
+async function toggleRsvp(eventId, hasRsvped) {
+  if (!currentUser) return;
+  const db = firebase.firestore();
+  const op = hasRsvped
+    ? firebase.firestore.FieldValue.arrayRemove(currentUser.uid)
+    : firebase.firestore.FieldValue.arrayUnion(currentUser.uid);
+  try {
+    await db.collection('events').doc(eventId).update({ rsvps: op });
+    // Update local cache and re-render
+    const evt = allEvents.find(e => e.id === eventId);
+    if (evt) {
+      if (hasRsvped) {
+        evt.rsvps = (evt.rsvps || []).filter(uid => uid !== currentUser.uid);
+      } else {
+        evt.rsvps = [...(evt.rsvps || []), currentUser.uid];
+      }
+      // Refresh just this card
+      const card = document.getElementById('event-card-' + eventId);
+      if (card) {
+        const newHtml = buildCard(evt);
+        const tmp = document.createElement('div');
+        tmp.innerHTML = newHtml;
+        card.replaceWith(tmp.firstElementChild);
+      }
+    }
+  } catch (err) {
+    console.error('RSVP failed:', err);
+  }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function toDate(value) {
   if (!value) return new Date(0);
-  // Firestore Timestamp
   if (typeof value.toDate === 'function') return value.toDate();
-  // Plain JS Date or ISO string
   return new Date(value);
 }
 
@@ -157,8 +231,6 @@ function formatDateRange(start, end) {
   const startStr = start.toLocaleDateString('en-ZA', opts);
 
   if (!end) return startStr;
-
-  // Same day — omit end date
   if (start.toDateString() === end.toDateString()) return startStr;
 
   const endStr = end.toLocaleDateString('en-ZA', opts);

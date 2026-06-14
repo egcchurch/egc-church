@@ -71,7 +71,12 @@ service cloud.firestore {
     // ── Events ────────────────────────────────────────────────────────────────
     match /events/{id} {
       allow read: if true;
-      allow write: if hasPermission('events.manage');
+      allow create, delete: if hasPermission('events.manage');
+      // editors/admins can update any field; members can only add/remove their own UID from rsvps
+      allow update: if hasPermission('events.manage')
+                    || (isMember()
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['rsvps']));
     }
 
     // ── Blog ──────────────────────────────────────────────────────────────────
