@@ -68,6 +68,12 @@ service cloud.firestore {
       allow write: if hasPermission('sermons.manage');
     }
 
+    // ── Sermon Series ─────────────────────────────────────────────────────────
+    match /series/{id} {
+      allow read: if true;
+      allow write: if hasPermission('sermons.manage');
+    }
+
     // ── Events ────────────────────────────────────────────────────────────────
     match /events/{id} {
       allow read: if true;
