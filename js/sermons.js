@@ -2,16 +2,18 @@
 
 const db = firebase.firestore();
 let allSermons = [];
+let allSeries = [];
 let currentView = 'table';
 
 // ── Load from Firestore ───────────────────────────────────────────────────────
 function loadSermons() {
-  db.collection('sermons')
-    .where('published', '==', true)
-    .orderBy('date', 'desc')
-    .get()
-    .then((snapshot) => {
-      allSermons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  Promise.all([
+    db.collection('sermons').where('published', '==', true).orderBy('date', 'desc').get(),
+    db.collection('series').where('published', '==', true).orderBy('order').get(),
+  ])
+    .then(([sermonsSnap, seriesSnap]) => {
+      allSermons = sermonsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      allSeries  = seriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       filterAndRender();
     })
     .catch((err) => {
@@ -25,10 +27,13 @@ function loadSermons() {
 
 function setView(view) {
   currentView = view;
-  document.getElementById('card-view').classList.toggle('hidden', view !== 'card');
-  document.getElementById('table-view').classList.toggle('hidden', view !== 'table');
-  document.getElementById('card-btn').classList.toggle('active-view', view === 'card');
-  document.getElementById('table-btn').classList.toggle('active-view', view === 'table');
+  const views = ['card', 'table', 'series'];
+  views.forEach(v => {
+    document.getElementById(v + '-view').classList.toggle('hidden', v !== view);
+    const btn = document.getElementById(v + '-btn');
+    if (btn) btn.classList.toggle('active-view', v === view);
+  });
+  // Hide search for series view when in drill-down mode (keep for grid)
   filterAndRender();
 }
 
@@ -73,7 +78,7 @@ function renderCardView(filtered) {
 
   filtered.forEach(s => {
     const thumb = s.youtubeId
-      ? `<img src="https://img.youtube.com/vi/${s.youtubeId}/mqdefault.jpg" 
+      ? `<img src="https://img.youtube.com/vi/${s.youtubeId}/mqdefault.jpg"
               class="w-full h-48 object-cover rounded-t-3xl" alt="${s.title}">`
       : '';
 
@@ -129,6 +134,90 @@ function renderTableView(filtered) {
   });
 }
 
+// ── Series View ───────────────────────────────────────────────────────────────
+
+function renderSeriesView() {
+  const grid   = document.getElementById('series-grid');
+  const detail = document.getElementById('series-detail');
+  grid.classList.remove('hidden');
+  detail.classList.add('hidden');
+  grid.innerHTML = '';
+
+  if (allSeries.length === 0) {
+    grid.innerHTML = `<div class="col-span-3 text-center py-12 text-gray-400">No series available.</div>`;
+    return;
+  }
+
+  allSeries.forEach(s => {
+    const sermonCount = allSermons.filter(m => m.seriesId === s.id).length;
+    const thumb = s.imageUrl
+      ? `<img src="${s.imageUrl}" class="w-full h-40 object-cover" alt="">`
+      : `<div class="w-full h-40 bg-gradient-to-br from-[#0A3D62] to-amber-500 flex items-center justify-center">
+           <i class="fas fa-layer-group text-white text-3xl opacity-60"></i>
+         </div>`;
+
+    grid.innerHTML += `
+      <div onclick="showSeriesDetail('${s.id}')"
+           class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition-all cursor-pointer">
+        ${thumb}
+        <div class="p-6">
+          <h3 class="font-bold text-lg text-[#0A3D62] mb-1">${s.title}</h3>
+          ${s.description ? `<p class="text-sm text-gray-500 line-clamp-2 mb-3">${s.description}</p>` : ''}
+          <span class="text-xs text-amber-600 font-medium">${sermonCount} sermon${sermonCount !== 1 ? 's' : ''}</span>
+        </div>
+      </div>`;
+  });
+}
+
+function showSeriesDetail(seriesId) {
+  const s = allSeries.find(x => x.id === seriesId);
+  if (!s) return;
+
+  const grid   = document.getElementById('series-grid');
+  const detail = document.getElementById('series-detail');
+  grid.classList.add('hidden');
+  detail.classList.remove('hidden');
+
+  document.getElementById('series-detail-title').textContent = s.title;
+  document.getElementById('series-detail-desc').textContent  = s.description || '';
+
+  const seriesSermons = allSermons
+    .filter(m => m.seriesId === seriesId)
+    .sort((a, b) => (a.seriesOrder || 0) - (b.seriesOrder || 0) || (b.date || '').localeCompare(a.date || ''));
+
+  const listEl = document.getElementById('series-sermons-list');
+  if (seriesSermons.length === 0) {
+    listEl.innerHTML = `<p class="text-gray-400 text-center py-8">No sermons in this series yet.</p>`;
+    return;
+  }
+
+  listEl.innerHTML = '';
+  seriesSermons.forEach((m, i) => {
+    const thumb = m.youtubeId
+      ? `<img src="https://img.youtube.com/vi/${m.youtubeId}/default.jpg" class="w-24 h-16 object-cover rounded-xl flex-shrink-0" alt="">`
+      : `<div class="w-24 h-16 bg-gradient-to-br from-[#0A3D62] to-amber-500 rounded-xl flex-shrink-0 flex items-center justify-center">
+           <i class="fas fa-play text-white text-xl opacity-60"></i>
+         </div>`;
+    listEl.innerHTML += `
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4">
+        <span class="text-2xl font-bold text-gray-200 w-8 text-center flex-shrink-0">${m.seriesOrder || (i + 1)}</span>
+        ${thumb}
+        <div class="flex-1 min-w-0">
+          <p class="font-semibold text-gray-900 truncate">${m.title}</p>
+          <p class="text-sm text-gray-500">${m.speaker} · ${m.date}</p>
+          <div class="flex flex-wrap gap-2 mt-2">${createResourceButtons(m)}</div>
+        </div>
+      </div>`;
+  });
+}
+
+function showSeriesList() {
+  document.getElementById('series-grid').classList.remove('hidden');
+  document.getElementById('series-detail').classList.add('hidden');
+}
+
+// ── Shared render ─────────────────────────────────────────────────────────────
+
 function groupByMonthYear(sermonsList) {
   const groups = {};
   sermonsList.forEach(s => {
@@ -141,6 +230,10 @@ function groupByMonthYear(sermonsList) {
 }
 
 function filterAndRender() {
+  if (currentView === 'series') {
+    renderSeriesView();
+    return;
+  }
   const term = document.getElementById('search-input').value.toLowerCase().trim();
   const filtered = allSermons.filter(s =>
     s.title.toLowerCase().includes(term) ||
