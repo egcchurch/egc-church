@@ -237,6 +237,43 @@ describe('Firestore Security Rules', () => {
     });
   });
 
+  describe('Events collection — RSVP', () => {
+    it('member can add their own UID to rsvps', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'events', 'e1'), { title: 'Service', published: true, rsvps: [] });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'events', 'e1'), { rsvps: ['member-uid'] }));
+    });
+
+    it('member cannot update event title', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'events', 'e1'), { title: 'Service', published: true, rsvps: [] });
+      });
+      const db = memberUser().firestore();
+      await assertFails(updateDoc(doc(db, 'events', 'e1'), { title: 'Hacked' }));
+    });
+
+    it('unauthenticated user cannot update rsvps', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'events', 'e1'), { title: 'Service', published: true, rsvps: [] });
+      });
+      const db = unauthUser().firestore();
+      await assertFails(updateDoc(doc(db, 'events', 'e1'), { rsvps: ['anon'] }));
+    });
+
+    it('editor can update event title', async () => {
+      await seedUser('editor-uid', { membership: 'public', isSuperadmin: false, roles: ['content_editor'] });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'events', 'e1'), { title: 'Service', published: true, rsvps: [] });
+      });
+      const db = editorUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'events', 'e1'), { title: 'Updated Service' }));
+    });
+  });
+
   describe('Devotionals collection', () => {
     it('member can read devotionals', async () => {
       await seedUser('member-uid', { membership: 'member' });
