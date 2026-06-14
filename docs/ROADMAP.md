@@ -98,14 +98,11 @@ Let members indicate attendance for events.
 Admin events page shows RSVP list per event.
 
 ### Email / password self-registration
-Currently new members can only self-register via Google sign-in. Members without
-Google accounts must be admin-created. A standard sign-up form (email, password,
-display name) on `/login.html` would open registration to everyone.
-
-**Considerations:**
-- Firebase Auth `createUserWithEmailAndPassword` — same `onUserCreate` trigger fires
-- `sendEmailVerification` already called for new users
-- Superadmin approval flow unchanged (new users start as `pending`)
+**Status:** Done (PR #101, 2026-06-14)
+Three-panel `/login.html` (Sign In / Create Account / Forgot Password).
+`createUserWithEmailAndPassword` → `updateProfile` → `sendEmailVerification`.
+`onUserCreate` Cloud Function auto-provisions with `membership: pending`.
+Superadmin approval flow unchanged.
 
 ### Group chat
 The `participants` array on conversations already supports N UIDs — the data model
@@ -116,23 +113,17 @@ conversations created from a small group's member list.
 can be added/removed by the group leader. Messages display sender name + avatar.
 
 ### Prayer request updates / answered prayers
-No way to mark a request answered or add a testimony. Closes the loop for the
-prayer wall.
-
-**Schema change:** Add `status: "active" | "answered"` and
-`testimony: string | null` to `/prayer/{id}`.
-
-**UI:** Request author (and admins) can update status and add a testimony.
-Filter chips on `/members/prayer.html`: All / Active / Answered.
+**Status:** Done (PR #102, 2026-06-14)
+Filter tabs (All / Active / Answered / My Requests) on members prayer page.
+Mark-as-answered flow with optional testimony textarea. Admin prayer page with
+All / Active / Answered / Public / Private tabs. Firestore rule tightened so
+authors can only update `status`, `testimony`, `prayedFor`.
 
 ### Member onboarding
-When a superadmin approves a pending user, there is no welcome message or
-orientation. A triggered in-app notification + welcome email when
-`membership` changes from `pending` to `member` would improve first-day experience.
-
-**Implementation:** `syncUserClaims` or a new Firestore trigger on the `membership`
-field change in `onUserCreate` — or extend the existing `syncUserNotificationEligibility`
-trigger to also send a welcome notification when membership *rises* to `member`.
+**Status:** Done (PR #103, 2026-06-14)
+New `welcomeNewMember` Cloud Function (Firestore trigger on `/users/{uid}`).
+When `membership` changes to `'member'`, writes a welcome in-app notification
+to the user pointing them to the members area.
 
 ---
 

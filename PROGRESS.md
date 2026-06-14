@@ -14,6 +14,29 @@
 
 ---
 
+## Session: backlog — prayer updates, member onboarding, email registration (Session 70)
+
+**Date:** 2026-06-14
+**Branches:** `feat/prayer-updates` (PR #102), `feat/member-onboarding` (PR #103)
+**Status:** Merged (functions deploy pending)
+
+### What was done
+
+- **`members/prayer.html`** — filter tabs (All / Active / Answered / My Requests); mark-as-answered flow with inline testimony textarea; mark-as-active revert for own requests; answered badge + testimony display.
+- **`admin/prayer.html`** — filter tabs (All / Active / Answered / Public / Private); admin status toggle for any request; answered badge + testimony display.
+- **`firestore.rules`** — prayer rule tightened: author may only update `status`, `testimony`, `prayedFor`; moderators retain full update access.
+- **`tests/firestore.rules.test.js`** — 4 new tests: author can update own status/testimony; author cannot update body; other member cannot update someone else's status; moderator can update any request.
+- **`functions/index.js`** — new `welcomeNewMember` Firestore trigger: when `membership` changes to `'member'`, writes a welcome in-app notification to the user's notification subcollection.
+
+### Notes / decisions
+
+- Prayer status defaults to `'active'` on create; `null` status treated as active.
+- Testimony field is optional — left empty, `confirmAnswered` passes `null`.
+- `welcomeNewMember` is a separate trigger from `syncUserNotificationEligibility` for clarity — each function has a single clear responsibility.
+- Cloud Functions need manual deploy: `firebase deploy --only functions`
+
+---
+
 ## Session: fix requestMemberAccess role-based notify (Session 69)
 
 **Date:** 2026-06-14
