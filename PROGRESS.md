@@ -14,6 +14,43 @@
 
 ---
 
+## Session: backlog — event RSVP, sermon series, offline persistence, group chat (Session 71)
+
+**Date:** 2026-06-14
+**Branches:** `feat/event-rsvp` (PR #105), `feat/sermon-series` (PR #106), `feat/offline-persistence` (PR #107), `feat/group-chat` (PR #108)
+**Status:** Merged (deploy steps pending)
+
+### What was done
+
+**Event RSVP (PR #105)**
+- `firestore.rules` — events rule split: create/delete restricted to `events.manage`; update allows members to change only `rsvps` field
+- `js/events.js` — tracks auth state + membership; RSVP count shown to all visitors; RSVP toggle button shown to members on upcoming events; local card refresh after toggle
+- `admin/events.html` — RSVP count badge on each event row; "RSVPs" button expands inline panel with member name lookup
+- 4 new security rule tests for RSVP: member can update rsvps, member cannot update title, unauth denied, editor can update title
+
+**Sermon Series (PR #106)**
+- New `/series/{seriesId}` Firestore collection (public read, `sermons.manage` write)
+- `/admin/series.html` — create/edit/delete series, image + sort order + published toggle
+- `/admin/sermons.html` — series picker dropdown + part number; series badge in sermon list
+- `/sermons.html` + `js/sermons.js` — "Series" view tab; grid of series cards; drill-down to series sermon list ordered by `seriesOrder`
+- `admin/index.html` — "Sermon Series" dashboard card (indigo)
+- `service-worker.js` — cache v39 → v40, added `/admin/series.html`
+
+**Offline Persistence (PR #107)**
+- `js/main.js` — `firebase.firestore().enablePersistence({ synchronizeTabs: true })` at module scope; skipped on `/admin/*` pages; errors ignored silently
+
+**Group Chat (PR #108)**
+- `members/groups.html` — "Group Chat" button in leader section; `startGroupChat()` creates group conversation (idempotent) and navigates to messages page
+- `js/messaging.js` — group convs show group name + indigo icon in list; sender name + avatar initial in thread; send stores `senderName`; marks ALL other participants unread
+- `firestore.indexes.json` — composite index for `groupId + type` query
+
+### Deploy checklist (manual after this session)
+- `firebase deploy --only firestore:rules` — RSVP rule change
+- `firebase deploy --only functions` — welcomeNewMember (PR #103)
+- `firebase deploy --only firestore:indexes` — group chat index (PR #108)
+
+---
+
 ## Session: backlog — prayer updates, member onboarding, email registration (Session 70)
 
 **Date:** 2026-06-14

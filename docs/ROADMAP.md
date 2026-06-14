@@ -2,7 +2,7 @@
 
 > Tracked ideas and improvements beyond Phase 7. Items move to a formal phase doc
 > (like `docs/PERMISSIONS.md`) once they are scoped and ready to build.
-> Updated: 2026-06-12 (Phase 8 and 9 added)
+> Updated: 2026-06-14 (all Priority 2 and 3 items completed)
 
 ---
 
@@ -75,27 +75,12 @@ See PROGRESS.md Session 61 for full description.
 Medium effort. Each would need a scoped plan doc before starting.
 
 ### Sermon series / playlists
-Group sermons into a named series (e.g. "Foundations — Part 3 of 5").
-
-**Schema change:**
-- New `/series/{seriesId}` collection: `title`, `description`, `imageUrl`, `order`, `published`
-- Add `seriesId` (nullable) and `seriesOrder` (nullable int) to `/sermons/{id}`
-
-**UI:**
-- `/admin/sermons.html` — series picker dropdown when creating/editing a sermon
-- `/sermons.html` — series grouping view alongside the existing flat list
-- `/admin/series.html` — new page to create and manage series
+**Status:** Done (PR #106, 2026-06-14)
+New `/series/{seriesId}` collection + `/admin/series.html`. Series picker in `/admin/sermons.html`. Series view tab on `/sermons.html` with drill-down to series sermon list.
 
 ### Event RSVP
-Let members indicate attendance for events.
-
-**Schema change:** Add `rsvps: [uid array]` to `/events/{id}`.
-
-**Firestore rule:** Members can add/remove their own UID from `rsvps` only
-(same `affectedKeys` pattern as group join).
-
-**UI:** RSVP button on `/events.html` (member-only, shows count to all).
-Admin events page shows RSVP list per event.
+**Status:** Done (PR #105, 2026-06-14)
+`rsvps: [uid array]` on events; Firestore rule allows members to update `rsvps` only; RSVP button on `/events.html` (member-only); RSVP count visible to all; admin expandable RSVP viewer.
 
 ### Email / password self-registration
 **Status:** Done (PR #101, 2026-06-14)
@@ -105,12 +90,8 @@ Three-panel `/login.html` (Sign In / Create Account / Forgot Password).
 Superadmin approval flow unchanged.
 
 ### Group chat
-The `participants` array on conversations already supports N UIDs — the data model
-is ready for group chat. Extend `/members/messages.html` to support group
-conversations created from a small group's member list.
-
-**Scope:** Group conversations only creatable by a group leader or admin. Members
-can be added/removed by the group leader. Messages display sender name + avatar.
+**Status:** Done (PR #108, 2026-06-14)
+"Group Chat" button in leader section of `/members/groups.html`. Creates group conversation (`type: 'group'`) with all leaders + members as participants; idempotent. Group convs show group name + indigo icon in messages sidebar; sender name + avatar shown in thread.
 
 ### Prayer request updates / answered prayers
 **Status:** Done (PR #102, 2026-06-14)
@@ -147,13 +128,8 @@ to avoid exposing the key client-side). Quota: 10,000 units/day free; a polling
 function every 5 minutes uses ~288 units/day — well within free tier.
 
 ### Offline Firestore content
-The service worker caches static assets but Firestore data (sermons, events, blog
-posts) always requires a live connection. Enabling Firestore's built-in offline
-persistence (`firebase.firestore().enablePersistence()`) would let members browse
-previously-loaded content when offline with no code changes to data-fetching logic.
-
-**Caveat:** Persistence uses IndexedDB. Disable on pages with large result sets
-(e.g. admin pages) to avoid excessive local storage use.
+**Status:** Done (PR #107, 2026-06-14)
+`enablePersistence({ synchronizeTabs: true })` in `js/main.js`, module scope, skipped on `/admin/*` pages. Members can now browse previously-loaded content when offline.
 
 ### Tailwind CDN → compiled CSS
 The Tailwind v4 browser CDN build scans the DOM at runtime, which adds ~50–100ms
