@@ -152,12 +152,65 @@
     function renderLeaderSection(g) {
       return `
         <div class="mt-5 pt-5 border-t border-zinc-100">
-          <h3 class="text-sm font-semibold text-zinc-600 mb-3">Group Members</h3>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-zinc-600">Group Members</h3>
+            <button onclick="startGroupChat('${g.id}', '${escapeHtml(g.name).replace(/'/g, "\\'")}')"
+                    class="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1 border border-indigo-200 hover:border-indigo-300 px-2.5 py-1 rounded-full transition-all">
+              <i class="fas fa-comments"></i> Group Chat
+            </button>
+          </div>
           <div id="members-${g.id}" class="flex flex-wrap gap-2">
             <span class="text-xs text-zinc-400">Loading...</span>
           </div>
         </div>
       `;
+    }
+
+    async function startGroupChat(groupId, groupName) {
+      if (!currentUser) return;
+      try {
+        const groupSnap = await db.collection('groups').doc(groupId).get();
+        if (!groupSnap.exists) return;
+        const groupData = groupSnap.data();
+        // All unique participants: leaders + members
+        const participantSet = new Set([...(groupData.leaders || []), ...(groupData.members || [])]);
+        const participants = Array.from(participantSet);
+
+        if (participants.length < 2) {
+          alert('The group needs at least 2 members to start a chat.');
+          return;
+        }
+
+        // Check for existing group conversation for this group
+        const existingSnap = await db.collection('conversations')
+          .where('groupId', '==', groupId)
+          .where('type', '==', 'group')
+          .limit(1)
+          .get();
+
+        let convId;
+        if (!existingSnap.empty) {
+          convId = existingSnap.docs[0].id;
+        } else {
+          const meSnap = await db.collection('users').doc(currentUser.uid).get();
+          const myName = meSnap.data()?.displayName || 'Leader';
+          const convRef = await db.collection('conversations').add({
+            type: 'group',
+            groupId,
+            groupName,
+            participants,
+            lastMessage: `${myName} started a group chat`,
+            lastMessageAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            unreadBy: participants.filter(uid => uid !== currentUser.uid),
+          });
+          convId = convRef.id;
+        }
+        window.location.href = `/members/messages.html?conv=${convId}`;
+      } catch (err) {
+        console.error('startGroupChat failed:', err);
+        alert('Failed to start group chat. Please try again.');
+      }
     }
 
     async function populateLeaderSections(groups) {
