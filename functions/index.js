@@ -779,6 +779,72 @@ function toRFC822(dateStr) {
     .replace('GMT', '+0000');
 }
 
+// ── checkYoutubeLiveStatus ────────────────────────────────────────────────────
+// Scheduled every 5 minutes.
+// Calls YouTube Data API v3 search.list to check for an active live broadcast
+// on the configured channel. Updates /homepage/content liveStream accordingly.
+//
+// Requires Firebase Functions config:
+//   firebase functions:config:set youtube.apikey="YOUR_KEY" youtube.channelid="UCxxxxxxxx"
+//
+// Skips update if live status hasn't changed to avoid unnecessary Firestore writes.
+// Preserves the admin-set title — only active and youtubeId are auto-managed.
+
+exports.checkYoutubeLiveStatus = functions.pubsub
+  .schedule('every 5 minutes')
+  .onRun(async () => {
+    const cfg       = functions.config();
+    const apiKey    = (cfg.youtube || {}).apikey;
+    const channelId = (cfg.youtube || {}).channelid;
+
+    if (!apiKey || !channelId) {
+      // Config not set — silent skip. Admin can use manual toggle instead.
+      return null;
+    }
+
+    try {
+      const url = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${channelId}&eventType=live&type=video&maxResults=1&key=${apiKey}`;
+      const resp = await fetch(url);
+      const json = await resp.json();
+
+      if (!resp.ok) {
+        console.error('checkYoutubeLiveStatus: YouTube API error', json.error?.message || resp.status);
+        return null;
+      }
+
+      const isLive    = Array.isArray(json.items) && json.items.length > 0;
+      const youtubeId = isLive ? json.items[0].id.videoId : null;
+
+      const homepageRef  = db.doc('homepage/content');
+      const homepageSnap = await homepageRef.get();
+      const current      = homepageSnap.exists ? (homepageSnap.data().liveStream || {}) : {};
+
+      // Skip write if status unchanged
+      if (current.active === isLive && (!isLive || current.youtubeId === youtubeId)) {
+        return null;
+      }
+
+      await homepageRef.set({
+        liveStream: {
+          active:    isLive,
+          title:     current.title || (isLive ? 'Live Service' : ''),
+          youtubeId: isLive ? youtubeId : (current.youtubeId || ''),
+          startedAt: isLive && !current.active
+            ? admin.firestore.FieldValue.serverTimestamp()
+            : (current.startedAt || null),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedBy: 'system',
+        },
+      }, { merge: true });
+
+      console.log(`checkYoutubeLiveStatus: set active=${isLive}${isLive ? `, youtubeId=${youtubeId}` : ''}`);
+    } catch (err) {
+      console.error('checkYoutubeLiveStatus:', err.message);
+    }
+
+    return null;
+  });
+
 // ── migrateRolesV1 ────────────────────────────────────────────────────────────
 // Callable — superadmin only. One-time migration for Phase 6.
 //
