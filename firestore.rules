@@ -102,7 +102,11 @@ service cloud.firestore {
     match /prayer/{id} {
       allow read: if isMember();
       allow create: if isMember();
-      allow update: if isOwner(resource.data.uid) || hasPermission('prayer.moderate');
+      // Author may update status/testimony only; moderators may update any field
+      allow update: if hasPermission('prayer.moderate')
+                    || (isOwner(resource.data.uid)
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['status', 'testimony', 'prayedFor']));
       allow delete: if hasPermission('prayer.moderate');
     }
 
