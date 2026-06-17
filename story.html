@@ -35,6 +35,34 @@
       color: #6b7280; font-style: italic;
     }
 
+    /* Video modal */
+    #video-modal {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92);
+      z-index: 1001; align-items: center; justify-content: center; padding: 1rem;
+    }
+    #video-modal.open { display: flex; }
+    #video-modal-inner { position: relative; width: 100%; max-width: 56rem; }
+    #video-modal-close {
+      position: absolute; top: -2.25rem; right: 0;
+      color: white; font-size: 1.75rem; cursor: pointer; line-height: 1;
+    }
+    .video-modal-frame { position: relative; padding-top: 56.25%; background: #000; border-radius: 0.75rem; overflow: hidden; }
+    .video-modal-frame iframe,
+    .video-modal-frame video { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+    /* Video thumbnail cards */
+    .video-thumb {
+      cursor: pointer; border-radius: 0.75rem; overflow: hidden;
+      background: #1a1a2e; position: relative; aspect-ratio: 16/9;
+    }
+    .video-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .video-thumb .play-btn {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.3); transition: background 0.2s;
+    }
+    .video-thumb:hover .play-btn { background: rgba(0,0,0,0.5); }
+    .video-thumb .play-btn i { font-size: 2.5rem; color: white; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }
+
     /* Lightbox overlay */
     #lightbox {
       display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92);
@@ -110,20 +138,12 @@
       <!-- Rich text body -->
       <div id="story-body" class="story-body mb-10"></div>
 
-      <!-- YouTube embed -->
+      <!-- Videos -->
       <div id="story-video-section" class="hidden mb-10">
         <h2 class="text-lg font-bold text-[#0A3D62] mb-3">
-          <i class="fab fa-youtube text-red-500 mr-2"></i>Watch
+          <i class="fas fa-video text-red-500 mr-2"></i>Videos
         </h2>
-        <div class="relative w-full rounded-2xl overflow-hidden bg-black" style="padding-top: 56.25%;">
-          <iframe id="story-video"
-                  class="absolute inset-0 w-full h-full"
-                  src=""
-                  title="Story video"
-                  frameborder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowfullscreen></iframe>
-        </div>
+        <div id="story-video-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
       </div>
 
       <!-- Photo gallery -->
@@ -143,6 +163,20 @@
 
     </div>
   </article>
+
+  <!-- VIDEO MODAL -->
+  <div id="video-modal" role="dialog" aria-modal="true" aria-label="Video player">
+    <div id="video-modal-inner">
+      <span id="video-modal-close" onclick="closeVideoModal()" title="Close">&times;</span>
+      <div class="video-modal-frame">
+        <iframe id="video-modal-iframe" src="" frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen class="hidden"></iframe>
+        <video id="video-modal-direct" src="" controls class="hidden"></video>
+      </div>
+      <p id="video-modal-title" class="text-white text-center mt-3 text-sm opacity-80"></p>
+    </div>
+  </div>
 
   <!-- LIGHTBOX -->
   <div id="lightbox" role="dialog" aria-modal="true" aria-label="Photo viewer">
@@ -213,10 +247,36 @@
       // Body — rendered as HTML (admin-only writes, Firestore rules enforced)
       document.getElementById('story-body').innerHTML = post.body || '';
 
-      // YouTube video
-      if (post.videoId) {
-        document.getElementById('story-video').src =
-          'https://www.youtube.com/embed/' + encodeURIComponent(post.videoId);
+      // Videos — new array format or legacy single videoId
+      const videos = post.videos?.length
+        ? post.videos
+        : post.videoId ? [{ url: post.videoId, title: '' }] : [];
+      if (videos.length) {
+        const grid = document.getElementById('story-video-grid');
+        videos.forEach((v) => {
+          const parsed = parseVideoUrl(v.url);
+          if (!parsed) return;
+          const card = document.createElement('div');
+          card.className = 'flex flex-col gap-1';
+          if (parsed.type === 'youtube') {
+            card.innerHTML = `
+              <div class="video-thumb" onclick="openVideoModal(${JSON.stringify(v)})">
+                <img src="https://img.youtube.com/vi/${parsed.id}/hqdefault.jpg" alt="${escHtml(v.title || 'Video')}">
+                <div class="play-btn"><i class="fab fa-youtube"></i></div>
+              </div>
+              ${v.title ? `<p class="text-sm text-gray-600 font-medium px-1">${escHtml(v.title)}</p>` : ''}`;
+          } else {
+            card.innerHTML = `
+              <div class="video-thumb" onclick="openVideoModal(${JSON.stringify(v)})">
+                <div class="play-btn" style="position:static;height:100%;background:#1e293b;border-radius:0.75rem;flex-direction:column;gap:0.5rem;">
+                  <i class="fas fa-play-circle" style="font-size:2.5rem;color:white;opacity:0.8;"></i>
+                  <span style="color:#94a3b8;font-size:0.7rem;">Direct video</span>
+                </div>
+              </div>
+              ${v.title ? `<p class="text-sm text-gray-600 font-medium px-1">${escHtml(v.title)}</p>` : ''}`;
+          }
+          grid.appendChild(card);
+        });
         document.getElementById('story-video-section').classList.remove('hidden');
       }
 
@@ -244,6 +304,67 @@
       document.getElementById('error-state').classList.remove('hidden');
     }
 
+    // ── Video URL parser ──────────────────────────────────────────────────────
+    function parseVideoUrl(raw) {
+      if (!raw) return null;
+      const s = raw.trim();
+
+      // youtu.be/ID
+      let m = s.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+      if (m) return { type: 'youtube', id: m[1] };
+
+      // youtube.com/watch?v=ID or /embed/ID
+      m = s.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+      if (m) return { type: 'youtube', id: m[1] };
+      m = s.match(/\/embed\/([a-zA-Z0-9_-]{11})/);
+      if (m) return { type: 'youtube', id: m[1] };
+
+      // Raw 11-char YouTube ID (no slashes or dots)
+      if (/^[a-zA-Z0-9_-]{11}$/.test(s)) return { type: 'youtube', id: s };
+
+      // Direct URL
+      if (s.startsWith('http')) return { type: 'url', url: s };
+
+      return null;
+    }
+
+    // ── Video modal ────────────────────────────────────────────────────────────
+    function openVideoModal(video) {
+      const parsed  = parseVideoUrl(video.url);
+      if (!parsed) return;
+
+      const iframe  = document.getElementById('video-modal-iframe');
+      const direct  = document.getElementById('video-modal-direct');
+      const titleEl = document.getElementById('video-modal-title');
+
+      iframe.classList.add('hidden');
+      direct.classList.add('hidden');
+      iframe.src = '';
+      direct.src = '';
+
+      if (parsed.type === 'youtube') {
+        iframe.src = `https://www.youtube.com/embed/${parsed.id}?autoplay=1`;
+        iframe.classList.remove('hidden');
+      } else {
+        direct.src = parsed.url;
+        direct.classList.remove('hidden');
+      }
+
+      titleEl.textContent = video.title || '';
+      document.getElementById('video-modal').classList.add('open');
+    }
+
+    function closeVideoModal() {
+      document.getElementById('video-modal').classList.remove('open');
+      document.getElementById('video-modal-iframe').src = '';
+      document.getElementById('video-modal-direct').src = '';
+      document.getElementById('video-modal-direct').pause?.();
+    }
+
+    document.getElementById('video-modal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('video-modal')) closeVideoModal();
+    });
+
     // ── Lightbox ───────────────────────────────────────────────────────────────
     function openLightbox(index) {
       lightboxIndex = index;
@@ -269,6 +390,10 @@
       if (e.target === document.getElementById('lightbox')) closeLightbox();
     });
     document.addEventListener('keydown', (e) => {
+      if (document.getElementById('video-modal').classList.contains('open')) {
+        if (e.key === 'Escape') closeVideoModal();
+        return;
+      }
       if (!document.getElementById('lightbox').classList.contains('open')) return;
       if (e.key === 'Escape')     closeLightbox();
       if (e.key === 'ArrowLeft')  lightboxStep(-1);

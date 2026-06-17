@@ -14,6 +14,42 @@
 
 ---
 
+## Session: feat — Multi-source video gallery for stories (Session 76)
+
+**Date:** 2026-06-17
+**Branch:** `feat/story-multi-video` (PR #118)
+**Status:** Open
+
+### What was done
+
+Extended story posts to support multiple videos from any source — YouTube, S3, R2, or any direct video URL.
+
+**`admin/blog.html`**
+- Replaced the single YouTube ID field with a dynamic multi-video list
+- Each row has a URL/ID field and an optional title field (e.g. "Sunday Message", "Camp Highlights")
+- "Add Video" button appends a new row; × removes it
+- Accepts: full YouTube URLs, raw YouTube video IDs, or any direct `https://` link
+- `openForm()` migrates legacy `videoId` string into the list automatically on edit
+- `savePost()` collects rows into `videos: [{ url, title }]` and nulls out legacy `videoId`
+
+**`story.html`**
+- `parseVideoUrl(raw)` detects YouTube (full URL, youtu.be, embed URL, or raw 11-char ID) vs direct URL
+- Video section renders as a thumbnail grid (1–2 cols)
+  - YouTube: real thumbnail from `img.youtube.com/vi/{id}/hqdefault.jpg` with YouTube play icon
+  - Direct video: dark card with play icon
+- Clicking any thumbnail opens a full-width 16:9 video modal
+  - YouTube → autoplay iframe; direct URL → HTML5 `<video>` with native controls
+- Modal closes on Escape, backdrop click, or ×
+- Backward compatible with legacy `videoId` field
+- SW cache bumped v42 → v43
+
+### Notes / decisions
+- `parseVideoUrl` handles all common YouTube URL formats plus raw IDs
+- YouTube thumbnails from YouTube CDN — no API key required
+- `videos` and `videoId` coexist in Firestore; new saves always write `videos` and null `videoId`
+
+---
+
 ## Session: feat — Story post type (Session 75)
 
 **Date:** 2026-06-17

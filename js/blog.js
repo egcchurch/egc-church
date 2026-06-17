@@ -118,9 +118,10 @@ function buildStoryCard(post) {
          <i class="fas fa-camera text-white text-4xl opacity-60"></i>
        </div>`;
 
+  const videoCount   = (post.videos?.length) || (post.videoId ? 1 : 0);
   const indicators = [];
-  if (post.videoId)    indicators.push(`<span class="text-xs text-gray-400"><i class="fab fa-youtube text-red-400 mr-0.5"></i>Video</span>`);
-  if (galleryCount)    indicators.push(`<span class="text-xs text-gray-400"><i class="fas fa-images text-amber-400 mr-0.5"></i>${galleryCount} photo${galleryCount > 1 ? 's' : ''}</span>`);
+  if (videoCount)   indicators.push(`<span class="text-xs text-gray-400"><i class="fas fa-video text-red-400 mr-0.5"></i>${videoCount} video${videoCount > 1 ? 's' : ''}</span>`);
+  if (galleryCount) indicators.push(`<span class="text-xs text-gray-400"><i class="fas fa-images text-amber-400 mr-0.5"></i>${galleryCount} photo${galleryCount > 1 ? 's' : ''}</span>`);
 
   return `
     <a href="/story.html?id=${post.id}"
