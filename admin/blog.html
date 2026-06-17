@@ -143,14 +143,19 @@
         <div class="md:col-span-2 hidden" id="story-only-fields">
           <hr class="mb-6 border-gray-100">
 
-          <!-- YouTube Video ID -->
+          <!-- Videos (multi-source) -->
           <div class="mb-6">
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-              <i class="fab fa-youtube text-red-500 mr-1"></i> YouTube Video (optional)
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              <i class="fas fa-video text-red-500 mr-1"></i> Videos (optional)
             </label>
-            <input id="f-video-id" type="text" placeholder="e.g. dQw4w9WgXcQ"
-                   class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
-            <p class="text-xs text-gray-400 mt-1">Paste just the video ID from the YouTube URL (the part after <code>?v=</code>)</p>
+            <div id="video-list" class="space-y-2 mb-3"></div>
+            <button type="button" onclick="addVideoEntry()"
+                    class="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-4 py-2 rounded-xl transition">
+              <i class="fas fa-plus"></i> Add Video
+            </button>
+            <p class="text-xs text-gray-400 mt-2">
+              Accepts: YouTube URLs, YouTube video IDs, or any direct video link (mp4, etc. from S3, R2, etc.)
+            </p>
           </div>
 
           <!-- Gallery photos -->
@@ -214,11 +219,42 @@
     const db = firebase.firestore();
     let editingId        = null;
     let quillEditor      = null;
-    let stagedCoverFile  = null;   // File object for new cover (story)
-    let existingCoverUrl = null;   // URL already saved (story edit)
-    let stagedGallery    = [];     // [{file, objectUrl}] — files waiting to upload
-    let existingGallery  = [];     // [{url}] — URLs already in Firestore
+    let stagedCoverFile  = null;
+    let existingCoverUrl = null;
+    let stagedGallery    = [];
+    let existingGallery  = [];
     const postsCache     = {};
+
+    // ── Multi-video list ───────────────────────────────────────────────────────
+    function addVideoEntry(url = '', title = '') {
+      const list = document.getElementById('video-list');
+      const row  = document.createElement('div');
+      row.className = 'video-entry flex gap-2 items-start';
+      row.innerHTML = `
+        <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input type="text" value="${escHtml(url)}" placeholder="YouTube URL, video ID, or https://…"
+                 class="video-url border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <input type="text" value="${escHtml(title)}" placeholder="Title (optional, e.g. Sunday Message)"
+                 class="video-title border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <button type="button" onclick="this.closest('.video-entry').remove()"
+                class="mt-0.5 text-gray-400 hover:text-red-500 transition px-2 py-2.5 text-lg leading-none" title="Remove">
+          <i class="fas fa-times"></i>
+        </button>`;
+      list.appendChild(row);
+    }
+
+    function getVideoEntries() {
+      return Array.from(document.querySelectorAll('.video-entry')).map(row => ({
+        url   : row.querySelector('.video-url').value.trim(),
+        title : row.querySelector('.video-title').value.trim(),
+      })).filter(v => v.url);
+    }
+
+    function loadVideoEntries(videos) {
+      document.getElementById('video-list').innerHTML = '';
+      (videos || []).forEach(v => addVideoEntry(v.url, v.title));
+    }
 
     // ── Toast ──────────────────────────────────────────────────────────────────
     function showToast(message, type) {
@@ -338,8 +374,13 @@
       document.getElementById('f-body').value       = post?.body   || '';
       document.getElementById('f-author').value     = post?.author || '';
       document.getElementById('f-image-url').value  = post?.imageUrl || '';
-      document.getElementById('f-video-id').value   = post?.videoId || '';
       document.getElementById('f-published').checked = post?.published ?? true;
+
+      // Load videos — new array format or migrate legacy single videoId
+      const videos = post?.videos?.length
+        ? post.videos
+        : post?.videoId ? [{ url: post.videoId, title: '' }] : [];
+      loadVideoEntries(videos);
 
       // Kind
       const kind = post?.kind || 'article';
@@ -447,7 +488,8 @@
         };
 
         if (kind === 'story') {
-          data.videoId    = document.getElementById('f-video-id').value.trim() || null;
+          data.videos      = getVideoEntries();
+          data.videoId     = null;   // clear legacy field
           data.galleryUrls = galleryUrls;
         }
 
