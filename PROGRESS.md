@@ -14,11 +14,43 @@
 
 ---
 
+## Session: feat — Image compression for gallery and story uploads (Sessions 79–80)
+
+**Date:** 2026-06-17
+**Branch:** `feat/gallery-image-compression` (PR #122), `feat/story-gallery-compression` (PR #123)
+**Status:** Merged
+
+### What was done
+
+Added client-side image compression using the native Canvas API — no new CDN dependencies.
+
+**`js/storage-upload.js`**
+- Added `compressImage(file, maxPx = 1920, quality = 0.85)` — resizes to 1920px max on longest side, re-encodes as JPEG at 85% quality; returns a Blob
+- `uploadMedia()` now accepts `File | Blob` so compressed blobs upload transparently
+
+**`admin/gallery.html`**
+- Added "High resolution (no compression)" checkbox inline next to the file picker — unchecked by default
+- Checkbox resets to unchecked after each save
+
+**`admin/blog.html`**
+- Story cover photo is always compressed (display-only hero, not a download target)
+- Story gallery photos get the same "High resolution (no compression)" checkbox next to "Add Photos"
+- Hi-res flag is captured per batch at file-selection time and stored on each staged item — different batches within the same save can have different quality settings
+- Checkbox auto-resets after each batch
+
+### Notes / decisions
+- Compression is purely client-side — no server changes, no Cloud Function, no new CDN dependencies
+- Typical savings: 5MB phone photo → ~300KB at 1920px / JPEG 85%
+- Hi-res option retained for use cases where downloads matter (banquets, portraits)
+- Cover photo on stories is always compressed — consistent display quality, no admin decision needed
+
+---
+
 ## Session: feat — Multi-source video gallery for stories (Session 76)
 
 **Date:** 2026-06-17
 **Branch:** `feat/story-multi-video` (PR #118)
-**Status:** Open
+**Status:** Merged
 
 ### What was done
 
@@ -54,7 +86,7 @@ Extended story posts to support multiple videos from any source — YouTube, S3,
 
 **Date:** 2026-06-17
 **Branch:** `feat/story-posts` (PR #117)
-**Status:** Open
+**Status:** Merged
 
 ### What was done
 
