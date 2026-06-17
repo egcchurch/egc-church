@@ -164,11 +164,17 @@
               <i class="fas fa-images text-amber-500 mr-1"></i> Photo Gallery (optional)
             </label>
             <div id="gallery-preview" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 mb-3"></div>
-            <label class="flex items-center gap-2 cursor-pointer bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-sm px-4 py-2.5 rounded-xl transition w-fit">
-              <i class="fas fa-plus"></i> Add Photos
-              <input id="gallery-file-input" type="file" multiple accept="image/*" class="hidden" onchange="onGalleryFilesSelected(event)">
-            </label>
-            <p class="text-xs text-gray-400 mt-1">Select multiple photos at once. Uploads happen when you save.</p>
+            <div class="flex items-center gap-3 flex-wrap">
+              <label class="flex items-center gap-2 cursor-pointer bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-sm px-4 py-2.5 rounded-xl transition">
+                <i class="fas fa-plus"></i> Add Photos
+                <input id="gallery-file-input" type="file" multiple accept="image/*" class="hidden" onchange="onGalleryFilesSelected(event)">
+              </label>
+              <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none whitespace-nowrap">
+                <input id="story-hires" type="checkbox" class="w-4 h-4 accent-amber-500">
+                High resolution (no compression)
+              </label>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">Images are compressed to 1920px / 85% quality by default. Tick <em>High resolution</em> to upload originals.</p>
           </div>
         </div>
 
@@ -320,11 +326,13 @@
 
     // ── Gallery photos ─────────────────────────────────────────────────────────
     function onGalleryFilesSelected(event) {
+      const hiRes = document.getElementById('story-hires').checked;
       Array.from(event.target.files).forEach(file => {
         const objectUrl = URL.createObjectURL(file);
-        stagedGallery.push({ file, objectUrl });
+        stagedGallery.push({ file, objectUrl, hiRes });
         renderGalleryThumbnail({ objectUrl, isStaged: true, index: stagedGallery.length - 1 });
       });
+      document.getElementById('story-hires').checked = false;
       event.target.value = '';
     }
 
@@ -450,26 +458,28 @@
           : db.collection('blog').doc();
         const docId = ref.id;
 
-        // Upload cover image (story)
+        // Upload cover image (story) — always compress (display only, not a download target)
         let imageUrl = document.getElementById('f-image-url').value.trim() || null;
         if (kind === 'story') {
           if (stagedCoverFile) {
             setSaveProgress(true, 'Uploading cover photo...');
-            imageUrl = await uploadMedia(`blog/${docId}/cover`, stagedCoverFile);
+            const coverBlob = await compressImage(stagedCoverFile);
+            imageUrl = await uploadMedia(`blog/${docId}/cover`, coverBlob);
           } else {
             imageUrl = existingCoverUrl || null;
           }
         }
 
-        // Upload gallery images (story)
+        // Upload gallery images (story) — honour per-batch hi-res flag
         let galleryUrls = [...existingGallery];
         const toUpload = stagedGallery.filter(Boolean);
         if (toUpload.length) {
           setSaveProgress(true, `Uploading ${toUpload.length} photo${toUpload.length > 1 ? 's' : ''}...`);
           const uploaded = await Promise.all(
-            toUpload.map((item, i) =>
-              uploadMedia(`blog/${docId}/gallery/${Date.now()}_${i}_${item.file.name}`, item.file)
-            )
+            toUpload.map(async (item, i) => {
+              const blob = item.hiRes ? item.file : await compressImage(item.file);
+              return uploadMedia(`blog/${docId}/gallery/${Date.now()}_${i}_${item.file.name}`, blob);
+            })
           );
           galleryUrls = [...galleryUrls, ...uploaded];
         }
