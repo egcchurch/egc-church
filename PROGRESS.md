@@ -14,6 +14,41 @@
 
 ---
 
+## Session: fix — story video thumbnails (Session 78)
+
+**Date:** 2026-06-17
+**Branch:** `fix/story-video-thumbnails` (PR #120)
+**Status:** Merged
+
+### What was done
+
+- Added optional **Thumbnail URL** field (third column) to each video row in `admin/blog.html`
+- Direct video cards on story page now show the custom thumbnail if set, or a built-in SVG placeholder (dark slate + play triangle) if not — grid always looks uniform
+- YouTube cards unchanged — thumbnail still pulled automatically from YouTube CDN
+- SW cache v44 → v45
+
+---
+
+## Session: fix — story video render bugs (Session 77)
+
+**Date:** 2026-06-17
+**Branch:** `fix/story-video-render` (PR #119)
+**Status:** Merged
+
+### What was done
+
+- **onclick JSON bug:** `JSON.stringify(v)` in an `onclick="..."` attribute produces `"` characters that close the HTML attribute early — click handlers never fired. Rewrote video card creation using `createElement` + `addEventListener`.
+- **Stale Firestore cache:** offline persistence (PR #107) resolved `.get()` with a cached doc from before videos were added. Fixed with `{ source: 'server' }` on story page Firestore fetch.
+- SW cache v43 → v44
+
+---
+
+**Status:** `Active`
+**Last worked on:** 2026-06-17
+**Current milestone:** Maintenance — all phases complete, working through backlog
+
+---
+
 ## Session: feat — Multi-source video gallery for stories (Session 76)
 
 **Date:** 2026-06-17
