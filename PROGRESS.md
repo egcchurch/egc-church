@@ -14,6 +14,34 @@
 
 ---
 
+## Session: feat — Gallery picker + story gallery X fix (Sessions 81–82)
+
+**Date:** 2026-06-17
+**Branch:** `fix/story-gallery-remove-button` (PR #125), `feat/story-gallery-picker` (PR #126)
+**Status:** Merged
+
+### What was done
+
+**PR #125 — Story gallery X button fix**
+
+`admin/blog.html` — `renderGalleryThumbnail` rebuilt with `createElement` + `addEventListener` instead of `div.innerHTML` + inline `onclick`. Root cause was identical to the video card bug (PR #119): `JSON.stringify(url)` in an inline `onclick` attribute produced double quotes that closed the `onclick="..."` HTML attribute early, leaving the button with no click handler for existing gallery photos. `removeGalleryItem` updated to receive the wrapper `div` directly (no longer uses `btn.closest()`).
+
+**PR #126 — Gallery picker: reuse photos from existing galleries**
+
+`admin/blog.html`:
+- Added **"From Gallery"** button next to "Add Photos" in the story photo section
+- Opens a modal showing all published galleries as scrollable cards; click a gallery to browse its photos in a grid
+- Click photos to select (amber highlight + tick); photos already added to the story are shown pre-checked and non-selectable
+- "Add Selected" adds the chosen photo URLs to the story gallery preview as URL references — zero re-upload, zero storage duplication
+- Added `isStoryOwnedUrl(url)` helper — when a story is deleted, only files under `blog/` path are deleted from Storage; gallery-borrowed photos (`gallery/` path) are skipped, protecting the source gallery
+
+### Notes / decisions
+- Gallery-borrowed photos are stored as plain URL strings in `galleryUrls` — no schema change, renders identically on `story.html`
+- The `isStoryOwnedUrl` check decodes the Firebase Storage URL path segment after `/o/` — works for any Firebase Storage URL
+- Modal uses `flex`/`hidden` toggle pair (Tailwind `hidden` alone doesn't centre a flex container)
+
+---
+
 ## Session: feat — Image compression for gallery and story uploads (Sessions 79–80)
 
 **Date:** 2026-06-17
