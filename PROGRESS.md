@@ -14,6 +14,27 @@
 
 ---
 
+## Session: fix — YouTube polling service-window gate (Session 74)
+
+**Date:** 2026-06-17
+**Branch:** `fix/youtube-service-window-polling` (PR #116)
+**Status:** In progress
+
+### What was done
+
+- `checkYoutubeLiveStatus` updated to read `serviceTimes` from `/homepage/content` before calling the YouTube API
+- Added `isInServiceWindow(serviceTimes)` and `parseTime12(timeStr)` helpers — SAST (UTC+2, no DST) day + minute comparison against each service entry
+- Function now skips the YouTube API call entirely outside service windows (30 min before start → 3 hours after start); logs "outside service window, skipping"
+- Saves the separate Firestore read that was previously done later (homepage content fetched once and reused)
+- Updated `docs/ROADMAP.md` quota note to reflect service-window-only polling (~800 units per service day vs 4,800 previously)
+- Added "discussion must conclude before coding" constraint to `CLAUDE.md` Constraints & Rules
+- Updated memory: `feedback-wait-for-go-ahead.md`
+
+### Deploy checklist
+- `firebase deploy --only functions` — required after merge
+
+---
+
 ## Session: backlog — YouTube auto-detect, content search, roadmap cleanup (Session 73)
 
 **Date:** 2026-06-14
