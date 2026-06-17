@@ -226,16 +226,18 @@
     const postsCache     = {};
 
     // ── Multi-video list ───────────────────────────────────────────────────────
-    function addVideoEntry(url = '', title = '') {
+    function addVideoEntry(url = '', title = '', thumbnail = '') {
       const list = document.getElementById('video-list');
       const row  = document.createElement('div');
       row.className = 'video-entry flex gap-2 items-start';
       row.innerHTML = `
-        <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div class="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
           <input type="text" value="${escHtml(url)}" placeholder="YouTube URL, video ID, or https://…"
                  class="video-url border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
-          <input type="text" value="${escHtml(title)}" placeholder="Title (optional, e.g. Sunday Message)"
+          <input type="text" value="${escHtml(title)}" placeholder="Title (optional)"
                  class="video-title border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <input type="text" value="${escHtml(thumbnail)}" placeholder="Thumbnail URL (direct videos only)"
+                 class="video-thumbnail border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
         </div>
         <button type="button" onclick="this.closest('.video-entry').remove()"
                 class="mt-0.5 text-gray-400 hover:text-red-500 transition px-2 py-2.5 text-lg leading-none" title="Remove">
@@ -246,14 +248,15 @@
 
     function getVideoEntries() {
       return Array.from(document.querySelectorAll('.video-entry')).map(row => ({
-        url   : row.querySelector('.video-url').value.trim(),
-        title : row.querySelector('.video-title').value.trim(),
+        url       : row.querySelector('.video-url').value.trim(),
+        title     : row.querySelector('.video-title').value.trim(),
+        thumbnail : row.querySelector('.video-thumbnail').value.trim(),
       })).filter(v => v.url);
     }
 
     function loadVideoEntries(videos) {
       document.getElementById('video-list').innerHTML = '';
-      (videos || []).forEach(v => addVideoEntry(v.url, v.title));
+      (videos || []).forEach(v => addVideoEntry(v.url, v.title, v.thumbnail));
     }
 
     // ── Toast ──────────────────────────────────────────────────────────────────
