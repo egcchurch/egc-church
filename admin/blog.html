@@ -338,23 +338,30 @@
 
     function renderGalleryThumbnail({ objectUrl, url, isStaged, index }) {
       const container = document.getElementById('gallery-preview');
+
       const div = document.createElement('div');
       div.className = 'relative group';
-      div.dataset.galleryKey = isStaged ? 'staged_' + index : 'existing_' + encodeURIComponent(url);
-      div.innerHTML = `
-        <img src="${isStaged ? objectUrl : url}" class="w-full h-20 object-cover rounded-xl">
-        <button type="button" onclick="removeGalleryItem(this, ${isStaged}, ${isStaged ? index : JSON.stringify(url)})"
-                class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-          <i class="fas fa-times"></i>
-        </button>
-      `;
+      div.dataset.galleryKey = isStaged ? 'staged_' + index : 'existing_' + encodeURIComponent(url || '');
+
+      const img = document.createElement('img');
+      img.src = isStaged ? objectUrl : url;
+      img.className = 'w-full h-20 object-cover rounded-xl';
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition';
+      btn.innerHTML = '<i class="fas fa-times"></i>';
+      btn.addEventListener('click', () => removeGalleryItem(div, isStaged, isStaged ? index : url));
+
+      div.appendChild(img);
+      div.appendChild(btn);
       container.appendChild(div);
     }
 
-    function removeGalleryItem(btn, isStaged, indexOrUrl) {
-      const wrapper = btn.closest('[data-gallery-key]');
+    function removeGalleryItem(wrapper, isStaged, indexOrUrl) {
       if (isStaged) {
-        URL.revokeObjectURL(stagedGallery[indexOrUrl].objectUrl);
+        const item = stagedGallery[indexOrUrl];
+        if (item) URL.revokeObjectURL(item.objectUrl);
         stagedGallery[indexOrUrl] = null;
       } else {
         existingGallery = existingGallery.filter(u => u !== indexOrUrl);
