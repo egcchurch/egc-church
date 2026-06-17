@@ -18,7 +18,7 @@
 
 **Date:** 2026-06-17
 **Branch:** `fix/youtube-service-window-polling` (PR #116)
-**Status:** In progress
+**Status:** Merged
 
 ### What was done
 
