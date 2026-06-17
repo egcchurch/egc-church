@@ -1,6 +1,6 @@
 // js/blog.js
 
-let allPosts = [];
+let allPosts   = [];
 let activeFilter = 'all';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -34,7 +34,6 @@ function initFilterChips() {
 
 function loadPosts() {
   const db = firebase.firestore();
-
   db.collection('blog')
     .where('published', '==', true)
     .orderBy('publishedAt', 'desc')
@@ -73,7 +72,13 @@ function render() {
 }
 
 function buildCard(post) {
-  const dateStr = formatDate(toDate(post.publishedAt));
+  const kind = post.kind || 'article';
+  return kind === 'story' ? buildStoryCard(post) : buildStandardCard(post);
+}
+
+// Standard card — announcements and articles
+function buildStandardCard(post) {
+  const dateStr       = formatDate(toDate(post.publishedAt));
   const isAnnouncement = (post.kind || 'article') === 'announcement';
 
   const kindBadge = isAnnouncement
@@ -97,15 +102,47 @@ function buildCard(post) {
         </div>
         ${kindBadge ? `<div class="mb-2">${kindBadge}</div>` : ''}
         <h3 class="text-lg font-bold text-[#0A3D62] mb-2 leading-snug">${escHtml(post.title)}</h3>
-        ${post.body ? `
-        <p class="text-sm text-gray-600 leading-relaxed line-clamp-4 flex-1">${escHtml(post.body)}</p>
-        ` : ''}
+        ${post.body ? `<p class="text-sm text-gray-600 leading-relaxed line-clamp-4 flex-1">${escHtml(post.body)}</p>` : ''}
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// Story card — rich image + gallery/video indicators + Read Story link
+function buildStoryCard(post) {
+  const dateStr      = formatDate(toDate(post.publishedAt));
+  const galleryCount = (post.galleryUrls || []).length;
+
+  const imageHtml = post.imageUrl
+    ? `<img src="${post.imageUrl}" alt="${escHtml(post.title)}" class="w-full h-56 object-cover">`
+    : `<div class="w-full h-56 bg-gradient-to-br from-[#0A3D62] to-emerald-600 flex items-center justify-center">
+         <i class="fas fa-camera text-white text-4xl opacity-60"></i>
+       </div>`;
+
+  const indicators = [];
+  if (post.videoId)    indicators.push(`<span class="text-xs text-gray-400"><i class="fab fa-youtube text-red-400 mr-0.5"></i>Video</span>`);
+  if (galleryCount)    indicators.push(`<span class="text-xs text-gray-400"><i class="fas fa-images text-amber-400 mr-0.5"></i>${galleryCount} photo${galleryCount > 1 ? 's' : ''}</span>`);
+
+  return `
+    <a href="/story.html?id=${post.id}"
+       class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100 flex flex-col group hover:shadow-md transition-shadow">
+      <div class="overflow-hidden relative">
+        ${imageHtml}
+        <span class="absolute top-3 left-3 text-xs px-2.5 py-1 rounded-full bg-emerald-500 text-white font-medium">Story</span>
+      </div>
+      <div class="p-6 flex flex-col flex-1">
+        <div class="flex items-center gap-2 text-xs text-gray-500 mb-3">
+          <i class="fas fa-calendar text-amber-500 w-4"></i>
+          <span>${dateStr}</span>
+          ${post.author ? `<span class="text-gray-300">&bull;</span><span>${escHtml(post.author)}</span>` : ''}
+        </div>
+        <h3 class="text-lg font-bold text-[#0A3D62] mb-2 leading-snug group-hover:text-amber-600 transition-colors">${escHtml(post.title)}</h3>
+        ${indicators.length ? `<div class="flex gap-3 mt-1 mb-3">${indicators.join('')}</div>` : ''}
+        <span class="mt-auto text-sm font-medium text-amber-600 group-hover:underline">Read story <i class="fas fa-arrow-right text-xs ml-1"></i></span>
+      </div>
+    </a>`;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function toDate(value) {
   if (!value) return new Date(0);

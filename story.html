@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="EGC">
+  <link rel="apple-touch-icon" href="assets/images/icons/icon-192.png">
+  <title>Story | Emmanuel Gospel Centre</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    /* Rich text body styles — Quill output rendered as readable prose */
+    .story-body h2 { font-size: 1.375rem; font-weight: 700; color: #0A3D62; margin: 1.5rem 0 0.5rem; }
+    .story-body h3 { font-size: 1.125rem; font-weight: 700; color: #0A3D62; margin: 1.25rem 0 0.5rem; }
+    .story-body p  { margin: 0 0 1rem; line-height: 1.75; color: #374151; }
+    .story-body ul, .story-body ol { padding-left: 1.5rem; margin-bottom: 1rem; color: #374151; line-height: 1.75; }
+    .story-body li { margin-bottom: 0.25rem; }
+    .story-body ul { list-style-type: disc; }
+    .story-body ol { list-style-type: decimal; }
+    .story-body strong { font-weight: 700; }
+    .story-body em     { font-style: italic; }
+    .story-body u      { text-decoration: underline; }
+    .story-body a      { color: #F59E0B; text-decoration: underline; }
+    .story-body blockquote {
+      border-left: 4px solid #F59E0B; padding-left: 1rem; margin: 1rem 0;
+      color: #6b7280; font-style: italic;
+    }
+
+    /* Lightbox overlay */
+    #lightbox {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92);
+      z-index: 1000; align-items: center; justify-content: center;
+    }
+    #lightbox.open { display: flex; }
+    #lightbox img  { max-width: 92vw; max-height: 88vh; object-fit: contain; border-radius: 0.5rem; }
+    #lightbox-close {
+      position: absolute; top: 1rem; right: 1.25rem;
+      color: white; font-size: 1.75rem; cursor: pointer; line-height: 1;
+    }
+    #lightbox-prev, #lightbox-next {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      color: white; font-size: 1.75rem; cursor: pointer;
+      background: rgba(255,255,255,0.1); border-radius: 50%;
+      width: 2.75rem; height: 2.75rem; display: flex; align-items: center; justify-content: center;
+    }
+    #lightbox-prev { left: 1rem; }
+    #lightbox-next { right: 1rem; }
+  </style>
+</head>
+<body class="bg-zinc-50 font-sans">
+
+  <div id="nav-placeholder"></div>
+
+  <!-- LOADING STATE -->
+  <div id="loading-state" class="text-center py-32 text-gray-400">
+    <i class="fas fa-spinner fa-spin text-3xl mb-3 block"></i>
+    Loading story...
+  </div>
+
+  <!-- ERROR STATE -->
+  <div id="error-state" class="hidden text-center py-32 text-red-400">
+    <i class="fas fa-exclamation-circle text-3xl mb-3 block"></i>
+    <p>Story not found.</p>
+    <a href="/blog.html" class="mt-4 inline-block text-sm text-amber-600 hover:underline">
+      <i class="fas fa-arrow-left mr-1"></i> Back to Notice Board
+    </a>
+  </div>
+
+  <!-- STORY CONTENT (populated by JS) -->
+  <article id="story-content" class="hidden">
+
+    <!-- Hero -->
+    <div id="story-hero" class="relative w-full bg-[#0A3D62] overflow-hidden" style="max-height: 480px;">
+      <img id="story-hero-img" src="" alt="" class="hidden w-full object-cover" style="max-height: 480px;">
+      <div id="story-hero-fallback"
+           class="hidden h-64 bg-gradient-to-br from-[#0A3D62] to-emerald-700 flex items-center justify-center">
+        <i class="fas fa-camera text-white text-6xl opacity-30"></i>
+      </div>
+    </div>
+
+    <!-- Main container -->
+    <div class="max-w-3xl mx-auto px-6 py-10">
+
+      <!-- Back link -->
+      <a href="/blog.html" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-amber-600 transition mb-8">
+        <i class="fas fa-arrow-left text-xs"></i> Back to Notice Board
+      </a>
+
+      <!-- Meta -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <span class="text-xs px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 font-medium">Story</span>
+        <span class="text-sm text-gray-500" id="story-date"></span>
+        <span id="story-author-wrap" class="hidden text-sm text-gray-500">
+          &bull; <span id="story-author"></span>
+        </span>
+      </div>
+
+      <!-- Title -->
+      <h1 id="story-title" class="text-3xl sm:text-4xl font-bold text-[#0A3D62] leading-tight mb-8"></h1>
+
+      <!-- Rich text body -->
+      <div id="story-body" class="story-body mb-10"></div>
+
+      <!-- YouTube embed -->
+      <div id="story-video-section" class="hidden mb-10">
+        <h2 class="text-lg font-bold text-[#0A3D62] mb-3">
+          <i class="fab fa-youtube text-red-500 mr-2"></i>Watch
+        </h2>
+        <div class="relative w-full rounded-2xl overflow-hidden bg-black" style="padding-top: 56.25%;">
+          <iframe id="story-video"
+                  class="absolute inset-0 w-full h-full"
+                  src=""
+                  title="Story video"
+                  frameborder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowfullscreen></iframe>
+        </div>
+      </div>
+
+      <!-- Photo gallery -->
+      <div id="story-gallery-section" class="hidden mb-10">
+        <h2 class="text-lg font-bold text-[#0A3D62] mb-3">
+          <i class="fas fa-images text-amber-500 mr-2"></i>Photos
+        </h2>
+        <div id="story-gallery" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+      </div>
+
+      <!-- Bottom back link -->
+      <div class="pt-6 border-t border-gray-100">
+        <a href="/blog.html" class="inline-flex items-center gap-1.5 text-sm text-amber-600 hover:underline font-medium">
+          <i class="fas fa-arrow-left text-xs"></i> Back to Notice Board
+        </a>
+      </div>
+
+    </div>
+  </article>
+
+  <!-- LIGHTBOX -->
+  <div id="lightbox" role="dialog" aria-modal="true" aria-label="Photo viewer">
+    <span id="lightbox-close" onclick="closeLightbox()" title="Close">&times;</span>
+    <span id="lightbox-prev" onclick="lightboxStep(-1)" title="Previous">&#8249;</span>
+    <img id="lightbox-img" src="" alt="">
+    <span id="lightbox-next" onclick="lightboxStep(1)" title="Next">&#8250;</span>
+  </div>
+
+  <script src="/firebase-config.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    let galleryUrls  = [];
+    let lightboxIndex = 0;
+
+    // ── Load story ─────────────────────────────────────────────────────────────
+    function waitForFirebase(cb) {
+      if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) cb();
+      else setTimeout(() => waitForFirebase(cb), 100);
+    }
+
+    function loadStory() {
+      const params = new URLSearchParams(window.location.search);
+      const id     = params.get('id');
+      if (!id) { showError(); return; }
+
+      const db = firebase.firestore();
+      db.collection('blog').doc(id).get()
+        .then((doc) => {
+          if (!doc.exists || doc.data().kind !== 'story' || !doc.data().published) {
+            showError();
+            return;
+          }
+          renderStory(doc.data());
+        })
+        .catch(() => showError());
+    }
+
+    function renderStory(post) {
+      // Update page title
+      document.title = escHtml(post.title) + ' | Emmanuel Gospel Centre';
+
+      // Hero
+      if (post.imageUrl) {
+        document.getElementById('story-hero-img').src = post.imageUrl;
+        document.getElementById('story-hero-img').alt = post.title;
+        document.getElementById('story-hero-img').classList.remove('hidden');
+      } else {
+        document.getElementById('story-hero-fallback').classList.remove('hidden');
+      }
+
+      // Meta
+      if (post.publishedAt) {
+        const d = typeof post.publishedAt.toDate === 'function'
+          ? post.publishedAt.toDate() : new Date(post.publishedAt);
+        document.getElementById('story-date').textContent =
+          d.toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      }
+      if (post.author) {
+        document.getElementById('story-author').textContent = post.author;
+        document.getElementById('story-author-wrap').classList.remove('hidden');
+      }
+
+      // Title
+      document.getElementById('story-title').textContent = post.title;
+
+      // Body — rendered as HTML (admin-only writes, Firestore rules enforced)
+      document.getElementById('story-body').innerHTML = post.body || '';
+
+      // YouTube video
+      if (post.videoId) {
+        document.getElementById('story-video').src =
+          'https://www.youtube.com/embed/' + encodeURIComponent(post.videoId);
+        document.getElementById('story-video-section').classList.remove('hidden');
+      }
+
+      // Photo gallery
+      galleryUrls = post.galleryUrls || [];
+      if (galleryUrls.length) {
+        const grid = document.getElementById('story-gallery');
+        galleryUrls.forEach((url, i) => {
+          const img = document.createElement('img');
+          img.src       = url;
+          img.alt       = 'Story photo ' + (i + 1);
+          img.className = 'w-full h-40 object-cover rounded-xl cursor-pointer hover:opacity-90 transition';
+          img.onclick   = () => openLightbox(i);
+          grid.appendChild(img);
+        });
+        document.getElementById('story-gallery-section').classList.remove('hidden');
+      }
+
+      document.getElementById('loading-state').classList.add('hidden');
+      document.getElementById('story-content').classList.remove('hidden');
+    }
+
+    function showError() {
+      document.getElementById('loading-state').classList.add('hidden');
+      document.getElementById('error-state').classList.remove('hidden');
+    }
+
+    // ── Lightbox ───────────────────────────────────────────────────────────────
+    function openLightbox(index) {
+      lightboxIndex = index;
+      document.getElementById('lightbox-img').src = galleryUrls[lightboxIndex];
+      document.getElementById('lightbox').classList.add('open');
+
+      document.getElementById('lightbox-prev').style.display = galleryUrls.length > 1 ? 'flex' : 'none';
+      document.getElementById('lightbox-next').style.display = galleryUrls.length > 1 ? 'flex' : 'none';
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('open');
+      document.getElementById('lightbox-img').src = '';
+    }
+
+    function lightboxStep(dir) {
+      lightboxIndex = (lightboxIndex + dir + galleryUrls.length) % galleryUrls.length;
+      document.getElementById('lightbox-img').src = galleryUrls[lightboxIndex];
+    }
+
+    // Close lightbox on backdrop click or Escape key
+    document.getElementById('lightbox').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('lightbox')) closeLightbox();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (!document.getElementById('lightbox').classList.contains('open')) return;
+      if (e.key === 'Escape')     closeLightbox();
+      if (e.key === 'ArrowLeft')  lightboxStep(-1);
+      if (e.key === 'ArrowRight') lightboxStep(1);
+    });
+
+    function escHtml(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => waitForFirebase(loadStory));
+  </script>
+</body>
+</html>

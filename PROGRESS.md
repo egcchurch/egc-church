@@ -9,8 +9,64 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-06-14
+**Last worked on:** 2026-06-17
 **Current milestone:** Maintenance — all phases complete, working through backlog
+
+---
+
+## Session: feat — Story post type (Session 75)
+
+**Date:** 2026-06-17
+**Branch:** `feat/story-posts` (PR #117)
+**Status:** Open
+
+### What was done
+
+Added a "Story" post type to the blog — purpose-built for photo reports of church activities (youth camps, outreach, missionary trips). Stories are a third `kind` value alongside existing `announcement` and `article`.
+
+**`admin/blog.html`**
+- Added Story radio option to the Type selector with description
+- When Story is selected: Quill rich text editor replaces the plain textarea; cover photo file upload replaces the URL field; story-specific fields appear (YouTube video ID + multi-photo gallery picker)
+- When Announcement/Article is selected: existing textarea and URL field behaviour unchanged
+- Quill 1.3.7 loaded from CDN (only on this admin page) — toolbar covers headings, bold/italic/underline, lists, links
+- Gallery picker: select multiple photos at once; staged thumbnails shown with individual remove buttons; uploads happen on save
+- Cover image uploaded to `blog/{docId}/cover` in Firebase Storage
+- Gallery images uploaded to `blog/{docId}/gallery/{timestamp}_{index}_{name}`
+- `savePost()` made async — uploads cover and gallery in sequence before Firestore write, with live progress indicator ("Uploading cover photo...", "Uploading N photos...", "Saving post...")
+- Story list rows show cover image thumbnail, emerald "Story" badge, video/photo count indicators
+- `deletePost()` cleans up Storage files (cover + gallery) when a story is deleted
+- Added `firebase-storage-compat.js` and `storage-upload.js` to admin/blog.html
+
+**`blog.html`**
+- Added "Stories" filter chip alongside All / Announcements / Articles
+
+**`js/blog.js`**
+- Story cards rendered differently from standard cards: taller cover image (h-56), emerald "Story" badge overlay, video/photo count indicators, "Read story →" link — entire card is an anchor to `/story.html?id=xxx`
+- Standard card rendering unchanged
+
+**`story.html`** (new public page)
+- Reads `?id=` query param, loads `blog/{id}` doc; shows error if not found or not a story
+- Layout: full-width hero image, back link, meta (Story badge + date + author), title, rich text body, YouTube embed (responsive 16:9 iframe), photo gallery grid
+- Photo gallery: 2–3 column responsive grid; clicking any photo opens a lightbox overlay with prev/next navigation, keyboard (← → Esc) support
+- Rich text body rendered via `innerHTML` (admin-only writes, Firestore security rules enforced)
+- CSS prose styles for Quill HTML output (h2, h3, p, ul, ol, strong, em, a, blockquote)
+
+**`storage.rules`**
+- Added `match /blog/{postId}/{allPaths=**}` rule: public read, admin write — covers both cover images and gallery images at any nesting depth under a blog post
+
+**`service-worker.js`**
+- Added `/story.html` to precache list
+- Cache bumped v41 → v42
+
+### Deploy checklist
+- `firebase deploy --only storage` — new storage rule for blog nested paths
+
+### Notes / decisions
+- Quill 1.3.7 is admin-only (loaded only on admin/blog.html) — no impact on public page bundle
+- `kind: 'story'` is a new value in the existing `/blog/{postId}` collection — no schema migration needed, no new Firestore collection
+- Story body stored as Quill HTML; rendered with `innerHTML` on story.html — safe because only users with `blog.manage` custom claim can write to the blog collection (enforced by Firestore rules, not just the admin UI)
+- Cover image for stories is required on save; URL field shown for announcement/article only
+- Gallery item removal during edit: existing URLs are tracked separately from staged files; save writes the surviving set
 
 ---
 
@@ -18,7 +74,7 @@
 
 **Date:** 2026-06-17
 **Branch:** `fix/youtube-service-window-polling` (PR #116)
-**Status:** In progress
+**Status:** Merged
 
 ### What was done
 

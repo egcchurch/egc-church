@@ -9,14 +9,22 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css">
+
+  <style>
+    /* Quill editor border styling to match the rest of the form */
+    .ql-container.ql-snow { border-radius: 0 0 0.75rem 0.75rem; border-color: #e5e7eb; font-size: 0.875rem; }
+    .ql-toolbar.ql-snow  { border-radius: 0.75rem 0.75rem 0 0; border-color: #e5e7eb; }
+    .ql-editor { min-height: 180px; }
+  </style>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
 </head>
 <body class="bg-zinc-50 font-sans overflow-x-hidden">
 
-  <!-- Navigation (shared — see admin-nav.html, injected by js/nav.js) -->
   <div id="nav-placeholder"></div>
 
   <!-- PAGE HEADER -->
@@ -24,7 +32,7 @@
     <div class="max-w-7xl mx-auto flex justify-between items-center">
       <div>
         <h1 class="text-3xl font-bold tracking-tight">Blog Management</h1>
-        <p class="text-blue-200 mt-1">Add and manage announcements and news posts</p>
+        <p class="text-blue-200 mt-1">Add and manage announcements, articles and stories</p>
       </div>
       <button onclick="openForm()"
               class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
@@ -44,17 +52,27 @@
           <label class="block text-sm font-medium text-gray-700 mb-2">Type *</label>
           <div class="flex flex-col sm:flex-row gap-3">
             <label class="flex items-start gap-2 cursor-pointer">
-              <input type="radio" name="f-kind" id="f-kind-announcement" value="announcement" class="mt-0.5 accent-amber-500">
+              <input type="radio" name="f-kind" id="f-kind-announcement" value="announcement"
+                     class="mt-0.5 accent-amber-500" onchange="onKindChange()">
               <span class="text-sm">
                 <span class="font-medium text-gray-800">Announcement</span>
-                <span class="text-gray-500"> — short, time-sensitive; appears on the member home feed</span>
+                <span class="text-gray-500"> — short, time-sensitive; appears on member home feed</span>
               </span>
             </label>
             <label class="flex items-start gap-2 cursor-pointer">
-              <input type="radio" name="f-kind" id="f-kind-article" value="article" class="mt-0.5 accent-amber-500" checked>
+              <input type="radio" name="f-kind" id="f-kind-article" value="article"
+                     class="mt-0.5 accent-amber-500" onchange="onKindChange()" checked>
               <span class="text-sm">
                 <span class="font-medium text-gray-800">Article</span>
                 <span class="text-gray-500"> — longer-form; appears on /blog only</span>
+              </span>
+            </label>
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="f-kind" id="f-kind-story" value="story"
+                     class="mt-0.5 accent-amber-500" onchange="onKindChange()">
+              <span class="text-sm">
+                <span class="font-medium text-gray-800">Story</span>
+                <span class="text-gray-500"> — photo report with rich text; camps, outreach, events</span>
               </span>
             </label>
           </div>
@@ -67,11 +85,17 @@
                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
         </div>
 
-        <!-- Body -->
-        <div class="md:col-span-2">
+        <!-- Body — plain textarea (announcement / article) -->
+        <div class="md:col-span-2" id="body-plain-section">
           <label class="block text-sm font-medium text-gray-700 mb-1">Body</label>
-          <textarea id="f-body" rows="6" placeholder="Write the announcement..."
+          <textarea id="f-body" rows="6" placeholder="Write the post body..."
                     class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"></textarea>
+        </div>
+
+        <!-- Body — Quill rich text (story) -->
+        <div class="md:col-span-2 hidden" id="body-rich-section">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Story Body</label>
+          <div id="quill-editor"></div>
         </div>
 
         <!-- Author -->
@@ -88,11 +112,25 @@
                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
         </div>
 
-        <!-- Image URL -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Image URL (optional)</label>
+        <!-- Cover image — URL input (announcement / article) -->
+        <div id="cover-url-section">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Cover Image URL (optional)</label>
           <input id="f-image-url" type="text" placeholder="https://..."
                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+
+        <!-- Cover image — file upload (story) -->
+        <div id="cover-upload-section" class="hidden">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Cover Photo *</label>
+          <div id="cover-preview" class="hidden mb-3">
+            <img id="cover-preview-img" src="" alt="Cover preview" class="h-36 w-full object-cover rounded-xl">
+            <button type="button" onclick="removeCover()"
+                    class="mt-1 text-xs text-red-500 hover:underline">Remove photo</button>
+          </div>
+          <label class="flex items-center gap-2 cursor-pointer bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-sm px-4 py-2.5 rounded-xl transition w-fit">
+            <i class="fas fa-image"></i> Choose Cover Photo
+            <input id="cover-file-input" type="file" accept="image/*" class="hidden" onchange="onCoverFileSelected(event)">
+          </label>
         </div>
 
         <!-- Published toggle -->
@@ -101,16 +139,51 @@
           <label for="f-published" class="text-sm font-medium text-gray-700">Published (visible on site)</label>
         </div>
 
+        <!-- ── Story-only fields ─────────────────────────────────────────────── -->
+        <div class="md:col-span-2 hidden" id="story-only-fields">
+          <hr class="mb-6 border-gray-100">
+
+          <!-- YouTube Video ID -->
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              <i class="fab fa-youtube text-red-500 mr-1"></i> YouTube Video (optional)
+            </label>
+            <input id="f-video-id" type="text" placeholder="e.g. dQw4w9WgXcQ"
+                   class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+            <p class="text-xs text-gray-400 mt-1">Paste just the video ID from the YouTube URL (the part after <code>?v=</code>)</p>
+          </div>
+
+          <!-- Gallery photos -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              <i class="fas fa-images text-amber-500 mr-1"></i> Photo Gallery (optional)
+            </label>
+            <div id="gallery-preview" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 mb-3"></div>
+            <label class="flex items-center gap-2 cursor-pointer bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-sm px-4 py-2.5 rounded-xl transition w-fit">
+              <i class="fas fa-plus"></i> Add Photos
+              <input id="gallery-file-input" type="file" multiple accept="image/*" class="hidden" onchange="onGalleryFilesSelected(event)">
+            </label>
+            <p class="text-xs text-gray-400 mt-1">Select multiple photos at once. Uploads happen when you save.</p>
+          </div>
+        </div>
+
       </div>
+
       <div class="flex gap-3 mt-6">
         <button onclick="savePost()"
                 class="bg-amber-500 hover:bg-amber-600 text-white px-8 py-3 rounded-full text-sm font-medium transition-all">
-          Save Post
+          <i class="fas fa-save mr-2"></i>Save Post
         </button>
         <button onclick="closeForm()"
                 class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-8 py-3 rounded-full text-sm font-medium transition-all">
           Cancel
         </button>
+      </div>
+
+      <!-- Save progress indicator -->
+      <div id="save-progress" class="hidden mt-4 flex items-center gap-2 text-sm text-gray-500">
+        <i class="fas fa-spinner fa-spin text-amber-500"></i>
+        <span id="save-progress-msg">Saving...</span>
       </div>
     </div>
   </div>
@@ -130,99 +203,293 @@
        class="fixed bottom-6 right-6 z-50 hidden px-6 py-3 rounded-2xl text-white text-sm font-medium shadow-lg transition-all">
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
   <script src="/firebase-config.js"></script>
   <script src="/js/nav.js"></script>
   <script src="/js/main.js"></script>
+  <script src="/js/storage-upload.js"></script>
   <script src="/js/permissions.js"></script>
   <script src="/js/admin-auth.js" data-require-perm="blog.manage"></script>
   <script>
     const db = firebase.firestore();
-    let editingId = null;
-    const postsCache = {};
+    let editingId        = null;
+    let quillEditor      = null;
+    let stagedCoverFile  = null;   // File object for new cover (story)
+    let existingCoverUrl = null;   // URL already saved (story edit)
+    let stagedGallery    = [];     // [{file, objectUrl}] — files waiting to upload
+    let existingGallery  = [];     // [{url}] — URLs already in Firestore
+    const postsCache     = {};
 
-    // ─── Toast ───────────────────────────────────────────────────────────────────
+    // ── Toast ──────────────────────────────────────────────────────────────────
     function showToast(message, type) {
       const toast = document.getElementById('toast');
       toast.textContent = message;
       toast.className = 'fixed bottom-6 right-6 z-50 px-6 py-3 rounded-2xl text-white text-sm font-medium shadow-lg transition-all '
         + (type === 'error' ? 'bg-red-600' : 'bg-green-600');
-      setTimeout(() => toast.classList.add('hidden'), 3000);
+      setTimeout(() => toast.classList.add('hidden'), 3500);
     }
 
-    // ─── Form ─────────────────────────────────────────────────────────────────
+    // ── Quill init (lazy — only created once) ──────────────────────────────────
+    function ensureQuill() {
+      if (quillEditor) return;
+      quillEditor = new Quill('#quill-editor', {
+        theme: 'snow',
+        placeholder: 'Write the story here...',
+        modules: {
+          toolbar: [
+            [{ header: [2, 3, false] }],
+            ['bold', 'italic', 'underline'],
+            [{ list: 'ordered' }, { list: 'bullet' }],
+            ['link'],
+            ['clean'],
+          ],
+        },
+      });
+    }
+
+    // ── Kind radio change ──────────────────────────────────────────────────────
+    function onKindChange() {
+      const kind = document.querySelector('input[name="f-kind"]:checked').value;
+      const isStory = kind === 'story';
+
+      document.getElementById('body-plain-section').classList.toggle('hidden', isStory);
+      document.getElementById('body-rich-section').classList.toggle('hidden', !isStory);
+      document.getElementById('cover-url-section').classList.toggle('hidden', isStory);
+      document.getElementById('cover-upload-section').classList.toggle('hidden', !isStory);
+      document.getElementById('story-only-fields').classList.toggle('hidden', !isStory);
+
+      if (isStory) ensureQuill();
+    }
+
+    // ── Cover image ────────────────────────────────────────────────────────────
+    function onCoverFileSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      stagedCoverFile = file;
+      const url = URL.createObjectURL(file);
+      document.getElementById('cover-preview-img').src = url;
+      document.getElementById('cover-preview').classList.remove('hidden');
+    }
+
+    function removeCover() {
+      stagedCoverFile  = null;
+      existingCoverUrl = null;
+      document.getElementById('cover-preview').classList.add('hidden');
+      document.getElementById('cover-preview-img').src = '';
+      document.getElementById('cover-file-input').value = '';
+    }
+
+    // ── Gallery photos ─────────────────────────────────────────────────────────
+    function onGalleryFilesSelected(event) {
+      Array.from(event.target.files).forEach(file => {
+        const objectUrl = URL.createObjectURL(file);
+        stagedGallery.push({ file, objectUrl });
+        renderGalleryThumbnail({ objectUrl, isStaged: true, index: stagedGallery.length - 1 });
+      });
+      event.target.value = '';
+    }
+
+    function renderGalleryThumbnail({ objectUrl, url, isStaged, index }) {
+      const container = document.getElementById('gallery-preview');
+      const div = document.createElement('div');
+      div.className = 'relative group';
+      div.dataset.galleryKey = isStaged ? 'staged_' + index : 'existing_' + encodeURIComponent(url);
+      div.innerHTML = `
+        <img src="${isStaged ? objectUrl : url}" class="w-full h-20 object-cover rounded-xl">
+        <button type="button" onclick="removeGalleryItem(this, ${isStaged}, ${isStaged ? index : JSON.stringify(url)})"
+                class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+          <i class="fas fa-times"></i>
+        </button>
+      `;
+      container.appendChild(div);
+    }
+
+    function removeGalleryItem(btn, isStaged, indexOrUrl) {
+      const wrapper = btn.closest('[data-gallery-key]');
+      if (isStaged) {
+        URL.revokeObjectURL(stagedGallery[indexOrUrl].objectUrl);
+        stagedGallery[indexOrUrl] = null;
+      } else {
+        existingGallery = existingGallery.filter(u => u !== indexOrUrl);
+      }
+      wrapper.remove();
+    }
+
+    function renderExistingGallery(urls) {
+      document.getElementById('gallery-preview').innerHTML = '';
+      existingGallery = [...(urls || [])];
+      existingGallery.forEach(url => {
+        renderGalleryThumbnail({ url, isStaged: false });
+      });
+    }
+
+    // ── Form open / close ──────────────────────────────────────────────────────
     function openForm(id) {
-      editingId = id || null;
+      editingId        = id || null;
+      stagedCoverFile  = null;
+      stagedGallery    = [];
+      existingGallery  = [];
+      existingCoverUrl = null;
+
       const post = id ? postsCache[id] : null;
 
       document.getElementById('form-title').textContent = id ? 'Edit Post' : 'Add New Post';
-      document.getElementById('f-title').value     = post?.title    || '';
-      document.getElementById('f-body').value      = post?.body     || '';
-      document.getElementById('f-author').value    = post?.author   || '';
-      document.getElementById('f-image-url').value = post?.imageUrl || '';
+      document.getElementById('f-title').value      = post?.title  || '';
+      document.getElementById('f-body').value       = post?.body   || '';
+      document.getElementById('f-author').value     = post?.author || '';
+      document.getElementById('f-image-url').value  = post?.imageUrl || '';
+      document.getElementById('f-video-id').value   = post?.videoId || '';
       document.getElementById('f-published').checked = post?.published ?? true;
+
+      // Kind
       const kind = post?.kind || 'article';
       document.querySelector(`input[name="f-kind"][value="${kind}"]`).checked = true;
+      onKindChange();
 
+      // Cover preview (story edit)
+      if (kind === 'story' && post?.imageUrl) {
+        existingCoverUrl = post.imageUrl;
+        document.getElementById('cover-preview-img').src = post.imageUrl;
+        document.getElementById('cover-preview').classList.remove('hidden');
+      } else {
+        document.getElementById('cover-preview').classList.add('hidden');
+        document.getElementById('cover-preview-img').src = '';
+      }
+
+      // Quill content (story edit)
+      if (kind === 'story') {
+        ensureQuill();
+        quillEditor.clipboard.dangerouslyPasteHTML(post?.body || '');
+      }
+
+      // Gallery (story edit)
+      renderExistingGallery(post?.galleryUrls || []);
+
+      // Date
       const { date } = splitTimestamp(post?.publishedAt);
       document.getElementById('f-publish-date').value = date || today();
 
       document.getElementById('post-form').classList.remove('hidden');
+      document.getElementById('save-progress').classList.add('hidden');
       document.getElementById('post-form').scrollIntoView({ behavior: 'smooth' });
     }
 
     function closeForm() {
-      editingId = null;
+      stagedGallery.forEach(item => item && URL.revokeObjectURL(item.objectUrl));
+      stagedGallery    = [];
+      stagedCoverFile  = null;
+      existingCoverUrl = null;
+      editingId        = null;
       document.getElementById('post-form').classList.add('hidden');
     }
 
-    function savePost() {
+    // ── Save ───────────────────────────────────────────────────────────────────
+    async function savePost() {
       const title       = document.getElementById('f-title').value.trim();
       const publishDate = document.getElementById('f-publish-date').value;
+      const kind        = document.querySelector('input[name="f-kind"]:checked').value;
 
       if (!title || !publishDate) {
         showToast('Title and publish date are required.', 'error');
         return;
       }
-
-      const data = {
-        title,
-        body        : document.getElementById('f-body').value.trim(),
-        author      : document.getElementById('f-author').value.trim(),
-        imageUrl    : document.getElementById('f-image-url').value.trim() || null,
-        published   : document.getElementById('f-published').checked,
-        kind        : document.querySelector('input[name="f-kind"]:checked').value,
-        publishedAt : buildTimestamp(publishDate),
-        updatedAt   : firebase.firestore.FieldValue.serverTimestamp(),
-      };
-
-      const ref = editingId
-        ? db.collection('blog').doc(editingId)
-        : db.collection('blog').doc();
-
-      if (!editingId) {
-        data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      if (kind === 'story' && !stagedCoverFile && !existingCoverUrl) {
+        showToast('Please choose a cover photo for the story.', 'error');
+        return;
       }
 
-      ref.set(data, { merge: true })
-        .then(() => {
-          closeForm();
-          showToast('Post saved.', 'success');
-          loadPosts();
-        })
-        .catch(err => showToast('Error saving post: ' + err.message, 'error'));
+      setSaveProgress(true, 'Saving...');
+
+      try {
+        const ref = editingId
+          ? db.collection('blog').doc(editingId)
+          : db.collection('blog').doc();
+        const docId = ref.id;
+
+        // Upload cover image (story)
+        let imageUrl = document.getElementById('f-image-url').value.trim() || null;
+        if (kind === 'story') {
+          if (stagedCoverFile) {
+            setSaveProgress(true, 'Uploading cover photo...');
+            imageUrl = await uploadMedia(`blog/${docId}/cover`, stagedCoverFile);
+          } else {
+            imageUrl = existingCoverUrl || null;
+          }
+        }
+
+        // Upload gallery images (story)
+        let galleryUrls = [...existingGallery];
+        const toUpload = stagedGallery.filter(Boolean);
+        if (toUpload.length) {
+          setSaveProgress(true, `Uploading ${toUpload.length} photo${toUpload.length > 1 ? 's' : ''}...`);
+          const uploaded = await Promise.all(
+            toUpload.map((item, i) =>
+              uploadMedia(`blog/${docId}/gallery/${Date.now()}_${i}_${item.file.name}`, item.file)
+            )
+          );
+          galleryUrls = [...galleryUrls, ...uploaded];
+        }
+
+        // Build Firestore doc
+        const body = kind === 'story'
+          ? (quillEditor ? quillEditor.root.innerHTML : '')
+          : document.getElementById('f-body').value.trim();
+
+        const data = {
+          title,
+          body,
+          author      : document.getElementById('f-author').value.trim(),
+          imageUrl,
+          published   : document.getElementById('f-published').checked,
+          kind,
+          publishedAt : buildTimestamp(publishDate),
+          updatedAt   : firebase.firestore.FieldValue.serverTimestamp(),
+        };
+
+        if (kind === 'story') {
+          data.videoId    = document.getElementById('f-video-id').value.trim() || null;
+          data.galleryUrls = galleryUrls;
+        }
+
+        if (!editingId) {
+          data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        }
+
+        setSaveProgress(true, 'Saving post...');
+        await ref.set(data, { merge: true });
+
+        closeForm();
+        showToast('Post saved.', 'success');
+        loadPosts();
+      } catch (err) {
+        setSaveProgress(false);
+        showToast('Error saving post: ' + err.message, 'error');
+      }
     }
 
+    function setSaveProgress(visible, msg) {
+      const el = document.getElementById('save-progress');
+      el.classList.toggle('hidden', !visible);
+      if (msg) document.getElementById('save-progress-msg').textContent = msg;
+    }
+
+    // ── Delete ─────────────────────────────────────────────────────────────────
     function deletePost(id, title) {
       if (!confirm('Delete "' + title + '"? This cannot be undone.')) return;
+      const post = postsCache[id];
       db.collection('blog').doc(id).delete()
-        .then(() => {
+        .then(async () => {
+          if (post?.kind === 'story') {
+            if (post.imageUrl)    deleteMedia(post.imageUrl).catch(() => {});
+            (post.galleryUrls || []).forEach(url => deleteMedia(url).catch(() => {}));
+          }
           showToast('Post deleted.', 'success');
           loadPosts();
         })
         .catch(err => showToast('Error: ' + err.message, 'error'));
     }
 
-    // ─── List ─────────────────────────────────────────────────────────────────
+    // ── List ───────────────────────────────────────────────────────────────────
     function loadPosts() {
       const list = document.getElementById('post-list');
       list.innerHTML = `<div class="text-center py-12 text-gray-400">
@@ -244,25 +511,37 @@
             const p = doc.data();
             postsCache[doc.id] = p;
 
-            const dateStr  = formatTimestamp(p.publishedAt);
-            const pubBadge = p.published
+            const dateStr   = formatTimestamp(p.publishedAt);
+            const pubBadge  = p.published
               ? '<span class="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">Published</span>'
               : '<span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500">Draft</span>';
-            const kindBadge = (p.kind || 'article') === 'announcement'
+
+            const kind = p.kind || 'article';
+            const kindBadge = kind === 'announcement'
               ? '<span class="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">Announcement</span>'
-              : '<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">Article</span>';
+              : kind === 'story'
+                ? '<span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">Story</span>'
+                : '<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">Article</span>';
+
+            const galleryCount = (p.galleryUrls || []).length;
+            const storyMeta = kind === 'story' ? `
+              ${p.videoId ? '<span class="text-xs text-gray-400"><i class="fab fa-youtube text-red-400 mr-0.5"></i>Video</span>' : ''}
+              ${galleryCount ? `<span class="text-xs text-gray-400"><i class="fas fa-images text-amber-400 mr-0.5"></i>${galleryCount} photo${galleryCount > 1 ? 's' : ''}</span>` : ''}
+            ` : '';
 
             list.innerHTML += `
               <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col md:flex-row md:items-center gap-4">
+                ${kind === 'story' && p.imageUrl ? `<img src="${p.imageUrl}" class="w-full md:w-24 h-20 object-cover rounded-xl shrink-0" alt="">` : ''}
                 <div class="flex-1 min-w-0">
                   <div class="flex flex-wrap items-center gap-2 mb-2">
                     ${pubBadge}
                     ${kindBadge}
                   </div>
                   <p class="font-semibold text-gray-900 truncate">${escHtml(p.title)}</p>
-                  <div class="flex flex-wrap gap-x-4 mt-1 text-sm text-gray-500">
+                  <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-gray-500">
                     <span><i class="fas fa-calendar text-amber-400 mr-1"></i>${dateStr}</span>
                     ${p.author ? `<span><i class="fas fa-user text-amber-400 mr-1"></i>${escHtml(p.author)}</span>` : ''}
+                    ${storyMeta}
                   </div>
                 </div>
                 <div class="flex gap-2 shrink-0">
@@ -283,8 +562,7 @@
         });
     }
 
-    // ─── Helpers ──────────────────────────────────────────────────────────────
-
+    // ── Helpers ────────────────────────────────────────────────────────────────
     function today() {
       return new Date().toISOString().slice(0, 10);
     }
