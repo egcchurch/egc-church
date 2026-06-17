@@ -340,25 +340,71 @@
       event.target.value = '';
     }
 
+    // Drag-and-drop reorder state
+    let dragSrcEl = null;
+    let isDragging = false;
+
+    function setupDrag(el) {
+      el.draggable = true;
+      el.addEventListener('dragstart', () => {
+        dragSrcEl = el;
+        isDragging = true;
+        setTimeout(() => el.classList.add('opacity-40', 'ring-2', 'ring-amber-400'), 0);
+      });
+      el.addEventListener('dragend', () => {
+        el.classList.remove('opacity-40', 'ring-2', 'ring-amber-400');
+        document.querySelectorAll('#gallery-preview > div').forEach(d =>
+          d.classList.remove('ring-2', 'ring-amber-400', 'ring-inset'));
+        dragSrcEl = null;
+        setTimeout(() => { isDragging = false; }, 0);
+      });
+      el.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (dragSrcEl && dragSrcEl !== el) el.classList.add('ring-2', 'ring-inset', 'ring-amber-400');
+      });
+      el.addEventListener('dragleave', () => el.classList.remove('ring-2', 'ring-inset', 'ring-amber-400'));
+      el.addEventListener('drop', (e) => {
+        e.preventDefault();
+        el.classList.remove('ring-2', 'ring-inset', 'ring-amber-400');
+        if (!dragSrcEl || dragSrcEl === el) return;
+        const container = document.getElementById('gallery-preview');
+        const kids = [...container.children];
+        kids.indexOf(dragSrcEl) < kids.indexOf(el)
+          ? el.after(dragSrcEl)
+          : el.before(dragSrcEl);
+      });
+    }
+
     function renderGalleryThumbnail({ objectUrl, url, isStaged, index }) {
       const container = document.getElementById('gallery-preview');
 
       const div = document.createElement('div');
-      div.className = 'relative group';
+      div.className = 'relative group cursor-grab active:cursor-grabbing';
       div.dataset.galleryKey = isStaged ? 'staged_' + index : 'existing_' + encodeURIComponent(url || '');
 
       const img = document.createElement('img');
       img.src = isStaged ? objectUrl : url;
-      img.className = 'w-full h-20 object-cover rounded-xl';
+      img.className = 'w-full h-24 object-cover rounded-xl pointer-events-none';
+
+      // Click thumbnail to open lightbox
+      div.addEventListener('click', () => {
+        if (isDragging) return;
+        const items = [...document.getElementById('gallery-preview').children];
+        openLightbox(items.indexOf(div));
+      });
 
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition';
+      btn.className = 'absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-10';
       btn.innerHTML = '<i class="fas fa-times"></i>';
-      btn.addEventListener('click', () => removeGalleryItem(div, isStaged, isStaged ? index : url));
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeGalleryItem(div, isStaged, isStaged ? index : url);
+      });
 
       div.appendChild(img);
       div.appendChild(btn);
+      setupDrag(div);
       container.appendChild(div);
     }
 
@@ -372,6 +418,64 @@
       }
       wrapper.remove();
     }
+
+    // ── Gallery lightbox ───────────────────────────────────────────────────────
+    let lightboxItems = [];
+    let lightboxIdx   = 0;
+
+    function openLightbox(idx) {
+      lightboxItems = [...document.getElementById('gallery-preview').children];
+      lightboxIdx   = idx;
+      renderLightbox();
+      const lb = document.getElementById('gallery-lightbox');
+      lb.classList.remove('hidden');
+      lb.classList.add('flex');
+    }
+
+    function renderLightbox() {
+      const wrapper = lightboxItems[lightboxIdx];
+      document.getElementById('lb-img').src = wrapper.querySelector('img').src;
+      document.getElementById('lb-counter').textContent = `${lightboxIdx + 1} / ${lightboxItems.length}`;
+      document.getElementById('lb-prev').classList.toggle('invisible', lightboxIdx === 0);
+      document.getElementById('lb-next').classList.toggle('invisible', lightboxIdx === lightboxItems.length - 1);
+    }
+
+    function lightboxPrev() { if (lightboxIdx > 0) { lightboxIdx--; renderLightbox(); } }
+    function lightboxNext() { if (lightboxIdx < lightboxItems.length - 1) { lightboxIdx++; renderLightbox(); } }
+
+    function closeLightbox() {
+      const lb = document.getElementById('gallery-lightbox');
+      lb.classList.add('hidden');
+      lb.classList.remove('flex');
+      document.getElementById('lb-img').src = '';
+    }
+
+    function removeLightboxItem() {
+      const wrapper = lightboxItems[lightboxIdx];
+      const key = wrapper.dataset.galleryKey;
+      if (key.startsWith('staged_')) {
+        const idx = parseInt(key.replace('staged_', ''));
+        const item = stagedGallery[idx];
+        if (item) URL.revokeObjectURL(item.objectUrl);
+        stagedGallery[idx] = null;
+      } else {
+        const url = decodeURIComponent(key.replace('existing_', ''));
+        existingGallery = existingGallery.filter(u => u !== url);
+      }
+      wrapper.remove();
+      lightboxItems.splice(lightboxIdx, 1);
+      if (!lightboxItems.length) { closeLightbox(); return; }
+      if (lightboxIdx >= lightboxItems.length) lightboxIdx = lightboxItems.length - 1;
+      renderLightbox();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (document.getElementById('gallery-lightbox').classList.contains('hidden')) return;
+      if (e.key === 'Escape')      closeLightbox();
+      if (e.key === 'ArrowLeft')   lightboxPrev();
+      if (e.key === 'ArrowRight')  lightboxNext();
+      if (e.key === 'Delete' || e.key === 'Backspace') removeLightboxItem();
+    });
 
     function renderExistingGallery(urls) {
       document.getElementById('gallery-preview').innerHTML = '';
@@ -481,18 +585,31 @@
           }
         }
 
-        // Upload gallery images (story) — honour per-batch hi-res flag
-        let galleryUrls = [...existingGallery];
-        const toUpload = stagedGallery.filter(Boolean);
+        // Upload gallery images (story) — preserve per-batch hi-res flag, key by staged index
+        const stagedKeyToUrl = {};
+        const toUpload = stagedGallery
+          .map((item, idx) => item ? { item, key: 'staged_' + idx } : null)
+          .filter(Boolean);
         if (toUpload.length) {
           setSaveProgress(true, `Uploading ${toUpload.length} photo${toUpload.length > 1 ? 's' : ''}...`);
-          const uploaded = await Promise.all(
-            toUpload.map(async (item, i) => {
+          await Promise.all(
+            toUpload.map(async ({ item, key }, i) => {
               const blob = item.hiRes ? item.file : await compressImage(item.file);
-              return uploadMedia(`blog/${docId}/gallery/${Date.now()}_${i}_${item.file.name}`, blob);
+              stagedKeyToUrl[key] = await uploadMedia(
+                `blog/${docId}/gallery/${Date.now()}_${i}_${item.file.name}`, blob);
             })
           );
-          galleryUrls = [...galleryUrls, ...uploaded];
+        }
+
+        // Build galleryUrls from DOM order so drag-and-drop reordering is preserved
+        const galleryUrls = [];
+        for (const el of document.getElementById('gallery-preview').children) {
+          const key = el.dataset.galleryKey;
+          if (key.startsWith('existing_')) {
+            galleryUrls.push(decodeURIComponent(key.replace('existing_', '')));
+          } else if (key.startsWith('staged_') && stagedKeyToUrl[key]) {
+            galleryUrls.push(stagedKeyToUrl[key]);
+          }
         }
 
         // Build Firestore doc
@@ -817,6 +934,45 @@
       picker.classList.remove('flex');
     }
   </script>
+
+  <!-- GALLERY LIGHTBOX -->
+  <div id="gallery-lightbox" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/92"
+       onclick="if(event.target===this) closeLightbox()">
+    <div class="relative flex items-center justify-center w-full h-full p-12">
+
+      <!-- Close -->
+      <button onclick="closeLightbox()"
+              class="absolute top-4 right-4 text-white/60 hover:text-white text-2xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition z-10">
+        <i class="fas fa-times"></i>
+      </button>
+
+      <!-- Remove -->
+      <button onclick="removeLightboxItem()"
+              class="absolute top-4 left-4 flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2 rounded-full transition z-10">
+        <i class="fas fa-trash"></i> Remove
+      </button>
+
+      <!-- Counter -->
+      <div id="lb-counter" class="absolute bottom-5 left-1/2 -translate-x-1/2 text-white/50 text-sm z-10"></div>
+
+      <!-- Image -->
+      <img id="lb-img" src="" alt=""
+           class="max-w-full max-h-full object-contain rounded-xl shadow-2xl select-none">
+
+      <!-- Prev -->
+      <button id="lb-prev" onclick="lightboxPrev()"
+              class="absolute left-4 top-1/2 -translate-y-1/2 text-white/60 hover:text-white text-3xl w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition z-10">
+        <i class="fas fa-chevron-left"></i>
+      </button>
+
+      <!-- Next -->
+      <button id="lb-next" onclick="lightboxNext()"
+              class="absolute right-4 top-1/2 -translate-y-1/2 text-white/60 hover:text-white text-3xl w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition z-10">
+        <i class="fas fa-chevron-right"></i>
+      </button>
+
+    </div>
+  </div>
 
   <!-- GALLERY PICKER MODAL -->
   <div id="gallery-picker" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4"
