@@ -205,7 +205,7 @@
       if (!id) { showError(); return; }
 
       const db = firebase.firestore();
-      db.collection('blog').doc(id).get()
+      db.collection('blog').doc(id).get({ source: 'server' })
         .then((doc) => {
           if (!doc.exists || doc.data().kind !== 'story' || !doc.data().published) {
             showError();
@@ -256,24 +256,36 @@
         videos.forEach((v) => {
           const parsed = parseVideoUrl(v.url);
           if (!parsed) return;
+
+          const thumb = document.createElement('div');
+          thumb.className = 'video-thumb';
+          thumb.addEventListener('click', () => openVideoModal(v));
+
+          if (parsed.type === 'youtube') {
+            const img = document.createElement('img');
+            img.src = `https://img.youtube.com/vi/${parsed.id}/hqdefault.jpg`;
+            img.alt = v.title || 'Video';
+            const playBtn = document.createElement('div');
+            playBtn.className = 'play-btn';
+            playBtn.innerHTML = '<i class="fab fa-youtube"></i>';
+            thumb.appendChild(img);
+            thumb.appendChild(playBtn);
+          } else {
+            thumb.innerHTML = `
+              <div class="play-btn" style="position:static;height:100%;background:#1e293b;border-radius:0.75rem;flex-direction:column;gap:0.5rem;">
+                <i class="fas fa-play-circle" style="font-size:2.5rem;color:white;opacity:0.8;"></i>
+                <span style="color:#94a3b8;font-size:0.7rem;">Direct video</span>
+              </div>`;
+          }
+
           const card = document.createElement('div');
           card.className = 'flex flex-col gap-1';
-          if (parsed.type === 'youtube') {
-            card.innerHTML = `
-              <div class="video-thumb" onclick="openVideoModal(${JSON.stringify(v)})">
-                <img src="https://img.youtube.com/vi/${parsed.id}/hqdefault.jpg" alt="${escHtml(v.title || 'Video')}">
-                <div class="play-btn"><i class="fab fa-youtube"></i></div>
-              </div>
-              ${v.title ? `<p class="text-sm text-gray-600 font-medium px-1">${escHtml(v.title)}</p>` : ''}`;
-          } else {
-            card.innerHTML = `
-              <div class="video-thumb" onclick="openVideoModal(${JSON.stringify(v)})">
-                <div class="play-btn" style="position:static;height:100%;background:#1e293b;border-radius:0.75rem;flex-direction:column;gap:0.5rem;">
-                  <i class="fas fa-play-circle" style="font-size:2.5rem;color:white;opacity:0.8;"></i>
-                  <span style="color:#94a3b8;font-size:0.7rem;">Direct video</span>
-                </div>
-              </div>
-              ${v.title ? `<p class="text-sm text-gray-600 font-medium px-1">${escHtml(v.title)}</p>` : ''}`;
+          card.appendChild(thumb);
+          if (v.title) {
+            const p = document.createElement('p');
+            p.className = 'text-sm text-gray-600 font-medium px-1';
+            p.textContent = v.title;
+            card.appendChild(p);
           }
           grid.appendChild(card);
         });
