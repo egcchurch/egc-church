@@ -14,6 +14,69 @@
 
 ---
 
+## Session: feat — Lightbox viewer and drag-to-reorder for story gallery (Session 84)
+
+**Date:** 2026-06-17
+**Branch:** `feat/story-gallery-lightbox-reorder` (PR #129)
+**Status:** Merged
+
+### What was done
+
+**`admin/blog.html`**
+- Click any story gallery thumbnail to open a full-screen lightbox overlay
+- Lightbox shows the full-resolution image with a counter (e.g. "3 / 8")
+- Prev/Next buttons and keyboard navigation (←/→ arrows, Esc to close)
+- "Remove" button inside the lightbox removes the photo from the gallery (same effect as the X thumbnail button) — useful when thumbnails are too small to judge quality
+- Drag-and-drop reordering of gallery thumbnails — drag any photo to a new position; the save order reflects the final DOM order
+- `isDragging` flag prevents the drag-release from triggering the click-to-lightbox handler
+- Save logic updated to walk the `#gallery-preview` DOM in order (using `data-gallery-key`) so reordered positions are preserved in Firestore
+
+### Notes / decisions
+- Lightbox `lightboxItems[]` snapshot is taken at open time; `removeLightboxItem()` syncs both the DOM and the array so indices stay correct during multi-remove sessions
+- DOM-as-truth pattern: instead of maintaining separate arrays with correct order, the save walks `#gallery-preview` children and decodes each item's `data-gallery-key` to build `galleryUrls`
+- No new CDN dependencies
+
+---
+
+## Session: fix — Quill rich text editor overlapping form fields on story edit (Session 83)
+
+**Date:** 2026-06-17
+**Branch:** `fix/story-quill-editor-overlap` (PR #128)
+**Status:** Merged
+
+### What was done
+
+**`admin/blog.html`**
+- `.ql-container.ql-snow` style override: added `height: auto` so the editor container does not collapse in CSS grid and `.ql-editor`'s `min-height: 180px` no longer overflows into the Author / Publish Date row
+
+### Root cause
+Quill 1.3.7 sets `.ql-container { height: 100% }`. In a CSS grid with no explicit row height the parent resolves to 0px, causing the container to collapse; the editor's `min-height: 180px` then overflows and overlaps the next grid row.
+
+---
+
+## Session: feat — Gallery picker and X button fix for story photos (Sessions 81–82)
+
+**Date:** 2026-06-17
+**Branch:** `fix/story-gallery-x-button` (PR #125), `feat/story-gallery-picker` (PR #126)
+**Status:** Merged
+
+### What was done
+
+**X button fix (`admin/blog.html`, PR #125)**
+- `renderGalleryThumbnail` rebuilt with `createElement` + `addEventListener` instead of `innerHTML` + inline `onclick`
+- Root cause: `JSON.stringify(url)` produces a double-quoted string that closes the `onclick="..."` HTML attribute early, silently dropping the handler
+- `removeGalleryItem` now receives the wrapper `div` directly (no `.closest()` needed)
+- `isStoryOwnedUrl(url)` helper: checks Firebase Storage path prefix (`blog/` = story-owned, `gallery/` = borrowed) so only story-owned files are deleted from Storage when a story is deleted
+
+**Gallery picker (`admin/blog.html`, PR #126)**
+- "From Gallery" button opens a modal listing all published photo galleries
+- Click a gallery to expand its photos; click a photo to toggle selection (pre-checks already-added photos)
+- Selected gallery photos are added to the story's photo list as URL references — no re-upload, no Storage duplication
+- Borrowed gallery photos are excluded from Storage deletion when a story is deleted (guarded by `isStoryOwnedUrl()`)
+- Thumbnail height bumped from `h-20` to `h-24` for better visibility
+
+---
+
 ## Session: feat — Image compression for gallery and story uploads (Sessions 79–80)
 
 **Date:** 2026-06-17
