@@ -169,12 +169,16 @@
                 <i class="fas fa-plus"></i> Add Photos
                 <input id="gallery-file-input" type="file" multiple accept="image/*" class="hidden" onchange="onGalleryFilesSelected(event)">
               </label>
+              <button type="button" onclick="openGalleryPicker()"
+                      class="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-sm px-4 py-2.5 rounded-xl transition">
+                <i class="fas fa-images"></i> From Gallery
+              </button>
               <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none whitespace-nowrap">
                 <input id="story-hires" type="checkbox" class="w-4 h-4 accent-amber-500">
                 High resolution (no compression)
               </label>
             </div>
-            <p class="text-xs text-gray-400 mt-1">Images are compressed to 1920px / 85% quality by default. Tick <em>High resolution</em> to upload originals.</p>
+            <p class="text-xs text-gray-400 mt-1">Images are compressed to 1920px / 85% quality by default. Tick <em>High resolution</em> to upload originals. Use <em>From Gallery</em> to reuse existing gallery photos without re-uploading.</p>
           </div>
         </div>
 
@@ -536,14 +540,28 @@
     }
 
     // ── Delete ─────────────────────────────────────────────────────────────────
+
+    // Returns true only for Storage files uploaded directly to this story (blog/ path).
+    // Gallery-borrowed photos live under gallery/ and must not be deleted when a story is removed.
+    function isStoryOwnedUrl(url) {
+      try {
+        const path = decodeURIComponent(new URL(url).pathname.split('/o/')[1] || '');
+        return path.startsWith('blog/');
+      } catch {
+        return false;
+      }
+    }
+
     function deletePost(id, title) {
       if (!confirm('Delete "' + title + '"? This cannot be undone.')) return;
       const post = postsCache[id];
       db.collection('blog').doc(id).delete()
         .then(async () => {
           if (post?.kind === 'story') {
-            if (post.imageUrl)    deleteMedia(post.imageUrl).catch(() => {});
-            (post.galleryUrls || []).forEach(url => deleteMedia(url).catch(() => {}));
+            if (post.imageUrl) deleteMedia(post.imageUrl).catch(() => {});
+            (post.galleryUrls || [])
+              .filter(isStoryOwnedUrl)
+              .forEach(url => deleteMedia(url).catch(() => {}));
           }
           showToast('Post deleted.', 'success');
           loadPosts();
@@ -656,6 +674,184 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => loadPosts());
+
+    // ── Gallery Picker ─────────────────────────────────────────────────────────
+    let pickerSelectedUrls = new Set();
+
+    async function openGalleryPicker() {
+      pickerSelectedUrls = new Set();
+      updatePickerCount();
+      document.getElementById('picker-photos').innerHTML =
+        '<p class="text-sm text-gray-400 text-center py-8">Select a gallery above to browse its photos.</p>';
+      const picker = document.getElementById('gallery-picker');
+      picker.classList.remove('hidden');
+      picker.classList.add('flex');
+
+      const galleriesEl = document.getElementById('picker-galleries');
+      galleriesEl.innerHTML = '<p class="text-sm text-gray-400 py-2 px-1">Loading...</p>';
+
+      try {
+        const snapshot = await db.collection('gallery')
+          .where('published', '==', true)
+          .orderBy('createdAt', 'desc')
+          .get();
+
+        galleriesEl.innerHTML = '';
+        if (snapshot.empty) {
+          galleriesEl.innerHTML = '<p class="text-sm text-gray-400 py-2 px-1">No published galleries found.</p>';
+          return;
+        }
+
+        snapshot.forEach(doc => {
+          const g = doc.data();
+          const thumb = g.thumbnailUrl || (g.imageUrls || [])[0] || '';
+          const count = (g.imageUrls || []).length;
+
+          const card = document.createElement('button');
+          card.type = 'button';
+          card.className = 'flex-shrink-0 text-left border-2 border-transparent hover:border-amber-400 rounded-xl overflow-hidden transition w-28';
+          card.addEventListener('click', () => {
+            document.querySelectorAll('#picker-galleries button').forEach(b => {
+              b.classList.replace('border-amber-400', 'border-transparent');
+            });
+            card.classList.replace('border-transparent', 'border-amber-400');
+            renderPickerPhotos(g.imageUrls || []);
+          });
+
+          const imgEl = thumb
+            ? Object.assign(document.createElement('img'), { src: thumb, className: 'w-28 h-20 object-cover' })
+            : (() => { const d = document.createElement('div'); d.className = 'w-28 h-20 bg-gradient-to-br from-[#0A3D62] to-amber-500 flex items-center justify-center'; d.innerHTML = '<i class="fas fa-images text-white text-xl"></i>'; return d; })();
+          const info = document.createElement('div');
+          info.className = 'p-1.5';
+          info.innerHTML = `<p class="text-xs font-medium text-gray-800 truncate">${escHtml(g.title)}</p><p class="text-xs text-gray-400">${count} photo${count !== 1 ? 's' : ''}</p>`;
+
+          card.appendChild(imgEl);
+          card.appendChild(info);
+          galleriesEl.appendChild(card);
+        });
+      } catch (err) {
+        galleriesEl.innerHTML = '<p class="text-sm text-red-400 py-2 px-1">Error loading galleries.</p>';
+        console.error(err);
+      }
+    }
+
+    function renderPickerPhotos(urls) {
+      const alreadyAdded = new Set(existingGallery);
+      const photosEl = document.getElementById('picker-photos');
+      photosEl.innerHTML = '';
+
+      if (!urls.length) {
+        photosEl.innerHTML = '<p class="text-sm text-gray-400 text-center py-8">This gallery has no photos.</p>';
+        return;
+      }
+
+      const grid = document.createElement('div');
+      grid.className = 'grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2';
+
+      urls.forEach(url => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'relative rounded-xl overflow-hidden';
+
+        const img = document.createElement('img');
+        img.src = url;
+        img.className = 'w-full h-20 object-cover';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'absolute inset-0 transition';
+
+        const tick = document.createElement('div');
+        tick.className = 'absolute top-1 right-1 w-5 h-5 bg-amber-500 rounded-full items-center justify-center hidden';
+        tick.innerHTML = '<i class="fas fa-check text-white text-xs"></i>';
+
+        wrapper.appendChild(img);
+        wrapper.appendChild(overlay);
+        wrapper.appendChild(tick);
+
+        if (alreadyAdded.has(url)) {
+          overlay.className = 'absolute inset-0 bg-black/40 flex items-center justify-center';
+          overlay.innerHTML = '<i class="fas fa-check-circle text-white text-xl"></i>';
+        } else {
+          wrapper.classList.add('cursor-pointer');
+          overlay.className = 'absolute inset-0 transition bg-transparent hover:bg-black/10';
+          wrapper.addEventListener('click', () => {
+            if (pickerSelectedUrls.has(url)) {
+              pickerSelectedUrls.delete(url);
+              overlay.className = 'absolute inset-0 transition bg-transparent hover:bg-black/10';
+              tick.classList.add('hidden');
+              tick.classList.remove('flex');
+            } else {
+              pickerSelectedUrls.add(url);
+              overlay.className = 'absolute inset-0 transition bg-amber-500/40';
+              tick.classList.remove('hidden');
+              tick.classList.add('flex');
+            }
+            updatePickerCount();
+          });
+        }
+
+        grid.appendChild(wrapper);
+      });
+
+      photosEl.appendChild(grid);
+    }
+
+    function updatePickerCount() {
+      document.getElementById('picker-count').textContent =
+        pickerSelectedUrls.size === 0 ? 'None selected' : `${pickerSelectedUrls.size} selected`;
+    }
+
+    function confirmGallerySelection() {
+      pickerSelectedUrls.forEach(url => {
+        if (!existingGallery.includes(url)) {
+          existingGallery.push(url);
+          renderGalleryThumbnail({ url, isStaged: false });
+        }
+      });
+      closeGalleryPicker();
+    }
+
+    function closeGalleryPicker() {
+      pickerSelectedUrls = new Set();
+      const picker = document.getElementById('gallery-picker');
+      picker.classList.add('hidden');
+      picker.classList.remove('flex');
+    }
   </script>
+
+  <!-- GALLERY PICKER MODAL -->
+  <div id="gallery-picker" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4"
+       onclick="if(event.target===this) closeGalleryPicker()">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+
+      <!-- Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+        <h3 class="text-lg font-bold text-[#0A3D62]"><i class="fas fa-images text-amber-500 mr-2"></i>Choose from Gallery</h3>
+        <button onclick="closeGalleryPicker()" class="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <!-- Gallery list (horizontal scroll) -->
+      <div id="picker-galleries" class="flex gap-3 overflow-x-auto px-6 py-4 border-b border-gray-100 flex-shrink-0"></div>
+
+      <!-- Photo grid -->
+      <div id="picker-photos" class="flex-1 overflow-y-auto px-6 py-4"></div>
+
+      <!-- Footer -->
+      <div class="flex items-center justify-between px-6 py-4 border-t border-gray-100 flex-shrink-0">
+        <span id="picker-count" class="text-sm text-gray-500">None selected</span>
+        <div class="flex gap-3">
+          <button onclick="closeGalleryPicker()"
+                  class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2 rounded-full text-sm font-medium transition">
+            Cancel
+          </button>
+          <button onclick="confirmGallerySelection()"
+                  class="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2 rounded-full text-sm font-medium transition">
+            <i class="fas fa-plus mr-1"></i>Add Selected
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
