@@ -125,7 +125,7 @@ LIVE NOW banner to members). Requires YouTube Data API key set via
 `firebase functions:config:set youtube.apikey="..."` and YouTube channel ID set
 via `firebase functions:config:set youtube.channelid="..."`.
 
-Quota: 10,000 units/day free; `search.list` costs 100 units per call; polling every 30 minutes uses ~4,800 units/day — within free tier. (Every 5 minutes would be 28,800 units/day and exceed the limit.)
+Quota: 10,000 units/day free; `search.list` costs 100 units per call. Polling is service-window-gated: the function reads `serviceTimes` from `/homepage/content` and calls YouTube only when SAST time is within 30 minutes before to 3 hours after a scheduled service. This limits calls to ~8 per service day (~800 units) — far below the free tier limit. Non-service days use 0 quota. Manual Set Live on `/admin/homepage.html` handles exceptions.
 
 ### Global content search
 **Status:** Done (PR #113, 2026-06-14)

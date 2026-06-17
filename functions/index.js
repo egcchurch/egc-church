@@ -781,18 +781,52 @@ function toRFC822(dateStr) {
 
 // ── checkYoutubeLiveStatus ────────────────────────────────────────────────────
 // Scheduled every 30 minutes.
-// Calls YouTube Data API v3 search.list to check for an active live broadcast
-// on the configured channel. Updates /homepage/content liveStream accordingly.
+// Only calls the YouTube Data API during a service window: 30 minutes before
+// a scheduled service through 3 hours after its start time. All other times
+// the function exits immediately — zero API quota used outside service hours.
+//
+// Service windows are read dynamically from /homepage/content serviceTimes so
+// they stay in sync with whatever the admin has configured.
 //
 // Requires Firebase Functions config:
 //   firebase functions:config:set youtube.apikey="YOUR_KEY" youtube.channelid="UCxxxxxxxx"
 //
-// search.list costs 100 quota units per call. At 30-min intervals:
-//   48 calls/day × 100 = 4,800 units/day — within the 10,000/day free quota.
-//   (Every 5 minutes would be 28,800 units/day — exceeds the free limit.)
+// search.list costs 100 quota units per call. Polling is now limited to ~8 calls
+// per service day (30-min ticks across a 3.5-hour window), far below the
+// 10,000 units/day free quota.
 //
-// Skips update if live status hasn't changed to avoid unnecessary Firestore writes.
+// Skips Firestore write if live status hasn't changed.
 // Preserves the admin-set title — only active and youtubeId are auto-managed.
+// Manual Set Live / End Stream on admin/homepage.html works as an override for
+// one-off or unscheduled streams.
+
+function parseTime12(timeStr) {
+  if (!timeStr) return null;
+  const m = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  const ampm = m[3].toUpperCase();
+  if (ampm === 'PM' && h !== 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  return h * 60 + min;
+}
+
+function isInServiceWindow(serviceTimes) {
+  // South Africa Standard Time = UTC+2, no DST
+  const sast = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const today    = dayNames[sast.getUTCDay()];
+  const nowMins  = sast.getUTCHours() * 60 + sast.getUTCMinutes();
+
+  return (serviceTimes || []).some(st => {
+    if ((st.day || '').toLowerCase() !== today.toLowerCase()) return false;
+    const svcMins = parseTime12(st.time);
+    if (svcMins === null) return false;
+    // Window: 30 min before start → 3 hours (180 min) after start
+    return nowMins >= svcMins - 30 && nowMins <= svcMins + 180;
+  });
+}
 
 exports.checkYoutubeLiveStatus = functions.pubsub
   .schedule('every 30 minutes')
@@ -803,6 +837,17 @@ exports.checkYoutubeLiveStatus = functions.pubsub
 
     if (!apiKey || !channelId) {
       // Config not set — silent skip. Admin can use manual toggle instead.
+      return null;
+    }
+
+    // Read service schedule and homepage state in one fetch
+    const homepageRef  = db.doc('homepage/content');
+    const homepageSnap = await homepageRef.get();
+    const homepageData = homepageSnap.exists ? homepageSnap.data() : {};
+    const serviceTimes = homepageData.serviceTimes || [];
+
+    if (!isInServiceWindow(serviceTimes)) {
+      console.log('checkYoutubeLiveStatus: outside service window, skipping');
       return null;
     }
 
@@ -818,10 +863,7 @@ exports.checkYoutubeLiveStatus = functions.pubsub
 
       const isLive    = Array.isArray(json.items) && json.items.length > 0;
       const youtubeId = isLive ? json.items[0].id.videoId : null;
-
-      const homepageRef  = db.doc('homepage/content');
-      const homepageSnap = await homepageRef.get();
-      const current      = homepageSnap.exists ? (homepageSnap.data().liveStream || {}) : {};
+      const current   = homepageData.liveStream || {};
 
       // Skip write if status unchanged
       if (current.active === isLive && (!isLive || current.youtubeId === youtubeId)) {
