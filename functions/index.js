@@ -780,18 +780,22 @@ function toRFC822(dateStr) {
 }
 
 // ── checkYoutubeLiveStatus ────────────────────────────────────────────────────
-// Scheduled every 5 minutes.
+// Scheduled every 30 minutes.
 // Calls YouTube Data API v3 search.list to check for an active live broadcast
 // on the configured channel. Updates /homepage/content liveStream accordingly.
 //
 // Requires Firebase Functions config:
 //   firebase functions:config:set youtube.apikey="YOUR_KEY" youtube.channelid="UCxxxxxxxx"
 //
+// search.list costs 100 quota units per call. At 30-min intervals:
+//   48 calls/day × 100 = 4,800 units/day — within the 10,000/day free quota.
+//   (Every 5 minutes would be 28,800 units/day — exceeds the free limit.)
+//
 // Skips update if live status hasn't changed to avoid unnecessary Firestore writes.
 // Preserves the admin-set title — only active and youtubeId are auto-managed.
 
 exports.checkYoutubeLiveStatus = functions.pubsub
-  .schedule('every 5 minutes')
+  .schedule('every 30 minutes')
   .onRun(async () => {
     const cfg       = functions.config();
     const apiKey    = (cfg.youtube || {}).apikey;

@@ -125,7 +125,7 @@ LIVE NOW banner to members). Requires YouTube Data API key set via
 `firebase functions:config:set youtube.apikey="..."` and YouTube channel ID set
 via `firebase functions:config:set youtube.channelid="..."`.
 
-Quota: 10,000 units/day free; polling every 5 minutes uses ~288 units/day — well within free tier.
+Quota: 10,000 units/day free; `search.list` costs 100 units per call; polling every 30 minutes uses ~4,800 units/day — within free tier. (Every 5 minutes would be 28,800 units/day and exceed the limit.)
 
 ### Global content search
 **Status:** Done (PR #113, 2026-06-14)
