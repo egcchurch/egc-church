@@ -9,8 +9,37 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-06-17
-**Current milestone:** Maintenance — all phases complete, working through backlog
+**Last worked on:** 2026-06-21
+**Current milestone:** Maintenance — all phases complete, working through backlog; Part 1 of YouTube Sermon Management plan in review
+
+---
+
+## Session: feat — Sermon admin upload fields, YouTube parsing, toasts (Session 85)
+
+**Date:** 2026-06-21
+**Branch:** `feat/admin-sermons-upload-fields` (PR #133)
+**Status:** Open
+
+### What was done
+
+**`admin/sermons.html`** — Part 1 of the YouTube Sermon Management plan (`docs/ROADMAP.md`)
+- Added `description` (textarea), `scripture`, and `service` (free text) fields
+- YouTube field now accepts a full URL or bare ID — pasting a URL (`youtube.com/watch`, `youtu.be/`, `/embed/`, `/shorts/`) strips it to the bare 11-char video ID and shows an inline thumbnail preview (`img.youtube.com/vi/{id}/hqdefault.jpg`). Stripping only happens on the `paste` event — `oninput` just toggles the thumbnail — so ordinary typing/editing of the field isn't touched
+- Audio (MP3) and PDF notes are now real file pickers instead of plain text URL inputs — uploaded via `uploadMedia()` to `sermons/{sermonId}/audio.mp3` and `sermons/{sermonId}/notes.pdf`; editing a sermon shows the existing file as a link with a Remove option; removing + saving deletes the old Storage object and clears the field
+- Added `firebase-storage-compat.js` and `/js/storage-upload.js` to the page (previously missing)
+- All `alert()` calls replaced with the toast pattern used elsewhere in admin
+- Switched sermon list rendering from inline `onclick="openForm(${JSON.stringify(s)}, ...)"` to a `sermonsCache` + `openForm(id)` lookup (same pattern as `admin/gallery.html`) — the old approach silently dropped the Edit/Delete handlers for any sermon whose title/speaker/description contained an apostrophe, since the JSON-encoded string closed the single-quoted `onclick` attribute early. This was latent before (title/speaker) and would have become much more likely to bite with the new free-text description/scripture fields
+- `deleteSermon` now also cleans up the sermon's audio/notes files from Storage (it didn't before, because before this PR those fields were never real Storage uploads)
+
+**`storage.rules`**
+- Fixed sermon audio/notes rules to match the path structure CLAUDE.md documents and the form now uses. The old rules (`match /sermons/{fileName}` and `match /sermon-notes/{fileName}`) only matched single-segment paths and would have rejected every upload to `sermons/{sermonId}/audio.mp3` / `sermons/{sermonId}/notes.pdf` with permission-denied. Replaced with a single `match /sermons/{sermonId}/{fileName}` rule accepting either audio or PDF content type.
+
+### Verification
+No live admin credentials were available this session, so the page was driven end-to-end in a real headless browser (Playwright) against the actual file, with only the Firebase SDK boundary mocked (auth/firestore/storage stubbed via an injected init script; real CDN scripts blocked) — all DOM/JS logic in `admin/sermons.html` ran unmodified. Confirmed: edit-form field population, toast-based validation (no native `alert()`), YouTube paste-to-ID stripping + thumbnail, audio/PDF staging and upload calls with correct Storage paths, remove-existing-file + cleanup on save, delete confirm/cancel behavior, and the apostrophe-safety fix. Found and fixed one real bug during this verification pass: the original `oninput`-based YouTube parsing rewrote the field on every keystroke, which silently ate spaces and corrupted in-progress typing — moved the URL-stripping logic to the `paste` event only.
+
+### Still pending
+- `firebase deploy --only storage` must be run manually after this PR merges (CI's `deploy.yml` only deploys Hosting) — otherwise the rule fix won't take effect and uploads will keep failing with permission-denied
+- Parts 2 (YouTube bulk import) and 3 (YouTube write-back) of the roadmap plan are not started
 
 ---
 
