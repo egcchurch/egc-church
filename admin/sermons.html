@@ -14,6 +14,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-functions-compat.js"></script>
 </head>
 <body class="bg-zinc-50 font-sans overflow-x-hidden">
 
@@ -27,10 +28,16 @@
         <h1 class="text-3xl font-bold tracking-tight">Sermon Management</h1>
         <p class="text-blue-200 mt-1">Add and manage sermon recordings</p>
       </div>
-      <button onclick="openForm()"
-              class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
-        <i class="fas fa-plus mr-2"></i>Add Sermon
-      </button>
+      <div class="flex gap-3">
+        <button onclick="toggleImportPanel()"
+                class="bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          <i class="fab fa-youtube mr-2"></i>Import from YouTube
+        </button>
+        <button onclick="openForm()"
+                class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          <i class="fas fa-plus mr-2"></i>Add Sermon
+        </button>
+      </div>
     </div>
   </div>
 
@@ -142,6 +149,77 @@
     </div>
   </div>
 
+  <!-- IMPORT FROM YOUTUBE PANEL -->
+  <div id="import-panel" class="hidden bg-white border-b shadow-sm">
+    <div class="max-w-7xl mx-auto px-6 py-8">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-[#0A3D62]">Import from YouTube</h2>
+        <button onclick="closeImportPanel()" class="text-gray-400 hover:text-gray-600">
+          <i class="fas fa-times text-lg"></i>
+        </button>
+      </div>
+
+      <div class="flex gap-2 mb-6 border-b border-gray-200">
+        <button id="import-tab-monthly" onclick="switchImportTab('monthly')"
+                class="px-4 py-2 text-sm font-medium border-b-2 border-amber-500 text-amber-600">
+          Monthly Playlist
+        </button>
+        <button id="import-tab-all" onclick="switchImportTab('all')"
+                class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+          All Videos
+        </button>
+      </div>
+
+      <div id="import-tab-content-monthly">
+        <button id="load-playlists-btn" onclick="loadPlaylists()"
+                class="bg-[#0A3D62] hover:bg-[#083352] text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all mb-4">
+          <i class="fas fa-list mr-2"></i>Load Playlists
+        </button>
+        <div id="playlist-picker" class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-500"></div>
+      </div>
+
+      <div id="import-tab-content-all" class="hidden">
+        <button id="load-all-videos-btn" onclick="loadAllVideos()"
+                class="bg-[#0A3D62] hover:bg-[#083352] text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all mb-4">
+          <i class="fas fa-film mr-2"></i>Load Videos
+        </button>
+      </div>
+
+      <div id="import-results" class="hidden mt-6">
+        <div class="flex items-center justify-between mb-3">
+          <label class="flex items-center gap-2 text-sm text-gray-600">
+            <input type="checkbox" id="import-select-all" onchange="toggleSelectAllImport(this.checked)" class="w-4 h-4 accent-amber-500">
+            Select all
+          </label>
+          <button id="import-selected-btn" onclick="importSelected()"
+                  class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+            <i class="fas fa-download mr-2"></i>Import Selected
+          </button>
+        </div>
+        <div class="overflow-x-auto border border-gray-100 rounded-2xl">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+              <tr>
+                <th class="px-3 py-2 text-left w-8"></th>
+                <th class="px-3 py-2 text-left w-20">Thumb</th>
+                <th class="px-3 py-2 text-left">Date</th>
+                <th class="px-3 py-2 text-left">Service</th>
+                <th class="px-3 py-2 text-left">Title</th>
+                <th class="px-3 py-2 text-left">Speaker</th>
+                <th class="px-3 py-2 text-left">Status</th>
+              </tr>
+            </thead>
+            <tbody id="import-rows"></tbody>
+          </table>
+        </div>
+        <button id="import-load-more-btn" onclick="loadVideoPage()"
+                class="hidden mt-4 bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          Load More
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- SERMON LIST -->
   <main class="max-w-7xl mx-auto px-6 py-10">
     <div id="sermon-list" class="space-y-4">
@@ -176,6 +254,11 @@
     let stagedPdfFile = null;
     let existingPdfUrl = null;
     let removePdfFlag = false;
+
+    let importMode = null;        // 'playlist' | 'channel'
+    let importPlaylistId = null;
+    let importNextPageToken = null;
+    let importRows = [];          // { youtubeId, thumbnail, date, service, title, speaker, alreadyImported, el }
 
     // ─── Toast ──────────────────────────────────────────────────────────────
     function showToast(message, type) {
@@ -285,6 +368,317 @@
       stagedPdfFile = null;
       document.getElementById('f-pdf-file').value = '';
       renderPdfUI();
+    }
+
+    // ─── YouTube bulk import ───────────────────────────────────────────────────
+    const SERVICE_LETTERS = { M: 'Morning', E: 'Evening', W: 'Wednesday', F: 'Friday', S: 'Sunday' };
+
+    function parseSermonTitle(raw) {
+      const trimmed = (raw || '').trim();
+
+      // Current: 26-0617W Aud - Br Danie Poolman - Sermon Title
+      let m = trimmed.match(/^(\d{2})-(\d{2})(\d{2})([A-Za-z])\s*(?:Aud)?\s*-\s*(.+?)\s*-\s*(.+)$/);
+      if (m) {
+        const [, yy, mm, dd, letter, speaker, title] = m;
+        return {
+          date: `20${yy}-${mm}-${dd}`,
+          service: SERVICE_LETTERS[letter.toUpperCase()] || letter,
+          speaker: speaker.trim(),
+          title: title.trim(),
+        };
+      }
+
+      // Mid-era A: Title - Speaker (Wednesday 2022-08-10)
+      m = trimmed.match(/^(.+?) - (.+?) \((\w+) (\d{4}-\d{2}-\d{2})\)$/);
+      if (m) {
+        const [, title, speaker, day, date] = m;
+        return { date, service: day, speaker: speaker.trim(), title: title.trim() };
+      }
+
+      // Old: EGC Wednesday 2020-08-05 — checked before mid-era B below, since
+      // mid-era B's 2-digit-year pattern can otherwise misparse a 4-digit year.
+      m = trimmed.match(/^EGC\s+(\w+)\s+(\d{4})-(\d{2})-(\d{2})\s*$/);
+      if (m) {
+        const [, day, yyyy, mm, dd] = m;
+        return { date: `${yyyy}-${mm}-${dd}`, service: day, speaker: '', title: '' };
+      }
+
+      // Mid-era B: EGC Friday Youth 20-05-08 - notes
+      m = trimmed.match(/^EGC\s+(\w+)\s*(.*?)\s*(\d{2})-(\d{2})-(\d{2})(?:\s*-.*)?$/);
+      if (m) {
+        const [, day, group, yy, mm, dd] = m;
+        return { date: `20${yy}-${mm}-${dd}`, service: group ? `${day} ${group}` : day, speaker: '', title: '' };
+      }
+
+      // Unrecognised — leave date/speaker blank, full title for manual edit
+      return { date: '', service: '', speaker: '', title: trimmed };
+    }
+
+    function toggleImportPanel() {
+      const panel = document.getElementById('import-panel');
+      panel.classList.toggle('hidden');
+      if (!panel.classList.contains('hidden')) panel.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function closeImportPanel() {
+      document.getElementById('import-panel').classList.add('hidden');
+    }
+
+    function switchImportTab(tab) {
+      const isMonthly = tab === 'monthly';
+      document.getElementById('import-tab-content-monthly').classList.toggle('hidden', !isMonthly);
+      document.getElementById('import-tab-content-all').classList.toggle('hidden', isMonthly);
+
+      const monthlyTab = document.getElementById('import-tab-monthly');
+      const allTab = document.getElementById('import-tab-all');
+      monthlyTab.classList.toggle('border-amber-500', isMonthly);
+      monthlyTab.classList.toggle('text-amber-600', isMonthly);
+      monthlyTab.classList.toggle('border-transparent', !isMonthly);
+      monthlyTab.classList.toggle('text-gray-500', !isMonthly);
+      allTab.classList.toggle('border-amber-500', !isMonthly);
+      allTab.classList.toggle('text-amber-600', !isMonthly);
+      allTab.classList.toggle('border-transparent', isMonthly);
+      allTab.classList.toggle('text-gray-500', isMonthly);
+
+      resetImportResults();
+    }
+
+    function resetImportResults() {
+      importMode = null;
+      importPlaylistId = null;
+      importNextPageToken = null;
+      importRows = [];
+      document.getElementById('import-rows').innerHTML = '';
+      document.getElementById('import-results').classList.add('hidden');
+      document.getElementById('import-load-more-btn').classList.add('hidden');
+      document.getElementById('import-select-all').checked = false;
+    }
+
+    async function loadPlaylists() {
+      const btn = document.getElementById('load-playlists-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Loading...';
+      try {
+        const fn = firebase.functions().httpsCallable('fetchYouTubeVideos');
+        const result = await fn({ mode: 'playlists' });
+        renderPlaylistPicker(result.data.playlists || []);
+      } catch (err) {
+        showToast('Error loading playlists: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-list mr-2"></i>Load Playlists';
+      }
+    }
+
+    function renderPlaylistPicker(playlists) {
+      const container = document.getElementById('playlist-picker');
+      container.innerHTML = '';
+      if (!playlists.length) {
+        container.textContent = 'No playlists found on this channel.';
+        return;
+      }
+      playlists.forEach((pl) => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'text-left border border-gray-200 rounded-xl p-3 hover:border-amber-400 transition';
+
+        if (pl.thumbnail) {
+          const img = document.createElement('img');
+          img.src = pl.thumbnail;
+          img.className = 'w-full h-20 object-cover rounded-lg mb-2';
+          card.appendChild(img);
+        }
+        const title = document.createElement('p');
+        title.className = 'text-sm font-medium text-gray-800 truncate';
+        title.textContent = pl.title;
+        card.appendChild(title);
+
+        const count = document.createElement('p');
+        count.className = 'text-xs text-gray-400';
+        count.textContent = `${pl.videoCount} video${pl.videoCount === 1 ? '' : 's'}`;
+        card.appendChild(count);
+
+        card.addEventListener('click', () => selectPlaylist(pl.id, card));
+        container.appendChild(card);
+      });
+    }
+
+    function selectPlaylist(playlistId, cardEl) {
+      document.querySelectorAll('#playlist-picker button').forEach((b) => b.classList.remove('border-amber-500', 'ring-2', 'ring-amber-200'));
+      if (cardEl) cardEl.classList.add('border-amber-500', 'ring-2', 'ring-amber-200');
+
+      importMode = 'playlist';
+      importPlaylistId = playlistId;
+      importNextPageToken = null;
+      importRows = [];
+      document.getElementById('import-rows').innerHTML = '';
+      document.getElementById('import-results').classList.remove('hidden');
+      loadVideoPage();
+    }
+
+    function loadAllVideos() {
+      importMode = 'channel';
+      importPlaylistId = null;
+      importNextPageToken = null;
+      importRows = [];
+      document.getElementById('import-rows').innerHTML = '';
+      document.getElementById('import-results').classList.remove('hidden');
+      loadVideoPage();
+    }
+
+    async function loadVideoPage() {
+      const loadMoreBtn = document.getElementById('import-load-more-btn');
+      loadMoreBtn.disabled = true;
+      try {
+        const fn = firebase.functions().httpsCallable('fetchYouTubeVideos');
+        const result = await fn({
+          mode: importMode,
+          playlistId: importMode === 'playlist' ? importPlaylistId : undefined,
+          pageToken: importNextPageToken || undefined,
+        });
+        const { videos = [], nextPageToken = null } = result.data;
+        appendImportRows(videos);
+        importNextPageToken = nextPageToken;
+        loadMoreBtn.classList.toggle('hidden', !nextPageToken);
+      } catch (err) {
+        showToast('Error loading videos: ' + err.message, 'error');
+      } finally {
+        loadMoreBtn.disabled = false;
+      }
+    }
+
+    function appendImportRows(videos) {
+      const tbody = document.getElementById('import-rows');
+      videos.forEach((video) => {
+        const parsed = parseSermonTitle(video.title);
+        const alreadyImported = Object.values(sermonsCache).some((s) => s.youtubeId === video.youtubeId);
+        const row = { youtubeId: video.youtubeId, thumbnail: video.thumbnail, alreadyImported, ...parsed };
+        row.el = renderImportRow(row);
+        importRows.push(row);
+        tbody.appendChild(row.el);
+      });
+    }
+
+    function makeRowInput(type, value, extraClasses) {
+      const input = document.createElement('input');
+      input.type = type;
+      input.value = value || '';
+      input.className = 'border border-gray-200 rounded-lg px-2 py-1 text-xs w-full focus:outline-none focus:ring-1 focus:ring-amber-400 ' + extraClasses;
+      return input;
+    }
+
+    function renderImportRow(row) {
+      const tr = document.createElement('tr');
+      tr.className = 'border-t border-gray-100' + (row.alreadyImported ? ' opacity-50' : '');
+
+      const tdCheck = document.createElement('td');
+      tdCheck.className = 'px-3 py-2 align-top';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'w-4 h-4 accent-amber-500 import-row-checkbox';
+      checkbox.disabled = row.alreadyImported;
+      tdCheck.appendChild(checkbox);
+      tr.appendChild(tdCheck);
+
+      const tdThumb = document.createElement('td');
+      tdThumb.className = 'px-3 py-2 align-top';
+      if (row.thumbnail) {
+        const img = document.createElement('img');
+        img.src = row.thumbnail;
+        img.className = 'w-20 h-12 object-cover rounded-lg';
+        tdThumb.appendChild(img);
+      }
+      tr.appendChild(tdThumb);
+
+      const tdDate = document.createElement('td');
+      tdDate.className = 'px-3 py-2 align-top';
+      tdDate.appendChild(makeRowInput('date', row.date, 'import-date w-32'));
+      tr.appendChild(tdDate);
+
+      const tdService = document.createElement('td');
+      tdService.className = 'px-3 py-2 align-top';
+      tdService.appendChild(makeRowInput('text', row.service, 'import-service w-24'));
+      tr.appendChild(tdService);
+
+      const tdTitle = document.createElement('td');
+      tdTitle.className = 'px-3 py-2 align-top';
+      tdTitle.appendChild(makeRowInput('text', row.title, 'import-title w-56'));
+      tr.appendChild(tdTitle);
+
+      const tdSpeaker = document.createElement('td');
+      tdSpeaker.className = 'px-3 py-2 align-top';
+      tdSpeaker.appendChild(makeRowInput('text', row.speaker, 'import-speaker w-32'));
+      tr.appendChild(tdSpeaker);
+
+      const tdStatus = document.createElement('td');
+      tdStatus.className = 'px-3 py-2 align-top text-xs text-gray-400 whitespace-nowrap';
+      tdStatus.textContent = row.alreadyImported ? 'Already imported' : '';
+      tr.appendChild(tdStatus);
+
+      return tr;
+    }
+
+    function toggleSelectAllImport(checked) {
+      document.querySelectorAll('.import-row-checkbox:not(:disabled)').forEach((cb) => { cb.checked = checked; });
+    }
+
+    function setImporting(isImporting) {
+      const btn = document.getElementById('import-selected-btn');
+      btn.disabled = isImporting;
+      btn.innerHTML = isImporting
+        ? '<i class="fas fa-circle-notch fa-spin mr-2"></i>Importing...'
+        : '<i class="fas fa-download mr-2"></i>Import Selected';
+      btn.classList.toggle('opacity-60', isImporting);
+    }
+
+    async function importSelected() {
+      const selected = importRows.filter((row) => !row.alreadyImported && row.el.querySelector('.import-row-checkbox').checked);
+      if (!selected.length) {
+        showToast('No videos selected.', 'error');
+        return;
+      }
+
+      setImporting(true);
+      try {
+        const BATCH_SIZE = 400;
+        for (let i = 0; i < selected.length; i += BATCH_SIZE) {
+          const batch = db.batch();
+          selected.slice(i, i + BATCH_SIZE).forEach((row) => {
+            const date    = row.el.querySelector('.import-date').value;
+            const service = row.el.querySelector('.import-service').value.trim();
+            const title   = row.el.querySelector('.import-title').value.trim();
+            const speaker = row.el.querySelector('.import-speaker').value.trim();
+            const ref = db.collection('sermons').doc();
+            batch.set(ref, {
+              title: title || '(Untitled)',
+              speaker,
+              date,
+              service,
+              youtubeId: row.youtubeId,
+              published: false,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            });
+          });
+          await batch.commit();
+        }
+
+        selected.forEach((row) => {
+          row.alreadyImported = true;
+          row.el.classList.add('opacity-50');
+          const cb = row.el.querySelector('.import-row-checkbox');
+          cb.checked = false;
+          cb.disabled = true;
+          row.el.lastElementChild.textContent = 'Already imported';
+        });
+
+        showToast(`Imported ${selected.length} sermon${selected.length === 1 ? '' : 's'} as drafts.`, 'success');
+        loadSermons();
+      } catch (err) {
+        showToast('Error importing sermons: ' + err.message, 'error');
+      } finally {
+        setImporting(false);
+      }
     }
 
     async function loadSeriesDropdown() {
