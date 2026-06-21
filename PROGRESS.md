@@ -10,7 +10,41 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-21
-**Current milestone:** Maintenance — all phases complete, working through backlog; Part 2 of YouTube Sermon Management plan in review
+**Current milestone:** Maintenance — all phases complete, working through backlog; Part 3 of YouTube Sermon Management plan in review (final part — plan complete pending merge)
+
+---
+
+## Session: feat — YouTube write-back for sermon admin (Session 87)
+
+**Date:** 2026-06-21
+**Branch:** `feat/youtube-write-back` (PR #135)
+**Status:** Open
+
+### What was done
+
+Part 3 (final part) of the YouTube Sermon Management plan (`docs/ROADMAP.md`). Depends on Parts 1 (PR #133) and 2 (PR #134), both merged.
+
+**New permission `youtube.update`**
+- Added to `ALL_PERMISSIONS` in `functions/rolesData.js` and to the checkbox list/labels in `admin/roles.html`; documented in `docs/PERMISSIONS.md` with a note that it's unusual — it gates a client-side OAuth feature, not a Firestore/Storage rule
+- Not bundled into any default role except `administrator` (which spreads `ALL_PERMISSIONS`) — meant to be granted individually to trusted volunteers who also hold YouTube channel-manager access
+- **No functions redeploy needed** — `ALL_PERMISSIONS` only feeds the already-run `migrateRolesV1` migration and the non-deployed manual `seedRoles.js` script. A superadmin must manually check "YouTube Push" on the relevant role(s) from `/admin/roles.html` once Hosting deploys — existing role docs in Firestore don't pick up new keys automatically
+
+**`admin/sermons.html`**
+- "Connect YouTube" header button, visible only with `youtube.update`
+- "Push to YouTube" button per sermon card, visible only with the permission *and* the sermon having a `youtubeId`
+- Push fetches the video's current `snippet` via `videos.list`, merges in the website's `title` and a built `description` (speaker/scripture/series/description), then calls `videos.update` — sending only title/description without the rest of the snippet would otherwise strip `categoryId`/`tags`/etc., a `videos.update` API quirk
+- OAuth token lives in a page-scope variable only (never `localStorage`/Firestore), expires ~1hr; pushing with an expired/missing token shows a reconnect toast instead of attempting a doomed call
+
+**Deliberate deviation from the roadmap doc:** it specifies `firebase.auth().signInWithPopup(GoogleAuthProvider)` for "Connect YouTube". That call replaces the admin's *active* Firebase session with whichever Google account is picked in the popup — a mismatch would silently swap who's signed into the site mid-session. Implemented with `linkWithPopup` (first connect) / `reauthenticateWithPopup` (subsequent connects) on the signed-in admin's own `currentUser` instead — same OAuth token and scope, but Firebase rejects the popup if the chosen account's email doesn't match the admin's own, so it can't hijack the session. Confirmed this approach with the user before implementing.
+
+**Scope decision:** skipped the roadmap doc's mention of a *batch* "Push to YouTube" action "on selected sermons in the import table" — that table holds videos not yet imported into Firestore, so batch-pushing doesn't apply there; read as a likely drafting artifact rather than a clear requirement. Implemented the unambiguous per-sermon push only.
+
+### Verification
+`npm test` (`tests/syncUserClaims.test.js`, 16 tests) unaffected. Then verified end-to-end in a real headless browser (Playwright) with Firebase auth/firestore/functions stubbed (no live Google OAuth available in this environment): Connect button correctly gated on `youtube.update` (visible for superadmin, hidden for a `sermons.manage`-only user); first connect calls `linkWithPopup` with the `youtube.force-ssl` scope, a second call correctly switches to `reauthenticateWithPopup`; Push button renders only on the sermon with a `youtubeId`; pushing does GET-then-PUT against the YouTube videos endpoint with `categoryId`/`tags`/`channelId` preserved from the original video alongside the new title/description; an expired/missing token shows the reconnect toast and makes no network call.
+
+### Still pending
+- This closes out all three parts of the YouTube Sermon Management plan once merged
+- Possible follow-up if requested: a batch "Push to YouTube" picker on the sermon list itself (see scope decision above)
 
 ---
 
