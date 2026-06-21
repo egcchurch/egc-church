@@ -167,7 +167,7 @@
               class="bg-[#0A3D62] hover:bg-[#083352] text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all mb-4">
         <i class="fas fa-film mr-2"></i>Load Videos
       </button>
-      <p class="text-xs text-gray-400 mb-4">Audio-only stream uploads (titles containing "Audio" or "Aud") are excluded automatically.</p>
+      <p class="text-xs text-gray-400 mb-4">Audio-only stream uploads (titles containing "Audio" or "Aud") and videos already imported are excluded automatically — only new videos show up here.</p>
 
       <div id="import-results" class="hidden mt-6">
         <div class="flex items-center justify-between mb-3">
@@ -196,7 +196,6 @@
                 <th class="px-3 py-2 text-left">Service</th>
                 <th class="px-3 py-2 text-left">Title</th>
                 <th class="px-3 py-2 text-left">Speaker</th>
-                <th class="px-3 py-2 text-left">Status</th>
               </tr>
             </thead>
             <tbody id="import-rows"></tbody>
@@ -246,7 +245,7 @@
     let removePdfFlag = false;
 
     let importNextPageToken = null;
-    let importRows = [];          // { youtubeId, thumbnail, date, service, title, speaker, alreadyImported, el }
+    let importRows = [];          // { youtubeId, thumbnail, date, service, title, speaker, el }
 
     let hasYoutubeUpdatePermission = false;
     let youtubeAccessToken = null;
@@ -454,14 +453,18 @@
       return /\baud(io)?\b/i.test(title || '');
     }
 
+    function isAlreadyImported(youtubeId) {
+      return Object.values(sermonsCache).some((s) => s.youtubeId === youtubeId);
+    }
+
     function appendImportRows(videos) {
       const tbody = document.getElementById('import-rows');
       videos
         .filter((video) => !isAudioVariant(video.title))
+        .filter((video) => !isAlreadyImported(video.youtubeId))
         .forEach((video) => {
           const parsed = parseSermonTitle(video.title);
-          const alreadyImported = Object.values(sermonsCache).some((s) => s.youtubeId === video.youtubeId);
-          const row = { youtubeId: video.youtubeId, thumbnail: video.thumbnail, alreadyImported, ...parsed };
+          const row = { youtubeId: video.youtubeId, thumbnail: video.thumbnail, ...parsed };
           row.el = renderImportRow(row);
           importRows.push(row);
           tbody.appendChild(row.el);
@@ -478,14 +481,13 @@
 
     function renderImportRow(row) {
       const tr = document.createElement('tr');
-      tr.className = 'border-t border-gray-100' + (row.alreadyImported ? ' opacity-50' : '');
+      tr.className = 'border-t border-gray-100';
 
       const tdCheck = document.createElement('td');
       tdCheck.className = 'px-3 py-2 align-top';
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.className = 'w-4 h-4 accent-amber-500 import-row-checkbox';
-      checkbox.disabled = row.alreadyImported;
       tdCheck.appendChild(checkbox);
       tr.appendChild(tdCheck);
 
@@ -519,11 +521,6 @@
       tdSpeaker.appendChild(makeRowInput('text', row.speaker, 'import-speaker w-32'));
       tr.appendChild(tdSpeaker);
 
-      const tdStatus = document.createElement('td');
-      tdStatus.className = 'px-3 py-2 align-top text-xs text-gray-400 whitespace-nowrap';
-      tdStatus.textContent = row.alreadyImported ? 'Already imported' : '';
-      tr.appendChild(tdStatus);
-
       return tr;
     }
 
@@ -541,7 +538,7 @@
     }
 
     async function importSelected() {
-      const selected = importRows.filter((row) => !row.alreadyImported && row.el.querySelector('.import-row-checkbox').checked);
+      const selected = importRows.filter((row) => row.el.querySelector('.import-row-checkbox').checked);
       if (!selected.length) {
         showToast('No videos selected.', 'error');
         return;
@@ -574,13 +571,13 @@
           await batch.commit();
         }
 
+        // Remove imported rows from view entirely — the list should only ever
+        // show videos that still need importing, not a mix the admin has to
+        // scroll past.
         selected.forEach((row) => {
-          row.alreadyImported = true;
-          row.el.classList.add('opacity-50');
-          const cb = row.el.querySelector('.import-row-checkbox');
-          cb.checked = false;
-          cb.disabled = true;
-          row.el.lastElementChild.textContent = 'Already imported';
+          row.el.remove();
+          const idx = importRows.indexOf(row);
+          if (idx !== -1) importRows.splice(idx, 1);
         });
 
         const statusLabel = publishImmediately ? 'and published' : 'as drafts';
