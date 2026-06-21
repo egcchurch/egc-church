@@ -112,13 +112,19 @@ service cloud.firestore {
     // ── Prayer Requests ───────────────────────────────────────────────────────
     match /prayer/{id} {
       allow read: if isMember();
-      allow create: if isMember();
-      // Author may update status/testimony only; moderators may update any field
+      // Author UID must match the signed-in member — prevents authorship spoofing
+      allow create: if isMember() && request.resource.data.uid == request.auth.uid;
+      // Author may update status/testimony/prayedFor; any member may toggle only
+      // the prayedFor field (the "Praying" button); moderators may update any field.
       allow update: if hasPermission('prayer.moderate')
                     || (isOwner(resource.data.uid)
                         && request.resource.data.diff(resource.data).affectedKeys()
-                            .hasOnly(['status', 'testimony', 'prayedFor']));
-      allow delete: if hasPermission('prayer.moderate');
+                            .hasOnly(['status', 'testimony', 'prayedFor']))
+                    || (isMember()
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['prayedFor']));
+      // Moderators delete any request; authors may delete their own.
+      allow delete: if hasPermission('prayer.moderate') || isOwner(resource.data.uid);
     }
 
     // ── Groups ────────────────────────────────────────────────────────────────
@@ -155,7 +161,19 @@ service cloud.firestore {
 
     // ── Connect Forms ─────────────────────────────────────────────────────────
     match /connect/{id} {
-      allow create: if true;
+      // Public, unauthenticated write surface — validate shape and bound sizes
+      // to limit abuse. A submission cannot pre-mark itself as read.
+      allow create: if request.resource.data.keys()
+                          .hasOnly(['name', 'email', 'phone', 'message', 'read', 'submittedAt'])
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.name.size() <= 200
+                    && request.resource.data.email is string
+                    && request.resource.data.email.size() <= 200
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() > 0
+                    && request.resource.data.message.size() <= 5000
+                    && request.resource.data.read == false;
       allow read: if hasPermission('connect.view');
       allow update: if hasPermission('connect.view');
       allow delete: if hasPermission('connect.view');

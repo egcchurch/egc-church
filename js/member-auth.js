@@ -92,7 +92,11 @@
   }
 
   function waitForFirebase(callback) {
-    if (typeof firebase !== 'undefined' && typeof auth !== 'undefined') {
+    // Must wait for firestore too — the guard reads /users/{uid} below, and
+    // calling firebase.firestore() before the SDK loads throws (see CLAUDE.md).
+    if (typeof firebase !== 'undefined' &&
+        typeof auth !== 'undefined' &&
+        typeof firebase.firestore === 'function') {
       callback();
     } else {
       setTimeout(function () { waitForFirebase(callback); }, 50);

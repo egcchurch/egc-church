@@ -14,6 +14,36 @@
 
 ---
 
+## Session: review — End-to-end bug & security pass (Session 90)
+
+**Date:** 2026-06-21
+**Branch:** `fix/prayer-rules-and-security-hardening` (PR pending)
+**Status:** Open
+
+### What was done
+
+A full end-to-end review of security rules, Cloud Functions, auth guards, and client render paths. Findings and fixes:
+
+- **Prayer "Praying" button broken for non-authors (functional bug):** `members/prayer.html` shows the `prayedFor` toggle to every member, but `firestore.rules` only allowed the author/moderator to update `prayedFor`, so the write was denied (and the error swallowed) for everyone else. Added a member-only `prayedFor`-only update branch (mirrors the events-RSVP rule).
+- **Members couldn't delete their own prayer requests (functional bug):** delete was moderator-only despite the UI showing a delete button on own requests. `allow delete` now also permits `isOwner(resource.data.uid)`.
+- **Prayer authorship spoofing (hardening):** `prayer` create now requires `request.resource.data.uid == request.auth.uid`.
+- **Unvalidated public `connect` create (hardening):** the only unauthenticated write (triggers admin email + notifications) was `allow create: if true`. Now validates allowed keys, bounds name/email/message sizes, and requires `read == false`. Matches `js/connect.js` exactly.
+- **`member-auth.js` Firestore-readiness race:** guard now waits for `firebase.firestore` like `admin-auth.js` does (per CLAUDE.md constraint).
+- **`main.js` top-level `enablePersistence()`:** added `firebase.firestore` guard so it can't throw and halt nav/SW registration on a page where the SDK isn't ready.
+- **`.gitignore` secret-leak gap:** `functions/.env.egc-church` (Firebase project-specific params env, where the Resend key would live) was untracked but not ignored on a public repo. Added `.env.*` while preserving the tracked `functions/.env` defaults via `!functions/.env`. (File was empty — nothing leaked.)
+
+Reviewed and found OK: XSS escaping across all user-controlled renders, Cloud Function permission gates, composite indexes vs live queries, SW cache list.
+
+### Verification
+
+Added 9 rules tests (prayer `prayedFor`/delete/spoofing; connect read-flag/size/extra-field). Full suite run against the Firestore emulator: **70 passing**. `node -c` clean on both modified JS files.
+
+### Still pending
+
+- **`firebase deploy --only firestore:rules` must be run manually after merge** — the prayer and connect rule fixes do not take effect until then (CI deploys Hosting only).
+
+---
+
 ## Session: fix — Missing series Firestore index breaking public sermons page; Publish Immediately on import (Session 89)
 
 **Date:** 2026-06-21
