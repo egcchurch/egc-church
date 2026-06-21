@@ -69,132 +69,61 @@ See PROGRESS.md Session 61 for full description.
 
 ---
 
-## Planned — Sermon Management & YouTube Integration
+## Sermon Management & YouTube Integration
 
-Three sequential parts. Build in order — each part is a self-contained PR.
-Discussed and scoped 2026-06-21.
+**Status:** Done — all three parts merged and deployed. Scoped 2026-06-21.
 
----
-
-### Part 1 — Sermon form improvements (admin/sermons.html)
-
-**Status:** Not started
-
-The current sermon form is scaffolded but incomplete — audio and PDF fields are
-plain text inputs (no file upload), there is no description or scripture field,
-and errors use `alert()` instead of the toast used everywhere else.
-
-**Changes:**
-- Add `description` and `scripture` (text) fields — both already in the intended
-  data model but missing from the form
-- Add a `service` field (free text, e.g. "Morning", "Evening", "Wednesday") — new
-  field on the sermon doc; additive, no migration needed; starts the service-type
-  standard going forward
-- YouTube field: accept a full YouTube URL or bare ID — auto-strip to the video ID
-  on paste; show thumbnail preview inline once a valid ID is detected
-- Audio upload: file picker → `compressImage` is not applicable; upload MP3 directly
-  to `sermons/{sermonId}/audio.mp3` via `uploadMedia()`; show existing file link +
-  remove option when editing
-- PDF notes upload: file picker → upload PDF to `sermons/{sermonId}/notes.pdf`;
-  show existing file link + remove option when editing
-- Add `firebase-storage-compat.js` and `storage-upload.js` to the page (currently
-  missing — the Storage SDK is not loaded on `admin/sermons.html`)
-- Replace all `alert()` calls with the toast pattern used on other admin pages
-
-**Files changed:** `admin/sermons.html` only
-
----
+### Part 1 — Sermon form improvements
+**Status:** Done (PR #133, 2026-06-21)
+Added `description`/`scripture`/`service` fields, YouTube URL-or-ID paste
+handling with an inline thumbnail preview, real audio/PDF uploads via
+`uploadMedia()` (replacing the old plain-text URL inputs), and replaced
+`alert()` with the toast pattern used elsewhere. Also fixed `storage.rules`,
+which only matched single-segment paths and would have rejected every
+upload to the documented `sermons/{sermonId}/{audio.mp3,notes.pdf}` paths.
 
 ### Part 2 — YouTube bulk import
+**Status:** Done (PR #134, 2026-06-21; simplified same day, see below)
+Callable `fetchYouTubeVideos` (requires `sermons.manage`) pages through the
+channel's uploads playlist without exposing the API key to the browser.
+Import panel on `admin/sermons.html` with a 4-format title parser and an
+editable checklist table; videos already in Firestore are greyed out;
+"Import Selected" writes `published: false` drafts for review.
 
-**Status:** Not started — depends on Part 1 being merged first
+The original design also browsed by playlist ("Monthly Playlist" tab via
+`playlists.list`) — **removed the same day**, not useful in practice, and
+`playlists.list?channelId=` has a known YouTube API inconsistency where it
+can return `channelNotFound` even though `channels.list`/`playlistItems.list`
+succeed for the identical channel ([googleapis/google-api-php-client#2026](https://github.com/googleapis/google-api-php-client/issues/2026)).
+"All Videos" (the channel's uploads playlist) is now the only mode.
 
-Hundreds of existing sermons on the church YouTube channel need to be brought into
-Firestore. The import runs from a panel inside `admin/sermons.html`.
+Every service is uploaded as two YouTube videos — the real one and a
+black-screen, lowest-bitrate "audio" duplicate for low-bandwidth viewers.
+Audio-duplicate titles always contain "Audio" or "Aud" as a standalone word
+(e.g. `25-0615E Audio - Br Tim Dodd - Human Weakness`), so the import panel
+filters those out automatically (`\baud(io)?\b`, case-insensitive) before
+they ever reach the results table.
 
-**New Cloud Function — `fetchYouTubeVideos` (callable)**
-- Uses existing `functions.config().youtube.apikey` and `.channelid` (already set
-  for the live-stream auto-detection feature, PR #112) — API key never touches
-  the browser
-- Accepts `{ mode: 'playlists' | 'playlist' | 'channel', playlistId?, pageToken? }`
-- `playlists` mode: returns all playlists for the configured channel (for the
-  month-by-month picker)
-- `playlist` / `channel` mode: returns one page of videos from the given playlist
-  or from the channel's uploads playlist; includes `nextPageToken` for pagination
-- Requires `firebase deploy --only functions` after merge (not auto-deployed by CI)
+### Part 3 — YouTube write-back
+**Status:** Done (PR #135, 2026-06-21)
+New `youtube.update` permission (`functions/rolesData.js`, `admin/roles.html`,
+`docs/PERMISSIONS.md`). "Connect YouTube" uses `linkWithPopup`/
+`reauthenticateWithPopup` on the admin's own `currentUser` — deliberately
+**not** a bare `signInWithPopup` as originally scoped — so a mismatched
+Google account is rejected by Firebase instead of silently swapping who's
+signed into the site. "Push to YouTube" per sermon card fetches the video's
+current `snippet`, merges in the website's title/description, and calls
+`videos.update`.
 
-**Import panel (admin/sermons.html)**
-- "Import from YouTube" button opens a panel below the page header
-- Two tabs: **Monthly Playlist** (fetch channel playlists → pick one → load its
-  videos) and **All Videos** (paginate through the full channel uploads playlist)
-- Results render as a checklist table:
-  `☑ | Thumbnail | Parsed date | Service | Title | Speaker | Already imported?`
-- Title parser handles four known title formats from the channel's history:
-  1. Current: `26-0617W Aud - Br Danie Poolman - Sermon Title`
-     - `YY-MMDD[letter]` → date; skip "Aud" marker; ` - ` split → speaker, title
-     - Letter mapped to service label: M→Morning, E→Evening, W→Wednesday,
-       F→Friday, S→Sunday; unmapped letters shown as-is
-  2. Mid-era A: `Title - Speaker (Wednesday 2022-08-10)`
-     - Regex: `^(.+?) - (.+?) \((\w+) (\d{4}-\d{2}-\d{2})\)$`
-  3. Mid-era B: `EGC Friday Youth 20-05-08 - notes`
-     - EGC prefix; day name; optional group word; `YY-MM-DD` date
-  4. Old: `EGC Wednesday 2020-08-05`
-     - EGC prefix; day name; `YYYY-MM-DD` date
-  - Unrecognised titles: date/speaker left blank, full title shown for manual edit
-- All parsed fields (date, service, title, speaker) are editable per row before import
-- Videos whose `youtubeId` already exists in Firestore are greyed out and labelled
-  "Already imported" — cannot be selected
-- "Load more" button paginates through large playlists
-- "Import Selected" batch-writes chosen sermons to Firestore (`published: false` by
-  default so the admin can review before making them live)
-
-**Files changed:** `admin/sermons.html`, `functions/index.js`
-
----
-
-### Part 3 — YouTube write-back (push updates from the website to YouTube)
-
-**Status:** Not started — depends on Parts 1 and 2 being merged first
-
-Once the website is the master source for sermon metadata, changes made in the
-admin (corrected title, added description, scripture reference) should be pushable
-back to YouTube without leaving the admin panel.
-
-**New permission: `youtube.update`**
-- Added to `ALL_PERMISSIONS` in `functions/computePermissions.js` and
-  `functions/rolesData.js`
-- Superadmin always has it; grant it to trusted volunteers who also have YouTube
-  channel manager access on the Google account side
-- The "Connect YouTube" and "Push to YouTube" controls are only visible to users
-  who hold this permission (checked via `firebase.auth().currentUser.getIdToken()`
-  decoded claims, same pattern as other permission gates)
-- Update `admin/roles.html` and `docs/PERMISSIONS.md` to document the new permission
-
-**OAuth flow**
-- YouTube write access requires OAuth 2.0 from a Google account that has YouTube
-  channel manager access — an API key alone cannot update videos
-- "Connect YouTube" button triggers `firebase.auth().GoogleAuthProvider` with the
-  additional scope `https://www.googleapis.com/auth/youtube.force-ssl`
-- The OAuth access token returned by `signInWithPopup` is stored in session memory
-  only (not localStorage, not Firestore) — it expires after 1 hour
-- After expiry, the user clicks Connect again (one popup, no re-entering credentials)
-- Multiple volunteers can each connect their own YouTube-manager Google account;
-  each holds their own session token
-
-**Push UI**
-- "Push to YouTube" button visible on each sermon card and as a batch action on
-  selected sermons in the import table
-- Pushes: `snippet.title` (standardised format from the website record) and
-  `snippet.description` (built from description, scripture, speaker, series fields)
-- Uses `videos.update` via the YouTube Data API v3 with the in-memory OAuth token
-- Success/error reported via toast per sermon
-
-**Requires `firebase deploy --only functions` after merge** (for the new permission
-to be picked up by `syncUserClaims`)
-
-**Files changed:** `admin/sermons.html`, `functions/computePermissions.js`,
-`functions/rolesData.js`, `functions/index.js` (if a server-side push helper is
-needed), `docs/PERMISSIONS.md`
+### Post-launch fixes (same day)
+- `functions.config()` was removed in firebase-functions v7. Discovered when
+  `fetchYouTubeVideos` started throwing `INTERNAL`; traced back to the same
+  issue silently breaking the pre-existing `checkYoutubeLiveStatus`
+  (live-stream auto-detection, PR #112) and `onNewConnectForm` (the latter
+  unguarded by try/catch, so it crashed entirely — meaning the in-app admin
+  notification for new connect-form submissions was failing too, not just
+  the unused Resend email alert). Migrated all three to
+  `firebase-functions/params` (PRs #136, #137, #138).
 
 ---
 
