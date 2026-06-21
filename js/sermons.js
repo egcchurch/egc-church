@@ -6,14 +6,21 @@ let allSeries = [];
 let currentView = 'table';
 
 // ── Load from Firestore ───────────────────────────────────────────────────────
+// Sermons and series are loaded independently — a failure fetching series
+// (e.g. a missing Firestore index) must not also blank out the sermon list,
+// since the two are related but separate pieces of content.
 function loadSermons() {
-  Promise.all([
-    db.collection('sermons').where('published', '==', true).orderBy('date', 'desc').get(),
-    db.collection('series').where('published', '==', true).orderBy('order').get(),
-  ])
+  const sermonsPromise = db.collection('sermons').where('published', '==', true).orderBy('date', 'desc').get();
+  const seriesPromise = db.collection('series').where('published', '==', true).orderBy('order').get()
+    .catch((err) => {
+      console.error('Error loading series:', err);
+      return null;
+    });
+
+  Promise.all([sermonsPromise, seriesPromise])
     .then(([sermonsSnap, seriesSnap]) => {
       allSermons = sermonsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      allSeries  = seriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      allSeries  = seriesSnap ? seriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) : [];
       filterAndRender();
     })
     .catch((err) => {
@@ -218,11 +225,20 @@ function showSeriesList() {
 
 // ── Shared render ─────────────────────────────────────────────────────────────
 
+function monthYearKey(dateStr) {
+  // A blank/missing date (e.g. an unrecognised YouTube import title left
+  // unedited) would otherwise throw on .split() and blank out the whole
+  // list — group those under "Undated" instead.
+  if (!dateStr) return 'Undated';
+  const [year, month] = dateStr.split('-');
+  const monthName = new Date(year, month - 1).toLocaleString('default', { month: 'long' });
+  return `${monthName} ${year}`;
+}
+
 function groupByMonthYear(sermonsList) {
   const groups = {};
   sermonsList.forEach(s => {
-    const [year, month] = s.date.split('-');
-    const key = `${new Date(year, month - 1).toLocaleString('default', { month: 'long' })} ${year}`;
+    const key = monthYearKey(s.date);
     if (!groups[key]) groups[key] = [];
     groups[key].push(s);
   });
