@@ -1,5 +1,6 @@
 // functions/index.js
 const functions = require('firebase-functions/v1');
+const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 
 admin.initializeApp();
@@ -9,6 +10,13 @@ const db = admin.firestore();
 const { computeEffectiveClaims, permissionFieldsChanged } = require('./computePermissions');
 const { DEFAULT_ROLES } = require('./rolesData');
 const { Resend } = require('resend');
+
+// functions.config() was removed in firebase-functions v7 — migrated to the
+// params module. Set with `firebase functions:secrets:set YOUTUBE_APIKEY`
+// and `firebase functions:secrets:set YOUTUBE_CHANNELID` (each prompts for
+// the value interactively, so it never appears in shell history or logs).
+const youtubeApiKey = defineSecret('YOUTUBE_APIKEY');
+const youtubeChannelId = defineSecret('YOUTUBE_CHANNELID');
 
 // ── syncUserClaims ────────────────────────────────────────────────────────────
 // Triggered on any write to /users/{uid}.
@@ -788,8 +796,10 @@ function toRFC822(dateStr) {
 // Service windows are read dynamically from /homepage/content serviceTimes so
 // they stay in sync with whatever the admin has configured.
 //
-// Requires Firebase Functions config:
-//   firebase functions:config:set youtube.apikey="YOUR_KEY" youtube.channelid="UCxxxxxxxx"
+// Requires the YOUTUBE_APIKEY and YOUTUBE_CHANNELID secrets (functions.config()
+// was removed in firebase-functions v7):
+//   firebase functions:secrets:set YOUTUBE_APIKEY
+//   firebase functions:secrets:set YOUTUBE_CHANNELID
 //
 // search.list costs 100 quota units per call. Polling is now limited to ~8 calls
 // per service day (30-min ticks across a 3.5-hour window), far below the
@@ -828,12 +838,12 @@ function isInServiceWindow(serviceTimes) {
   });
 }
 
-exports.checkYoutubeLiveStatus = functions.pubsub
-  .schedule('every 30 minutes')
+exports.checkYoutubeLiveStatus = functions
+  .runWith({ secrets: [youtubeApiKey, youtubeChannelId] })
+  .pubsub.schedule('every 30 minutes')
   .onRun(async () => {
-    const cfg       = functions.config();
-    const apiKey    = (cfg.youtube || {}).apikey;
-    const channelId = (cfg.youtube || {}).channelid;
+    const apiKey    = youtubeApiKey.value();
+    const channelId = youtubeChannelId.value();
 
     if (!apiKey || !channelId) {
       // Config not set — silent skip. Admin can use manual toggle instead.
@@ -896,7 +906,7 @@ exports.checkYoutubeLiveStatus = functions.pubsub
 // on admin/sermons.html to browse the church channel without exposing the
 // YouTube API key to the browser.
 //
-// Reuses the same functions.config().youtube.apikey / .channelid as
+// Reuses the same YOUTUBE_APIKEY / YOUTUBE_CHANNELID secrets as
 // checkYoutubeLiveStatus (PR #112).
 //
 // data: { mode: 'playlists' | 'playlist' | 'channel', playlistId?, pageToken? }
@@ -966,7 +976,9 @@ async function getUploadsPlaylistId(apiKey, channelId) {
   return uploadsId;
 }
 
-exports.fetchYouTubeVideos = functions.https.onCall(async (data, context) => {
+exports.fetchYouTubeVideos = functions
+  .runWith({ secrets: [youtubeApiKey, youtubeChannelId] })
+  .https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
   }
@@ -975,9 +987,8 @@ exports.fetchYouTubeVideos = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('permission-denied', 'sermons.manage permission required.');
   }
 
-  const cfg = functions.config();
-  const apiKey = (cfg.youtube || {}).apikey;
-  const channelId = (cfg.youtube || {}).channelid;
+  const apiKey = youtubeApiKey.value();
+  const channelId = youtubeChannelId.value();
   if (!apiKey || !channelId) {
     throw new functions.https.HttpsError('failed-precondition', 'YouTube API key/channel ID not configured.');
   }
