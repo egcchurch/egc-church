@@ -43,16 +43,10 @@ service firebase.storage {
       allow write: if isOwner(uid) && isValidImage();
     }
 
-    // ── Sermon audio ──────────────────────────────────────────────────────
-    match /sermons/{fileName} {
+    // ── Sermon audio & notes (PDF) ────────────────────────────────────────
+    match /sermons/{sermonId}/{fileName} {
       allow read: if true;
-      allow write: if isAdminUser() && isValidAudio();
-    }
-
-    // ── Sermon notes (PDF) ────────────────────────────────────────────────
-    match /sermon-notes/{fileName} {
-      allow read: if true;
-      allow write: if isAdminUser() && isValidPDF();
+      allow write: if isAdminUser() && (isValidAudio() || isValidPDF());
     }
 
     // ── Gallery images ────────────────────────────────────────────────────

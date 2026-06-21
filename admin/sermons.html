@@ -13,6 +13,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
 </head>
 <body class="bg-zinc-50 font-sans overflow-x-hidden">
 
@@ -59,18 +60,13 @@
                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">YouTube ID</label>
-          <input id="f-youtube" type="text" placeholder="e.g. dQw4w9WgXcQ"
+          <label class="block text-sm font-medium text-gray-700 mb-1">Service</label>
+          <input id="f-service" type="text" placeholder="e.g. Morning, Evening, Wednesday"
                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Audio URL</label>
-          <input id="f-audio" type="text" placeholder="assets/audio/sermon.mp3"
-                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Notes URL (PDF)</label>
-          <input id="f-notes" type="text" placeholder="assets/notes/sermon.pdf"
+          <label class="block text-sm font-medium text-gray-700 mb-1">Scripture</label>
+          <input id="f-scripture" type="text" placeholder="e.g. John 3:16"
                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
         </div>
         <div>
@@ -85,13 +81,56 @@
           <input id="f-series-order" type="number" placeholder="e.g. 1" min="1"
                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
         </div>
-        <div class="flex items-center gap-3 pt-6">
+
+        <!-- Description -->
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <textarea id="f-description" rows="3" placeholder="Brief summary of the message..."
+                    class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"></textarea>
+        </div>
+
+        <!-- YouTube -->
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">YouTube URL or Video ID</label>
+          <input id="f-youtube" type="text" placeholder="Paste a YouTube URL or video ID"
+                 oninput="updateYoutubeThumb(this.value)" onpaste="onYoutubePaste(event)"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <img id="youtube-thumb-preview" class="hidden mt-3 w-48 rounded-xl border border-gray-200" alt="YouTube thumbnail preview">
+        </div>
+
+        <!-- Audio upload -->
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Audio File (MP3)</label>
+          <div id="audio-current" class="hidden items-center gap-3 mb-2 text-sm">
+            <i class="fas fa-file-audio text-amber-500"></i>
+            <a id="audio-current-link" href="#" target="_blank" rel="noopener" class="text-blue-600 underline truncate max-w-xs">Current audio file</a>
+            <button type="button" onclick="removeAudioFile()" class="text-red-600 hover:text-red-700 text-xs font-medium">Remove</button>
+          </div>
+          <input id="f-audio-file" type="file" accept="audio/*" onchange="onAudioFileSelected(this)"
+                 class="text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-amber-100 file:text-amber-700 hover:file:bg-amber-200">
+          <p id="audio-staged-name" class="hidden text-xs text-gray-500 mt-1"></p>
+        </div>
+
+        <!-- PDF notes upload -->
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Sermon Notes (PDF)</label>
+          <div id="pdf-current" class="hidden items-center gap-3 mb-2 text-sm">
+            <i class="fas fa-file-pdf text-amber-500"></i>
+            <a id="pdf-current-link" href="#" target="_blank" rel="noopener" class="text-blue-600 underline truncate max-w-xs">Current notes file</a>
+            <button type="button" onclick="removePdfFile()" class="text-red-600 hover:text-red-700 text-xs font-medium">Remove</button>
+          </div>
+          <input id="f-pdf-file" type="file" accept="application/pdf" onchange="onPdfFileSelected(this)"
+                 class="text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-amber-100 file:text-amber-700 hover:file:bg-amber-200">
+          <p id="pdf-staged-name" class="hidden text-xs text-gray-500 mt-1"></p>
+        </div>
+
+        <div class="flex items-center gap-3 pt-2">
           <input id="f-published" type="checkbox" class="w-4 h-4 accent-amber-500">
           <label for="f-published" class="text-sm font-medium text-gray-700">Published (visible to public)</label>
         </div>
       </div>
       <div class="flex gap-3 mt-6">
-        <button onclick="saveSermon()"
+        <button id="save-btn" onclick="saveSermon()"
                 class="bg-amber-500 hover:bg-amber-600 text-white px-8 py-3 rounded-full text-sm font-medium transition-all">
           Save Sermon
         </button>
@@ -113,15 +152,140 @@
     </div>
   </main>
 
+  <!-- TOAST -->
+  <div id="toast"
+       class="fixed bottom-6 right-6 z-50 hidden px-6 py-3 rounded-2xl text-white text-sm font-medium shadow-lg transition-all">
+  </div>
+
   <script src="/firebase-config.js"></script>
   <script src="/js/nav.js"></script>
   <script src="/js/main.js"></script>
+  <script src="/js/storage-upload.js"></script>
   <script src="/js/permissions.js"></script>
   <script src="/js/admin-auth.js" data-require-perm="sermons.manage"></script>
   <script>
     const db = firebase.firestore();
     let editingId = null;
     let seriesList = []; // [{id, title}]
+    const sermonsCache = {};
+
+    let stagedAudioFile = null;
+    let existingAudioUrl = null;
+    let removeAudioFlag = false;
+
+    let stagedPdfFile = null;
+    let existingPdfUrl = null;
+    let removePdfFlag = false;
+
+    // ─── Toast ──────────────────────────────────────────────────────────────
+    function showToast(message, type) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = 'fixed bottom-6 right-6 z-50 px-6 py-3 rounded-2xl text-white text-sm font-medium shadow-lg transition-all '
+        + (type === 'error' ? 'bg-red-600' : 'bg-green-600');
+      setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
+
+    // ─── YouTube URL/ID parsing ───────────────────────────────────────────────
+    function extractYouTubeId(raw) {
+      const trimmed = (raw || '').trim();
+      if (!trimmed) return '';
+      const patterns = [
+        /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+        /youtube\.com\/watch\?(?:.*&)?v=([a-zA-Z0-9_-]{11})/,
+        /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+        /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+      ];
+      for (const re of patterns) {
+        const m = trimmed.match(re);
+        if (m) return m[1];
+      }
+      return trimmed;
+    }
+
+    function updateYoutubeThumb(id) {
+      const img = document.getElementById('youtube-thumb-preview');
+      if (/^[a-zA-Z0-9_-]{11}$/.test(id || '')) {
+        img.src = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+        img.classList.remove('hidden');
+      } else {
+        img.classList.add('hidden');
+        img.removeAttribute('src');
+      }
+    }
+
+    function onYoutubePaste(e) {
+      const text = (e.clipboardData || window.clipboardData).getData('text');
+      if (!text) return;
+      e.preventDefault();
+      const id = extractYouTubeId(text);
+      const field = document.getElementById('f-youtube');
+      field.value = id;
+      updateYoutubeThumb(id);
+    }
+
+    // ─── Audio / PDF upload UI ────────────────────────────────────────────────
+    function renderAudioUI() {
+      const currentRow = document.getElementById('audio-current');
+      const stagedLabel = document.getElementById('audio-staged-name');
+      if (stagedAudioFile) {
+        currentRow.classList.add('hidden');
+        stagedLabel.textContent = `Will upload: ${stagedAudioFile.name}`;
+        stagedLabel.classList.remove('hidden');
+      } else if (existingAudioUrl && !removeAudioFlag) {
+        document.getElementById('audio-current-link').href = existingAudioUrl;
+        currentRow.classList.remove('hidden');
+        currentRow.classList.add('flex');
+        stagedLabel.classList.add('hidden');
+      } else {
+        currentRow.classList.add('hidden');
+        stagedLabel.classList.add('hidden');
+      }
+    }
+
+    function onAudioFileSelected(input) {
+      stagedAudioFile = input.files[0] || null;
+      removeAudioFlag = false;
+      renderAudioUI();
+    }
+
+    function removeAudioFile() {
+      removeAudioFlag = true;
+      stagedAudioFile = null;
+      document.getElementById('f-audio-file').value = '';
+      renderAudioUI();
+    }
+
+    function renderPdfUI() {
+      const currentRow = document.getElementById('pdf-current');
+      const stagedLabel = document.getElementById('pdf-staged-name');
+      if (stagedPdfFile) {
+        currentRow.classList.add('hidden');
+        stagedLabel.textContent = `Will upload: ${stagedPdfFile.name}`;
+        stagedLabel.classList.remove('hidden');
+      } else if (existingPdfUrl && !removePdfFlag) {
+        document.getElementById('pdf-current-link').href = existingPdfUrl;
+        currentRow.classList.remove('hidden');
+        currentRow.classList.add('flex');
+        stagedLabel.classList.add('hidden');
+      } else {
+        currentRow.classList.add('hidden');
+        stagedLabel.classList.add('hidden');
+      }
+    }
+
+    function onPdfFileSelected(input) {
+      stagedPdfFile = input.files[0] || null;
+      removePdfFlag = false;
+      renderPdfUI();
+    }
+
+    function removePdfFile() {
+      removePdfFlag = true;
+      stagedPdfFile = null;
+      document.getElementById('f-pdf-file').value = '';
+      renderPdfUI();
+    }
 
     async function loadSeriesDropdown() {
       try {
@@ -140,74 +304,133 @@
       });
     }
 
-    function openForm(sermon = null, id = null) {
-      editingId = id;
+    function openForm(id) {
+      editingId = id || null;
+      const s = id ? sermonsCache[id] : null;
+
       document.getElementById('form-title').textContent = id ? 'Edit Sermon' : 'Add New Sermon';
-      document.getElementById('f-title').value        = sermon?.title        || '';
-      document.getElementById('f-speaker').value      = sermon?.speaker      || '';
-      document.getElementById('f-date').value         = sermon?.date         || '';
-      document.getElementById('f-duration').value     = sermon?.duration     || '';
-      document.getElementById('f-youtube').value      = sermon?.youtubeId    || '';
-      document.getElementById('f-audio').value        = sermon?.audioUrl     || '';
-      document.getElementById('f-notes').value        = sermon?.notesUrl     || '';
-      document.getElementById('f-series').value       = sermon?.seriesId     || '';
-      document.getElementById('f-series-order').value = sermon?.seriesOrder != null ? sermon.seriesOrder : '';
-      document.getElementById('f-published').checked  = sermon?.published    ?? true;
+      document.getElementById('f-title').value        = s?.title        || '';
+      document.getElementById('f-speaker').value      = s?.speaker      || '';
+      document.getElementById('f-date').value         = s?.date         || '';
+      document.getElementById('f-duration').value     = s?.duration     || '';
+      document.getElementById('f-service').value      = s?.service      || '';
+      document.getElementById('f-scripture').value    = s?.scripture    || '';
+      document.getElementById('f-description').value  = s?.description  || '';
+      document.getElementById('f-youtube').value      = s?.youtubeId    || '';
+      updateYoutubeThumb(s?.youtubeId || '');
+      document.getElementById('f-series').value       = s?.seriesId     || '';
+      document.getElementById('f-series-order').value = s?.seriesOrder != null ? s.seriesOrder : '';
+      document.getElementById('f-published').checked  = s?.published    ?? true;
+
+      existingAudioUrl = s?.audioUrl || null;
+      stagedAudioFile = null;
+      removeAudioFlag = false;
+      document.getElementById('f-audio-file').value = '';
+      renderAudioUI();
+
+      existingPdfUrl = s?.notesUrl || null;
+      stagedPdfFile = null;
+      removePdfFlag = false;
+      document.getElementById('f-pdf-file').value = '';
+      renderPdfUI();
+
       document.getElementById('sermon-form').classList.remove('hidden');
       document.getElementById('sermon-form').scrollIntoView({ behavior: 'smooth' });
     }
 
     function closeForm() {
       editingId = null;
+      stagedAudioFile = null;
+      stagedPdfFile = null;
       document.getElementById('sermon-form').classList.add('hidden');
     }
 
-    function saveSermon() {
+    function setSaving(isSaving) {
+      const btn = document.getElementById('save-btn');
+      btn.disabled = isSaving;
+      btn.textContent = isSaving ? 'Saving...' : 'Save Sermon';
+      btn.classList.toggle('opacity-60', isSaving);
+      btn.classList.toggle('cursor-not-allowed', isSaving);
+    }
+
+    async function saveSermon() {
       const title = document.getElementById('f-title').value.trim();
       const speaker = document.getElementById('f-speaker').value.trim();
       const date = document.getElementById('f-date').value;
 
       if (!title || !speaker || !date) {
-        alert('Title, speaker and date are required.');
+        showToast('Title, speaker and date are required.', 'error');
         return;
       }
 
-      const seriesOrderVal = document.getElementById('f-series-order').value;
-      const data = {
-        title,
-        speaker,
-        date,
-        duration    : document.getElementById('f-duration').value.trim(),
-        youtubeId   : document.getElementById('f-youtube').value.trim(),
-        audioUrl    : document.getElementById('f-audio').value.trim(),
-        notesUrl    : document.getElementById('f-notes').value.trim(),
-        seriesId    : document.getElementById('f-series').value || null,
-        seriesOrder : seriesOrderVal !== '' ? parseInt(seriesOrderVal, 10) : null,
-        published   : document.getElementById('f-published').checked,
-        updatedAt   : firebase.firestore.FieldValue.serverTimestamp(),
-      };
+      setSaving(true);
+      try {
+        const ref = editingId
+          ? db.collection('sermons').doc(editingId)
+          : db.collection('sermons').doc();
+        const sermonId = ref.id;
 
-      const ref = editingId
-        ? db.collection('sermons').doc(editingId)
-        : db.collection('sermons').doc();
+        let audioUrl = existingAudioUrl;
+        if (stagedAudioFile) {
+          audioUrl = await uploadMedia(`sermons/${sermonId}/audio.mp3`, stagedAudioFile);
+        } else if (removeAudioFlag) {
+          if (existingAudioUrl) await deleteMedia(existingAudioUrl);
+          audioUrl = null;
+        }
 
-      if (!editingId) {
-        data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        let notesUrl = existingPdfUrl;
+        if (stagedPdfFile) {
+          notesUrl = await uploadMedia(`sermons/${sermonId}/notes.pdf`, stagedPdfFile);
+        } else if (removePdfFlag) {
+          if (existingPdfUrl) await deleteMedia(existingPdfUrl);
+          notesUrl = null;
+        }
+
+        const seriesOrderVal = document.getElementById('f-series-order').value;
+        const data = {
+          title,
+          speaker,
+          date,
+          duration    : document.getElementById('f-duration').value.trim(),
+          service     : document.getElementById('f-service').value.trim(),
+          scripture   : document.getElementById('f-scripture').value.trim(),
+          description : document.getElementById('f-description').value.trim(),
+          youtubeId   : document.getElementById('f-youtube').value.trim(),
+          audioUrl,
+          notesUrl,
+          seriesId    : document.getElementById('f-series').value || null,
+          seriesOrder : seriesOrderVal !== '' ? parseInt(seriesOrderVal, 10) : null,
+          published   : document.getElementById('f-published').checked,
+          updatedAt   : firebase.firestore.FieldValue.serverTimestamp(),
+        };
+
+        if (!editingId) {
+          data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        }
+
+        await ref.set(data, { merge: true });
+        closeForm();
+        showToast('Sermon saved.', 'success');
+        loadSermons();
+      } catch (err) {
+        console.error(err);
+        showToast('Error saving sermon: ' + err.message, 'error');
+      } finally {
+        setSaving(false);
       }
-
-      ref.set(data, { merge: true })
-        .then(() => {
-          closeForm();
-          loadSermons();
-        })
-        .catch(err => alert('Error saving sermon: ' + err.message));
     }
 
-    function deleteSermon(id, title) {
-      if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
-      db.collection('sermons').doc(id).delete()
-        .then(() => loadSermons())
-        .catch(err => alert('Error: ' + err.message));
+    async function deleteSermon(id) {
+      const s = sermonsCache[id];
+      if (!confirm(`Delete "${s?.title || 'this sermon'}"? This cannot be undone.`)) return;
+      try {
+        await db.collection('sermons').doc(id).delete();
+        await Promise.all([deleteMedia(s?.audioUrl), deleteMedia(s?.notesUrl)]);
+        showToast('Sermon deleted.', 'success');
+        loadSermons();
+      } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+      }
     }
 
     function loadSermons() {
@@ -234,8 +457,12 @@
 
           snapshot.forEach(doc => {
             const s = doc.data();
+            sermonsCache[doc.id] = s;
             const seriesLabel = s.seriesId && seriesMap[s.seriesId]
               ? `<span class="text-xs px-2 py-1 rounded-full bg-indigo-100 text-indigo-700"><i class="fas fa-layer-group mr-1"></i>${seriesMap[s.seriesId]}${s.seriesOrder ? ' #' + s.seriesOrder : ''}</span>`
+              : '';
+            const serviceLabel = s.service
+              ? `<span class="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">${s.service}</span>`
               : '';
             list.innerHTML += `
               <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col md:flex-row md:items-center gap-4">
@@ -245,18 +472,20 @@
                       ${s.published ? 'Published' : 'Draft'}
                     </span>
                     <span class="text-xs text-gray-400">${s.date}</span>
+                    ${serviceLabel}
                     ${seriesLabel}
                   </div>
                   <p class="font-semibold text-gray-900">${s.title}</p>
                   <p class="text-sm text-gray-500">${s.speaker} ${s.duration ? '· ' + s.duration : ''}</p>
+                  ${s.scripture ? `<p class="text-xs text-gray-400 mt-1"><i class="fas fa-book-bible mr-1"></i>${s.scripture}</p>` : ''}
                   ${s.youtubeId ? `<p class="text-xs text-blue-500 mt-1"><i class="fab fa-youtube mr-1"></i>${s.youtubeId}</p>` : ''}
                 </div>
                 <div class="flex gap-2">
-                  <button onclick='openForm(${JSON.stringify(s)}, "${doc.id}")'
+                  <button onclick="openForm('${doc.id}')"
                           class="bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm px-4 py-2 rounded-full transition">
                     <i class="fas fa-edit mr-1"></i>Edit
                   </button>
-                  <button onclick='deleteSermon("${doc.id}", "${s.title}")'
+                  <button onclick="deleteSermon('${doc.id}')"
                           class="bg-red-50 hover:bg-red-100 text-red-600 text-sm px-4 py-2 rounded-full transition">
                     <i class="fas fa-trash mr-1"></i>Delete
                   </button>
