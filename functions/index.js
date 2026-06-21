@@ -937,7 +937,8 @@ async function youtubeApiGet(path, params) {
   const resp = await fetch(url.toString());
   const json = await resp.json();
   if (!resp.ok) {
-    throw new functions.https.HttpsError('internal', json.error?.message || `YouTube API error (${resp.status})`);
+    const reason = json.error?.errors?.[0]?.reason;
+    throw new functions.https.HttpsError('internal', json.error?.message || `YouTube API error (${resp.status})`, { reason });
   }
   return json;
 }
@@ -957,13 +958,24 @@ async function fetchAllPlaylists(apiKey, channelId) {
   const playlists = [];
   let pageToken = null;
   do {
-    const json = await youtubeApiGet('playlists', {
-      part: 'snippet,contentDetails',
-      channelId,
-      maxResults: 50,
-      pageToken,
-      key: apiKey,
-    });
+    let json;
+    try {
+      json = await youtubeApiGet('playlists', {
+        part: 'snippet,contentDetails',
+        channelId,
+        maxResults: 50,
+        pageToken,
+        key: apiKey,
+      });
+    } catch (err) {
+      // Known YouTube API inconsistency: playlists.list?channelId= can return
+      // channelNotFound for a channel that has zero playlists, even though
+      // channels.list/playlistItems.list work fine for the same ID (see
+      // https://github.com/googleapis/google-api-php-client/issues/2026).
+      // Treat it as "no playlists" rather than a confusing hard error.
+      if (err.details?.reason === 'channelNotFound') return playlists;
+      throw err;
+    }
     (json.items || []).forEach((item) => {
       const thumbs = item.snippet?.thumbnails || {};
       playlists.push({
