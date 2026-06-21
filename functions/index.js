@@ -891,6 +891,127 @@ exports.checkYoutubeLiveStatus = functions.pubsub
     return null;
   });
 
+// ── fetchYouTubeVideos ─────────────────────────────────────────────────────────
+// Callable — requires sermons.manage. Used by the "Import from YouTube" panel
+// on admin/sermons.html to browse the church channel without exposing the
+// YouTube API key to the browser.
+//
+// Reuses the same functions.config().youtube.apikey / .channelid as
+// checkYoutubeLiveStatus (PR #112).
+//
+// data: { mode: 'playlists' | 'playlist' | 'channel', playlistId?, pageToken? }
+//   'playlists' — every playlist on the channel (for the monthly picker).
+//     playlists.list costs 1 quota unit/call; loops internally over all pages
+//     since a channel realistically has dozens, not thousands, of playlists.
+//   'playlist'  — one page of videos from the given playlistId.
+//   'channel'   — one page of videos from the channel's uploads playlist
+//     (resolved via channels.list, also 1 unit).
+// playlistItems.list costs 1 unit/call regardless of maxResults.
+
+async function youtubeApiGet(path, params) {
+  const url = new URL(`https://www.googleapis.com/youtube/v3/${path}`);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value != null) url.searchParams.set(key, value);
+  });
+  const resp = await fetch(url.toString());
+  const json = await resp.json();
+  if (!resp.ok) {
+    throw new functions.https.HttpsError('internal', json.error?.message || `YouTube API error (${resp.status})`);
+  }
+  return json;
+}
+
+function mapVideoItem(item) {
+  const snippet = item.snippet || {};
+  const thumbs = snippet.thumbnails || {};
+  return {
+    youtubeId: item.contentDetails?.videoId || snippet.resourceId?.videoId,
+    title: snippet.title || '',
+    publishedAt: item.contentDetails?.videoPublishedAt || snippet.publishedAt || null,
+    thumbnail: thumbs.medium?.url || thumbs.default?.url || '',
+  };
+}
+
+async function fetchAllPlaylists(apiKey, channelId) {
+  const playlists = [];
+  let pageToken = null;
+  do {
+    const json = await youtubeApiGet('playlists', {
+      part: 'snippet,contentDetails',
+      channelId,
+      maxResults: 50,
+      pageToken,
+      key: apiKey,
+    });
+    (json.items || []).forEach((item) => {
+      const thumbs = item.snippet?.thumbnails || {};
+      playlists.push({
+        id: item.id,
+        title: item.snippet?.title || '',
+        videoCount: item.contentDetails?.itemCount || 0,
+        thumbnail: thumbs.medium?.url || thumbs.default?.url || '',
+      });
+    });
+    pageToken = json.nextPageToken || null;
+  } while (pageToken);
+  return playlists;
+}
+
+async function getUploadsPlaylistId(apiKey, channelId) {
+  const json = await youtubeApiGet('channels', { part: 'contentDetails', id: channelId, key: apiKey });
+  const uploadsId = json.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+  if (!uploadsId) {
+    throw new functions.https.HttpsError('not-found', 'Could not resolve the channel uploads playlist.');
+  }
+  return uploadsId;
+}
+
+exports.fetchYouTubeVideos = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
+  }
+  const token = context.auth.token;
+  if (token.superadmin !== true && !(Array.isArray(token.perms) && token.perms.includes('sermons.manage'))) {
+    throw new functions.https.HttpsError('permission-denied', 'sermons.manage permission required.');
+  }
+
+  const cfg = functions.config();
+  const apiKey = (cfg.youtube || {}).apikey;
+  const channelId = (cfg.youtube || {}).channelid;
+  if (!apiKey || !channelId) {
+    throw new functions.https.HttpsError('failed-precondition', 'YouTube API key/channel ID not configured.');
+  }
+
+  const { mode, playlistId, pageToken } = data || {};
+
+  if (mode === 'playlists') {
+    const playlists = await fetchAllPlaylists(apiKey, channelId);
+    return { playlists };
+  }
+
+  let resolvedPlaylistId = playlistId;
+  if (mode === 'channel') {
+    resolvedPlaylistId = await getUploadsPlaylistId(apiKey, channelId);
+  } else if (mode !== 'playlist') {
+    throw new functions.https.HttpsError('invalid-argument', 'mode must be one of: playlists, playlist, channel.');
+  } else if (!playlistId) {
+    throw new functions.https.HttpsError('invalid-argument', 'playlistId is required for mode "playlist".');
+  }
+
+  const json = await youtubeApiGet('playlistItems', {
+    part: 'snippet,contentDetails',
+    playlistId: resolvedPlaylistId,
+    maxResults: 50,
+    pageToken,
+    key: apiKey,
+  });
+
+  return {
+    videos: (json.items || []).map(mapVideoItem),
+    nextPageToken: json.nextPageToken || null,
+  };
+});
+
 // ── migrateRolesV1 ────────────────────────────────────────────────────────────
 // Callable — superadmin only. One-time migration for Phase 6.
 //
