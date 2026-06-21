@@ -88,7 +88,10 @@ Callable `fetchYouTubeVideos` (requires `sermons.manage`) pages through the
 channel's uploads playlist without exposing the API key to the browser.
 Import panel on `admin/sermons.html` with a 4-format title parser and an
 editable checklist table; videos already in Firestore are greyed out;
-"Import Selected" writes `published: false` drafts for review.
+"Import Selected" writes `published: false` drafts for review by default — a
+"Publish immediately" checkbox next to "Select all" (unchecked by default)
+lets the admin publish the selected batch directly, skipping the
+edit-each-one-afterward step.
 
 The original design also browsed by playlist ("Monthly Playlist" tab via
 `playlists.list`) — **removed the same day**, not useful in practice, and

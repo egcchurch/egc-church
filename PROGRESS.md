@@ -10,7 +10,43 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-21
-**Current milestone:** Maintenance — all phases complete, working through backlog; YouTube Sermon Management plan fully shipped, in post-launch refinement
+**Current milestone:** Maintenance — all phases complete, working through backlog; YouTube Sermon Management plan fully shipped and stable after a real first-use bug hunt
+
+---
+
+## Session: fix — Missing series Firestore index breaking public sermons page; Publish Immediately on import (Session 89)
+
+**Date:** 2026-06-21
+**Branches:** `fix/missing-series-index-and-resilience` (PR #141), `fix/conversations-index-drift` (PR #142), `feat/publish-on-import` (PR #143)
+**Status:** Merged
+
+### What was done
+
+Triggered by the first real end-to-end use of the new import feature: the user imported and published a sermon via `admin/sermons.html` but it didn't appear on `/sermons.html` (it did show correctly on the homepage's separate "Latest Sermons" widget).
+
+**Diagnosis**
+- Verified the sermon document itself first, using the `sermons` collection's public `allow read: if true` rule (an unauthenticated REST read, not an admin-privileged one) — `published: true`, valid `date`, all fields correct. Ruled out a data problem before chasing anything else.
+- `js/sermons.js`'s `loadSermons()` fetches `sermons` and `series` together via `Promise.all`. Replicated the exact `series` query (`where('published','==',true).orderBy('order')`) against the Firestore REST `runQuery` endpoint and got `FAILED_PRECONDITION: The query requires an index` — `firestore.indexes.json` never had a composite index for `series`. Since `Promise.all` rejects as a whole when either promise rejects, the *entire* sermons list (not just the series tab) was being replaced with "Unable to load sermons." This has been broken since the series feature shipped (PR #106, 2026-06-14) — nobody noticed because the `sermons` collection had no real content to visibly miss until this session's import.
+- User independently hit the same `FAILED_PRECONDITION` in their own browser console, with an identical `create_composite` link — confirmed the diagnosis matched reality exactly.
+
+**PR #141 — fix**
+- Added the missing `series` composite index to `firestore.indexes.json`
+- Hardened `loadSermons()` so a `series` failure only empties the series tab instead of taking sermons down with it too
+- Hardened `groupByMonthYear()` (extracted `monthYearKey()`) so a blank/missing sermon `date` — possible from an unedited YouTube-import row whose title didn't match any of the four parser formats — groups under "Undated" instead of throwing and blanking the list
+
+**PR #142 — fix (discovered while deploying #141)**
+- `firebase deploy --only firestore:indexes` aborted with `HTTP 409: index already exists` on `conversations`, before ever reaching the new `series` entry. Root cause: `firestore.indexes.json` was missing the explicit `__name__` tiebreaker field on the `conversations` (`groupId`/`type`) and `users` (`membership`/`directoryVisible`) indexes, even though the live indexes already have it — pure pre-existing drift, unrelated to anything else this session. Deploy processes entries in file order and stops at the first mismatch, so this silently blocked the real fix until found and corrected.
+- After merging this, `firebase deploy --only firestore:indexes` completed cleanly; the new index took a few minutes to finish building, then the `series` query (and the public sermons page) started working — confirmed via the same `runQuery` replication.
+
+**PR #143 — feature request**
+- User: "I want a way to directly publish from the admin/sermons import from YouTube, I don't want to have to edit an individual video to publish it."
+- Added a "Publish immediately" checkbox next to "Select all" in the import results header. Unchecked by default (preserves the existing draft-first behavior); when checked, the batch write sets `published: true` for every selected row instead of `false`. Resets to unchecked each time "Load Videos" runs.
+
+### Verification
+PR #141/#142: `node -c` + isolated logic tests for `monthYearKey()`/`groupByMonthYear()` against valid/blank/undefined dates; confirmed via the Firestore REST API that the `conversations`/`users` fixes matched the live index state exactly before merging. PR #143: end-to-end browser test (Playwright, Firebase stubbed) confirming the checkbox's unchecked/checked states write `published: false`/`true` respectively and reset correctly between loads.
+
+### Notes
+- The blocked-permission system correctly stopped a direct Firebase Admin SDK query against production Firestore and a raw GCP access-token print; both were resolved by asking the user directly (approved the read) or by using the collection's own public read rule instead of privileged credentials. Worth remembering: this collection is public-read, so diagnosing data issues here doesn't need admin credentials at all.
 
 ---
 
