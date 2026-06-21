@@ -46,8 +46,15 @@ Naming convention: `{area}.{action}`, lowercase, dot-separated.
 | `connect.view`       | View visitor connect form submissions                                                                                               |
 | `users.approve`      | Approve pending users, set membership tier, handle "Request member access" submissions from `public` users (see `docs/HOMEPAGE.md`) |
 | `users.assign_roles` | Assign roles + extras to users (does NOT include `isSuperadmin` toggle)                                                             |
+| `youtube.update`     | Push corrected sermon metadata (title, description) back to YouTube from `/admin/sermons`. Gates a client-side OAuth flow, not a Firestore write — see "YouTube write-back" below |
 
-**14 keys total.** Easy to extend later if `.manage` ever needs to split into `.create / .edit / .delete`, but start coarse.
+**15 keys total.** Easy to extend later if `.manage` ever needs to split into `.create / .edit / .delete`, but start coarse.
+
+### YouTube write-back (`youtube.update`)
+
+Unlike every other key, `youtube.update` does not gate a Firestore collection — it gates a client-side feature on `/admin/sermons.html` that calls the YouTube Data API v3 directly from the browser using an OAuth access token, not a Firestore write. The permission only controls whether the "Connect YouTube" / "Push to YouTube" UI is shown (checked via decoded ID token claims, same `hasPermission()` pattern as everywhere else) — there is no corresponding Firestore or Storage rule, since the side effect lands on YouTube's servers, not ours.
+
+The OAuth token is acquired via `linkWithPopup` (or `reauthenticateWithPopup`, if Google is already linked) on the signed-in admin's own `firebase.auth().currentUser` — never a bare `signInWithPopup` — so a mismatched Google account is rejected by Firebase rather than silently swapping the admin's active site session. The token lives in page memory only (not `localStorage`, not Firestore) and expires after about an hour; each volunteer with `youtube.update` connects their own YouTube-manager Google account independently.
 
 ---
 

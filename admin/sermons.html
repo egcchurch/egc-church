@@ -29,6 +29,10 @@
         <p class="text-blue-200 mt-1">Add and manage sermon recordings</p>
       </div>
       <div class="flex gap-3">
+        <button id="connect-youtube-btn" onclick="connectYoutube()"
+                class="hidden bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          <i class="fab fa-youtube mr-2"></i>Connect YouTube
+        </button>
         <button onclick="toggleImportPanel()"
                 class="bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
           <i class="fab fa-youtube mr-2"></i>Import from YouTube
@@ -259,6 +263,10 @@
     let importPlaylistId = null;
     let importNextPageToken = null;
     let importRows = [];          // { youtubeId, thumbnail, date, service, title, speaker, alreadyImported, el }
+
+    let hasYoutubeUpdatePermission = false;
+    let youtubeAccessToken = null;
+    let youtubeAccessTokenExpiry = 0;
 
     // ─── Toast ──────────────────────────────────────────────────────────────
     function showToast(message, type) {
@@ -681,6 +689,101 @@
       }
     }
 
+    // ─── YouTube write-back ────────────────────────────────────────────────────
+    // Uses linkWithPopup/reauthenticateWithPopup on the signed-in admin's own
+    // currentUser, never a bare signInWithPopup — Firebase rejects the popup if
+    // the chosen Google account's email doesn't match the admin's own account,
+    // so this can't silently swap who's signed into the site. The OAuth token
+    // is kept in memory only (never localStorage/Firestore) and expires ~1hr.
+
+    function isYoutubeConnected() {
+      return !!youtubeAccessToken && Date.now() < youtubeAccessTokenExpiry;
+    }
+
+    function renderYoutubeConnectButton() {
+      const btn = document.getElementById('connect-youtube-btn');
+      if (!btn) return;
+      if (isYoutubeConnected()) {
+        btn.innerHTML = '<i class="fas fa-check-circle mr-2"></i>YouTube Connected';
+      } else {
+        btn.innerHTML = '<i class="fab fa-youtube mr-2"></i>Connect YouTube';
+      }
+    }
+
+    async function connectYoutube() {
+      const user = firebase.auth().currentUser;
+      if (!user) return;
+
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/youtube.force-ssl');
+      const hasGoogleLinked = user.providerData.some((p) => p.providerId === 'google.com');
+
+      const btn = document.getElementById('connect-youtube-btn');
+      btn.disabled = true;
+      try {
+        const result = hasGoogleLinked
+          ? await user.reauthenticateWithPopup(provider)
+          : await user.linkWithPopup(provider);
+        const credential = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
+        youtubeAccessToken = credential.accessToken;
+        youtubeAccessTokenExpiry = Date.now() + 55 * 60 * 1000; // ~1hr, safety margin
+        renderYoutubeConnectButton();
+        showToast('YouTube connected.', 'success');
+      } catch (err) {
+        showToast('Error connecting YouTube: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function buildYoutubeDescription(sermon) {
+      const parts = [];
+      if (sermon.speaker) parts.push(`Speaker: ${sermon.speaker}`);
+      if (sermon.scripture) parts.push(`Scripture: ${sermon.scripture}`);
+      const series = sermon.seriesId && seriesList.find((s) => s.id === sermon.seriesId);
+      if (series) parts.push(`Series: ${series.title}${sermon.seriesOrder ? ' #' + sermon.seriesOrder : ''}`);
+      if (sermon.description) parts.push('', sermon.description);
+      return parts.join('\n');
+    }
+
+    async function pushSermonToYoutube(id) {
+      const sermon = sermonsCache[id];
+      if (!sermon || !sermon.youtubeId) return;
+      if (!isYoutubeConnected()) {
+        showToast('YouTube not connected — click Connect YouTube first.', 'error');
+        return;
+      }
+
+      try {
+        const headers = { Authorization: `Bearer ${youtubeAccessToken}` };
+        const getResp = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${sermon.youtubeId}`, { headers });
+        const getJson = await getResp.json();
+        if (!getResp.ok || !getJson.items || !getJson.items.length) {
+          throw new Error(getJson.error?.message || 'Could not find this video on YouTube.');
+        }
+
+        // videos.update requires the full snippet resource — fetch then merge,
+        // rather than sending just title/description, so tags/categoryId survive.
+        const snippet = getJson.items[0].snippet;
+        snippet.title = sermon.title;
+        snippet.description = buildYoutubeDescription(sermon);
+
+        const putResp = await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', {
+          method: 'PUT',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: sermon.youtubeId, snippet }),
+        });
+        const putJson = await putResp.json();
+        if (!putResp.ok) {
+          throw new Error(putJson.error?.message || 'YouTube update failed.');
+        }
+
+        showToast(`Pushed "${sermon.title}" to YouTube.`, 'success');
+      } catch (err) {
+        showToast('Error pushing to YouTube: ' + err.message, 'error');
+      }
+    }
+
     async function loadSeriesDropdown() {
       try {
         const snap = await db.collection('series').orderBy('order').orderBy('title').get();
@@ -875,6 +978,11 @@
                   ${s.youtubeId ? `<p class="text-xs text-blue-500 mt-1"><i class="fab fa-youtube mr-1"></i>${s.youtubeId}</p>` : ''}
                 </div>
                 <div class="flex gap-2">
+                  ${hasYoutubeUpdatePermission && s.youtubeId ? `
+                  <button onclick="pushSermonToYoutube('${doc.id}')" title="Push title/description to YouTube"
+                          class="bg-zinc-50 hover:bg-zinc-100 text-zinc-600 text-sm px-4 py-2 rounded-full transition">
+                    <i class="fab fa-youtube mr-1"></i>Push
+                  </button>` : ''}
                   <button onclick="openForm('${doc.id}')"
                           class="bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm px-4 py-2 rounded-full transition">
                     <i class="fas fa-edit mr-1"></i>Edit
@@ -895,6 +1003,15 @@
     document.addEventListener('DOMContentLoaded', async () => {
       await loadSeriesDropdown();
       loadSermons();
+    });
+
+    firebase.auth().onAuthStateChanged((user) => {
+      if (!user) return;
+      Permissions.init(user).then(() => {
+        hasYoutubeUpdatePermission = Permissions.hasPermission('youtube.update');
+        document.getElementById('connect-youtube-btn').classList.toggle('hidden', !hasYoutubeUpdatePermission);
+        if (hasYoutubeUpdatePermission) loadSermons(); // re-render so Push buttons appear
+      });
     });
   </script>
 </body>

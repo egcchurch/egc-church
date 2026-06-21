@@ -18,6 +18,7 @@ const ALL_PERMISSIONS = [
   'connect.view',
   'users.approve',
   'users.assign_roles',
+  'youtube.update',
 ];
 
 const DEFAULT_ROLES = [
