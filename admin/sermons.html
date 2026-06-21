@@ -163,31 +163,11 @@
         </button>
       </div>
 
-      <div class="flex gap-2 mb-6 border-b border-gray-200">
-        <button id="import-tab-monthly" onclick="switchImportTab('monthly')"
-                class="px-4 py-2 text-sm font-medium border-b-2 border-amber-500 text-amber-600">
-          Monthly Playlist
-        </button>
-        <button id="import-tab-all" onclick="switchImportTab('all')"
-                class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-          All Videos
-        </button>
-      </div>
-
-      <div id="import-tab-content-monthly">
-        <button id="load-playlists-btn" onclick="loadPlaylists()"
-                class="bg-[#0A3D62] hover:bg-[#083352] text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all mb-4">
-          <i class="fas fa-list mr-2"></i>Load Playlists
-        </button>
-        <div id="playlist-picker" class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-500"></div>
-      </div>
-
-      <div id="import-tab-content-all" class="hidden">
-        <button id="load-all-videos-btn" onclick="loadAllVideos()"
-                class="bg-[#0A3D62] hover:bg-[#083352] text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all mb-4">
-          <i class="fas fa-film mr-2"></i>Load Videos
-        </button>
-      </div>
+      <button id="load-videos-btn" onclick="loadAllVideos()"
+              class="bg-[#0A3D62] hover:bg-[#083352] text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all mb-4">
+        <i class="fas fa-film mr-2"></i>Load Videos
+      </button>
+      <p class="text-xs text-gray-400 mb-4">Audio-only stream uploads (titles containing "Audio" or "Aud") are excluded automatically.</p>
 
       <div id="import-results" class="hidden mt-6">
         <div class="flex items-center justify-between mb-3">
@@ -259,8 +239,6 @@
     let existingPdfUrl = null;
     let removePdfFlag = false;
 
-    let importMode = null;        // 'playlist' | 'channel'
-    let importPlaylistId = null;
     let importNextPageToken = null;
     let importRows = [];          // { youtubeId, thumbnail, date, service, title, speaker, alreadyImported, el }
 
@@ -384,8 +362,11 @@
     function parseSermonTitle(raw) {
       const trimmed = (raw || '').trim();
 
-      // Current: 26-0617W Aud - Br Danie Poolman - Sermon Title
-      let m = trimmed.match(/^(\d{2})-(\d{2})(\d{2})([A-Za-z])\s*(?:Aud)?\s*-\s*(.+?)\s*-\s*(.+)$/);
+      // Current: 26-0617W - Br Danie Poolman - Sermon Title
+      // The optional "Aud"/"Audio" segment shouldn't normally appear here —
+      // isAudioVariant() filters those rows out before they reach this
+      // parser — but the group stays optional as a harmless fallback.
+      let m = trimmed.match(/^(\d{2})-(\d{2})(\d{2})([A-Za-z])\s*(?:Aud(?:io)?)?\s*-\s*(.+?)\s*-\s*(.+)$/);
       if (m) {
         const [, yy, mm, dd, letter, speaker, title] = m;
         return {
@@ -432,105 +413,13 @@
       document.getElementById('import-panel').classList.add('hidden');
     }
 
-    function switchImportTab(tab) {
-      const isMonthly = tab === 'monthly';
-      document.getElementById('import-tab-content-monthly').classList.toggle('hidden', !isMonthly);
-      document.getElementById('import-tab-content-all').classList.toggle('hidden', isMonthly);
-
-      const monthlyTab = document.getElementById('import-tab-monthly');
-      const allTab = document.getElementById('import-tab-all');
-      monthlyTab.classList.toggle('border-amber-500', isMonthly);
-      monthlyTab.classList.toggle('text-amber-600', isMonthly);
-      monthlyTab.classList.toggle('border-transparent', !isMonthly);
-      monthlyTab.classList.toggle('text-gray-500', !isMonthly);
-      allTab.classList.toggle('border-amber-500', !isMonthly);
-      allTab.classList.toggle('text-amber-600', !isMonthly);
-      allTab.classList.toggle('border-transparent', isMonthly);
-      allTab.classList.toggle('text-gray-500', isMonthly);
-
-      resetImportResults();
-    }
-
-    function resetImportResults() {
-      importMode = null;
-      importPlaylistId = null;
+    function loadAllVideos() {
       importNextPageToken = null;
       importRows = [];
       document.getElementById('import-rows').innerHTML = '';
-      document.getElementById('import-results').classList.add('hidden');
+      document.getElementById('import-results').classList.remove('hidden');
       document.getElementById('import-load-more-btn').classList.add('hidden');
       document.getElementById('import-select-all').checked = false;
-    }
-
-    async function loadPlaylists() {
-      const btn = document.getElementById('load-playlists-btn');
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Loading...';
-      try {
-        const fn = firebase.functions().httpsCallable('fetchYouTubeVideos');
-        const result = await fn({ mode: 'playlists' });
-        renderPlaylistPicker(result.data.playlists || []);
-      } catch (err) {
-        showToast('Error loading playlists: ' + err.message, 'error');
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-list mr-2"></i>Load Playlists';
-      }
-    }
-
-    function renderPlaylistPicker(playlists) {
-      const container = document.getElementById('playlist-picker');
-      container.innerHTML = '';
-      if (!playlists.length) {
-        container.textContent = 'No playlists found on this channel.';
-        return;
-      }
-      playlists.forEach((pl) => {
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.className = 'text-left border border-gray-200 rounded-xl p-3 hover:border-amber-400 transition';
-
-        if (pl.thumbnail) {
-          const img = document.createElement('img');
-          img.src = pl.thumbnail;
-          img.className = 'w-full h-20 object-cover rounded-lg mb-2';
-          card.appendChild(img);
-        }
-        const title = document.createElement('p');
-        title.className = 'text-sm font-medium text-gray-800 truncate';
-        title.textContent = pl.title;
-        card.appendChild(title);
-
-        const count = document.createElement('p');
-        count.className = 'text-xs text-gray-400';
-        count.textContent = `${pl.videoCount} video${pl.videoCount === 1 ? '' : 's'}`;
-        card.appendChild(count);
-
-        card.addEventListener('click', () => selectPlaylist(pl.id, card));
-        container.appendChild(card);
-      });
-    }
-
-    function selectPlaylist(playlistId, cardEl) {
-      document.querySelectorAll('#playlist-picker button').forEach((b) => b.classList.remove('border-amber-500', 'ring-2', 'ring-amber-200'));
-      if (cardEl) cardEl.classList.add('border-amber-500', 'ring-2', 'ring-amber-200');
-
-      importMode = 'playlist';
-      importPlaylistId = playlistId;
-      importNextPageToken = null;
-      importRows = [];
-      document.getElementById('import-rows').innerHTML = '';
-      document.getElementById('import-results').classList.remove('hidden');
-      loadVideoPage();
-    }
-
-    function loadAllVideos() {
-      importMode = 'channel';
-      importPlaylistId = null;
-      importNextPageToken = null;
-      importRows = [];
-      document.getElementById('import-rows').innerHTML = '';
-      document.getElementById('import-results').classList.remove('hidden');
       loadVideoPage();
     }
 
@@ -539,11 +428,7 @@
       loadMoreBtn.disabled = true;
       try {
         const fn = firebase.functions().httpsCallable('fetchYouTubeVideos');
-        const result = await fn({
-          mode: importMode,
-          playlistId: importMode === 'playlist' ? importPlaylistId : undefined,
-          pageToken: importNextPageToken || undefined,
-        });
+        const result = await fn({ pageToken: importNextPageToken || undefined });
         const { videos = [], nextPageToken = null } = result.data;
         appendImportRows(videos);
         importNextPageToken = nextPageToken;
@@ -555,16 +440,25 @@
       }
     }
 
+    // Excludes the low-bandwidth audio-only stream duplicate every service
+    // gets uploaded alongside the real video — those titles always contain
+    // "Audio" or "Aud" as a standalone word.
+    function isAudioVariant(title) {
+      return /\baud(io)?\b/i.test(title || '');
+    }
+
     function appendImportRows(videos) {
       const tbody = document.getElementById('import-rows');
-      videos.forEach((video) => {
-        const parsed = parseSermonTitle(video.title);
-        const alreadyImported = Object.values(sermonsCache).some((s) => s.youtubeId === video.youtubeId);
-        const row = { youtubeId: video.youtubeId, thumbnail: video.thumbnail, alreadyImported, ...parsed };
-        row.el = renderImportRow(row);
-        importRows.push(row);
-        tbody.appendChild(row.el);
-      });
+      videos
+        .filter((video) => !isAudioVariant(video.title))
+        .forEach((video) => {
+          const parsed = parseSermonTitle(video.title);
+          const alreadyImported = Object.values(sermonsCache).some((s) => s.youtubeId === video.youtubeId);
+          const row = { youtubeId: video.youtubeId, thumbnail: video.thumbnail, alreadyImported, ...parsed };
+          row.el = renderImportRow(row);
+          importRows.push(row);
+          tbody.appendChild(row.el);
+        });
     }
 
     function makeRowInput(type, value, extraClasses) {

@@ -10,7 +10,34 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-21
-**Current milestone:** Maintenance — all phases complete, working through backlog; Part 3 of YouTube Sermon Management plan in review (final part — plan complete pending merge)
+**Current milestone:** Maintenance — all phases complete, working through backlog; YouTube Sermon Management plan fully shipped, in post-launch refinement
+
+---
+
+## Session: fix — Remove Monthly Playlist import, exclude audio-duplicate uploads (Session 88)
+
+**Date:** 2026-06-21
+**Branch:** `feat/simplify-youtube-import-exclude-audio` (PR #140)
+**Status:** Open
+
+### What was done
+
+Two user-reported refinements to the just-shipped YouTube bulk import (Part 2):
+
+1. **Removed the "Monthly Playlist" tab/mode entirely.** Turned out not useful in practice, and the underlying `playlists.list?channelId=` call has a known YouTube API inconsistency — it can return `channelNotFound` even though `channels.list`/`playlistItems.list` succeed for the identical channel ([googleapis/google-api-php-client#2026](https://github.com/googleapis/google-api-php-client/issues/2026)), which is exactly the bug fixed in PR #139 earlier today. Removing the feature makes that fix dead code, so it went too.
+   - `admin/sermons.html`: dropped the tabs UI and playlist picker; the panel is now just a single "Load Videos" button + results table (previously the "All Videos" tab content, unwrapped)
+   - `functions/index.js`: `fetchYouTubeVideos` no longer takes a `mode`/`playlistId` — it always resolves the channel's uploads playlist and pages through it. Deleted `fetchAllPlaylists` and the `channelNotFound`-handling code from PR #139 along with it
+
+2. **Excludes audio-only stream duplicates from import results.** Every service gets uploaded as two YouTube videos — the real one and a black-screen, lowest-bitrate "audio" version for low-bandwidth viewers. The audio duplicate's title always contains "Audio" or "Aud" as a standalone word (confirmed with real examples: `25-0615E Audio - Br Tim Dodd - Human Weakness`, `26-0617W Aud - Br Danie Poolman - ...`, `Br. Danie Poolman - Sunday Morning- 2025-06-08 (Audio Stream)`). Added `isAudioVariant()` (`\baud(io)?\b`, case-insensitive, word-bounded so it doesn't false-positive on words like "applaud" or "audience") and filter videos through it in `appendImportRows()` before they're parsed or rendered.
+   - This also clarified that the "Current" title format's `Aud` marker — previously assumed in the Part 2 spec to mean "Auditorium" and silently skipped during parsing — actually means "Audio" and signals the whole video should be excluded, not just have one word stripped. Updated `parseSermonTitle()`'s comment accordingly; the regex's optional `(?:Aud(?:io)?)?` group stays as a harmless fallback in case a row somehow slips past the filter.
+
+Also updated `docs/ROADMAP.md` to mark the full Sermon Management & YouTube Integration plan (Parts 1–3, all merged) as Done, with a condensed summary replacing the original pre-implementation spec, and folded in the post-launch fixes (PRs #136–139).
+
+### Verification
+`node -c` + isolated `require()` load test + `npm test` (16 tests) on `functions/index.js`. Unit-tested `isAudioVariant()` against the three real audio-duplicate examples plus a real (non-audio) title and two false-positive guards ("applauding", "Audience Engagement") — all correct. End-to-end browser test (Playwright, Firebase stubbed) confirmed: the panel has no tabs/playlist picker, "Load Videos" returns only the 2 real videos out of 5 mocked (3 audio duplicates correctly filtered), and Load More appends page 2 without reintroducing any duplicates.
+
+### Still pending
+- `firebase deploy --only functions` after merge (functions/index.js changed)
 
 ---
 

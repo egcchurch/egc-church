@@ -920,14 +920,12 @@ exports.checkYoutubeLiveStatus = functions
 // Reuses the same YOUTUBE_APIKEY / YOUTUBE_CHANNELID secrets as
 // checkYoutubeLiveStatus (PR #112).
 //
-// data: { mode: 'playlists' | 'playlist' | 'channel', playlistId?, pageToken? }
-//   'playlists' — every playlist on the channel (for the monthly picker).
-//     playlists.list costs 1 quota unit/call; loops internally over all pages
-//     since a channel realistically has dozens, not thousands, of playlists.
-//   'playlist'  — one page of videos from the given playlistId.
-//   'channel'   — one page of videos from the channel's uploads playlist
-//     (resolved via channels.list, also 1 unit).
-// playlistItems.list costs 1 unit/call regardless of maxResults.
+// data: { pageToken? } — one page of videos from the channel's uploads
+// playlist (resolved via channels.list, 1 quota unit). playlistItems.list
+// costs 1 unit/call regardless of maxResults.
+//
+// A "Monthly Playlist" browsing mode (playlists.list + playlistItems.list by
+// playlistId) existed here briefly but wasn't useful in practice — removed.
 
 async function youtubeApiGet(path, params) {
   const url = new URL(`https://www.googleapis.com/youtube/v3/${path}`);
@@ -937,8 +935,7 @@ async function youtubeApiGet(path, params) {
   const resp = await fetch(url.toString());
   const json = await resp.json();
   if (!resp.ok) {
-    const reason = json.error?.errors?.[0]?.reason;
-    throw new functions.https.HttpsError('internal', json.error?.message || `YouTube API error (${resp.status})`, { reason });
+    throw new functions.https.HttpsError('internal', json.error?.message || `YouTube API error (${resp.status})`);
   }
   return json;
 }
@@ -954,42 +951,6 @@ function mapVideoItem(item) {
   };
 }
 
-async function fetchAllPlaylists(apiKey, channelId) {
-  const playlists = [];
-  let pageToken = null;
-  do {
-    let json;
-    try {
-      json = await youtubeApiGet('playlists', {
-        part: 'snippet,contentDetails',
-        channelId,
-        maxResults: 50,
-        pageToken,
-        key: apiKey,
-      });
-    } catch (err) {
-      // Known YouTube API inconsistency: playlists.list?channelId= can return
-      // channelNotFound for a channel that has zero playlists, even though
-      // channels.list/playlistItems.list work fine for the same ID (see
-      // https://github.com/googleapis/google-api-php-client/issues/2026).
-      // Treat it as "no playlists" rather than a confusing hard error.
-      if (err.details?.reason === 'channelNotFound') return playlists;
-      throw err;
-    }
-    (json.items || []).forEach((item) => {
-      const thumbs = item.snippet?.thumbnails || {};
-      playlists.push({
-        id: item.id,
-        title: item.snippet?.title || '',
-        videoCount: item.contentDetails?.itemCount || 0,
-        thumbnail: thumbs.medium?.url || thumbs.default?.url || '',
-      });
-    });
-    pageToken = json.nextPageToken || null;
-  } while (pageToken);
-  return playlists;
-}
-
 async function getUploadsPlaylistId(apiKey, channelId) {
   const json = await youtubeApiGet('channels', { part: 'contentDetails', id: channelId, key: apiKey });
   const uploadsId = json.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
@@ -1002,49 +963,36 @@ async function getUploadsPlaylistId(apiKey, channelId) {
 exports.fetchYouTubeVideos = functions
   .runWith({ secrets: [youtubeApiKey, youtubeChannelId] })
   .https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
-  }
-  const token = context.auth.token;
-  if (token.superadmin !== true && !(Array.isArray(token.perms) && token.perms.includes('sermons.manage'))) {
-    throw new functions.https.HttpsError('permission-denied', 'sermons.manage permission required.');
-  }
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
+    }
+    const token = context.auth.token;
+    if (token.superadmin !== true && !(Array.isArray(token.perms) && token.perms.includes('sermons.manage'))) {
+      throw new functions.https.HttpsError('permission-denied', 'sermons.manage permission required.');
+    }
 
-  const apiKey = youtubeApiKey.value();
-  const channelId = youtubeChannelId.value();
-  if (!apiKey || !channelId) {
-    throw new functions.https.HttpsError('failed-precondition', 'YouTube API key/channel ID not configured.');
-  }
+    const apiKey = youtubeApiKey.value();
+    const channelId = youtubeChannelId.value();
+    if (!apiKey || !channelId) {
+      throw new functions.https.HttpsError('failed-precondition', 'YouTube API key/channel ID not configured.');
+    }
 
-  const { mode, playlistId, pageToken } = data || {};
+    const { pageToken } = data || {};
+    const uploadsPlaylistId = await getUploadsPlaylistId(apiKey, channelId);
 
-  if (mode === 'playlists') {
-    const playlists = await fetchAllPlaylists(apiKey, channelId);
-    return { playlists };
-  }
+    const json = await youtubeApiGet('playlistItems', {
+      part: 'snippet,contentDetails',
+      playlistId: uploadsPlaylistId,
+      maxResults: 50,
+      pageToken,
+      key: apiKey,
+    });
 
-  let resolvedPlaylistId = playlistId;
-  if (mode === 'channel') {
-    resolvedPlaylistId = await getUploadsPlaylistId(apiKey, channelId);
-  } else if (mode !== 'playlist') {
-    throw new functions.https.HttpsError('invalid-argument', 'mode must be one of: playlists, playlist, channel.');
-  } else if (!playlistId) {
-    throw new functions.https.HttpsError('invalid-argument', 'playlistId is required for mode "playlist".');
-  }
-
-  const json = await youtubeApiGet('playlistItems', {
-    part: 'snippet,contentDetails',
-    playlistId: resolvedPlaylistId,
-    maxResults: 50,
-    pageToken,
-    key: apiKey,
+    return {
+      videos: (json.items || []).map(mapVideoItem),
+      nextPageToken: json.nextPageToken || null,
+    };
   });
-
-  return {
-    videos: (json.items || []).map(mapVideoItem),
-    nextPageToken: json.nextPageToken || null,
-  };
-});
 
 // ── migrateRolesV1 ────────────────────────────────────────────────────────────
 // Callable — superadmin only. One-time migration for Phase 6.
