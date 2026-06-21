@@ -1,6 +1,6 @@
 // functions/index.js
 const functions = require('firebase-functions/v1');
-const { defineSecret } = require('firebase-functions/params');
+const { defineSecret, defineString } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 
 admin.initializeApp();
@@ -17,6 +17,18 @@ const { Resend } = require('resend');
 // the value interactively, so it never appears in shell history or logs).
 const youtubeApiKey = defineSecret('YOUTUBE_APIKEY');
 const youtubeChannelId = defineSecret('YOUTUBE_CHANNELID');
+
+// Same migration for the Resend email alert in onNewConnectForm. This feature
+// is not currently in use, so RESEND_APIKEY is a plain string param (default
+// '') rather than a Secret Manager secret — that avoids the deploy needing a
+// value that doesn't exist. If the church starts using Resend, switch this to
+// `defineSecret('RESEND_APIKEY')` (set via `firebase functions:secrets:set`)
+// and add it to onNewConnectForm's runWith({ secrets: [...] }) list.
+// RESEND_FROM_EMAIL and CHURCH_DOMAIN keep the previous functions.config()
+// fallback defaults — no setup needed unless overriding them.
+const resendApiKey = defineString('RESEND_APIKEY', { default: '' });
+const resendFromEmail = defineString('RESEND_FROM_EMAIL', { default: 'noreply@egc.church' });
+const churchDomain = defineString('CHURCH_DOMAIN', { default: 'app.egc.church' });
 
 // ── syncUserClaims ────────────────────────────────────────────────────────────
 // Triggered on any write to /users/{uid}.
@@ -431,14 +443,13 @@ exports.onNewConnectForm = functions.firestore
     const connectAlertEmail = configSnap.exists
       ? (configSnap.data().connectAlertEmail || null)
       : null;
-    const resendCfg = functions.config().resend || {};
+    const apiKey = resendApiKey.value();
 
-    if (connectAlertEmail && resendCfg.api_key) {
+    if (connectAlertEmail && apiKey) {
       try {
-        const resend = new Resend(resendCfg.api_key);
-        const domain = (functions.config().church || {}).domain || 'app.egc.church';
+        const resend = new Resend(apiKey);
         await resend.emails.send({
-          from:    `Connect Form <${resendCfg.from_email || 'noreply@egc.church'}>`,
+          from:    `Connect Form <${resendFromEmail.value()}>`,
           to:      connectAlertEmail,
           subject: `New connect form submission from ${form.name || 'Visitor'}`,
           text: [
@@ -451,7 +462,7 @@ exports.onNewConnectForm = functions.firestore
             'Message:',
             form.message || '(no message)',
             '',
-            `View submissions: https://${domain}/admin/connect.html`,
+            `View submissions: https://${churchDomain.value()}/admin/connect.html`,
           ].join('\n'),
         });
       } catch (err) {
