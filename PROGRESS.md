@@ -10,7 +10,40 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-21
-**Current milestone:** Maintenance — all phases complete, working through backlog; Part 1 of YouTube Sermon Management plan in review
+**Current milestone:** Maintenance — all phases complete, working through backlog; Part 2 of YouTube Sermon Management plan in review
+
+---
+
+## Session: feat — YouTube bulk import panel for sermon admin (Session 86)
+
+**Date:** 2026-06-21
+**Branch:** `feat/youtube-bulk-import` (PR #134)
+**Status:** Open
+
+### What was done
+
+Part 2 of the YouTube Sermon Management plan (`docs/ROADMAP.md`). Depends on Part 1 (PR #133, merged).
+
+**`functions/index.js`**
+- Added callable `fetchYouTubeVideos` — requires `sermons.manage` (same gate as the admin page), reuses the existing `functions.config().youtube.apikey` / `.channelid` (set for the PR #112 live-stream feature) so the API key never reaches the browser
+- `mode: 'playlists'` loops internally over all pages and returns every playlist on the channel (`playlists.list` is 1 quota unit/call, cheap enough to fetch in full)
+- `mode: 'playlist'` / `'channel'` return one page of videos from the given playlist or the channel's uploads playlist (resolved via `channels.list`), with `nextPageToken` for pagination
+
+**`admin/sermons.html`**
+- Added `firebase-functions-compat.js` and an "Import from YouTube" panel next to "Add Sermon"
+- Two tabs: **Monthly Playlist** (load playlists → pick one → its videos) and **All Videos** (paginated channel uploads) — switching tabs resets the results table so the two browsing modes never mix
+- `parseSermonTitle()` handles all four documented historical title formats (current `YY-MMDD[letter] Aud - Speaker - Title`, mid-era A `Title - Speaker (Day YYYY-MM-DD)`, mid-era B `EGC Day Group YY-MM-DD - notes`, old `EGC Day YYYY-MM-DD`); the old (4-digit year) format is checked before mid-era B's 2-digit-year pattern, since the latter's lazy "group word" capture would otherwise misparse a 4-digit year by splitting it across the group and year captures. Unrecognised titles fall back to the full raw string with date/speaker left blank for manual edit
+- Each result row is editable (date/service/title/speaker) before import — built with `createElement` + `.value` assignment rather than `innerHTML`, so arbitrary YouTube title text (quotes, apostrophes, HTML-looking characters) can't break the row
+- Videos whose `youtubeId` already exists in Firestore are greyed out, checkbox disabled, labelled "Already imported" — checked against the sermon list already loaded by the page, no extra query
+- "Load More" appends new rows without rebuilding existing ones, so in-progress edits to already-loaded rows are never lost
+- "Import Selected" reads the (possibly hand-edited) live DOM values and batch-writes them as `published: false` drafts for the admin to review before publishing
+
+### Verification
+Unit-checked `parseSermonTitle()` directly against all four documented formats plus an unrecognised-title fallback — all correct, including the deliberately-tested year-format collision between the two EGC-prefixed formats. Then verified end-to-end in a real headless browser (Playwright) against the actual file, with only the Firebase SDK boundary mocked (auth/firestore/storage/functions stubbed; no live admin credentials or YouTube API access available) — confirmed: panel open/close, mocked playlist loading and selection, parsed rows with one already-imported (disabled) and one new (editable), editing a title before import, batch-import flipping the row to "Already imported", the no-selection error toast (no native `alert()`), tab-switch correctly resetting results, and Load More appending page 2 without dropping page 1's rows.
+
+### Still pending
+- `firebase deploy --only functions` must be run manually after this PR merges (CI's `deploy.yml` only deploys Hosting)
+- Part 3 (YouTube write-back) of the roadmap plan is not started
 
 ---
 
