@@ -10,7 +10,53 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-23
-**Current milestone:** Maintenance — installed PWA now allows rotation (was hard-locked to portrait at the OS level); Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Maintenance — tightened manifest.json/service-worker.js cache headers; installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — manifest.json/service-worker.js were cached for 1 hour (Session 112)
+
+**Date:** 2026-06-23
+**Branch:** `fix/manifest-cache-headers` (PR pending)
+**Status:** Open
+
+### Context
+Continued troubleshooting Session 111's orientation fix. After the user did a *full*
+uninstall (Android Settings → Apps, not just removing the home-screen icon) + Chrome
+site-data clear + reinstall, `chrome://webapks` **still** showed `orientation: portrait`
+for the EGC entry — meaning Chrome had not rebuilt the native WebAPK wrapper from the
+current manifest, despite the most thorough reinstall available to the user.
+
+### What was found and fixed (ours to control)
+`curl -I https://app.egc.church/manifest.json` showed `Cache-Control: max-age=3600` —
+Firebase Hosting's default caching was holding `manifest.json` (and, by the same default,
+`service-worker.js`) for a full hour at the CDN edge and in any client's HTTP cache. Not
+confirmed as *the* explanation for the continued staleness (a lot of time had already
+passed in this troubleshooting thread, so the 1h window had likely already lapsed by the
+time of the last test) — but it's a genuine, fixable gap regardless: any future manifest
+or service-worker change would be slow to reach already-installed PWAs and CDN edges.
+
+- `firebase.json` — added an explicit `Cache-Control: no-cache` header for both
+  `/manifest.json` and `/service-worker.js` on both hosting targets (staging +
+  production). `no-cache` (not `no-store`) — still cacheable, but always revalidated with
+  the server (ETag/Last-Modified) before reuse, so changes are picked up on the very next
+  request instead of waiting out a 1h window.
+- `CLAUDE.md` — documented the header and that it's a *separate* mechanism from, not a
+  fix for, Android's own WebAPK-rebuild delay (which is the remaining open question below).
+
+### Still open — not resolved this session
+The user's installed PWA still shows `orientation: portrait` in `chrome://webapks` even
+after a full uninstall/reinstall. The live manifest is confirmed correct
+(`curl` shows `orientation: "any"`); this now points at Chrome/Android's own WebAPK
+minting pipeline (a Google-side backend service, separate from our hosting) not having
+re-fetched/rebuilt yet — something neither our code nor the user's device actions can
+force directly. Next step if it's still stale after more time: try again later, or accept
+the delay is on Google's infrastructure rather than something fixable here.
+
+### Deploy
+Hosting-only — no rules/functions change, auto-deploys on merge.
+
+---
 
 ---
 
