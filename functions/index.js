@@ -1090,3 +1090,161 @@ exports.migrateRolesV1 = functions.https.onCall(async (data, context) => {
   console.log(`migrateRolesV1: complete — ${usersUpdated} users updated, ${rolesSeeded} roles seeded`);
   return { usersUpdated, rolesSeeded, errors };
 });
+
+// ── Cottage Meetings (Phase 1) ──────────────────────────────────────────────
+// Members register for a cottage meeting (limited seats, hosted at members'
+// homes). Registration and cancellation run as transactions here — never from
+// the client — so seats can't be oversold and a member can hold only one
+// active registration at a time. Confirmation is delivered in-app + push
+// (the primary channel); SMS/WhatsApp are planned later phases.
+
+// Send a single-user in-app notification + FCM push (reuses the broadcast
+// payload shape). Best-effort: push failures never block the caller.
+async function sendUserNotification(uid, { title, body, type, linkUrl }) {
+  const sentAt = admin.firestore.FieldValue.serverTimestamp();
+  await db.collection('users').doc(uid).collection('notifications').add({
+    title, body, type: type || 'info', sentAt, read: false, linkUrl: linkUrl || null,
+  });
+
+  const tokensSnap = await db.collection('users').doc(uid).collection('fcmTokens').get();
+  const tokenDocs = tokensSnap.docs.filter(d => d.data().token);
+  if (!tokenDocs.length) return;
+
+  const result = await admin.messaging().sendEachForMulticast({
+    tokens: tokenDocs.map(d => d.data().token),
+    notification: { title, body },
+    webpush: {
+      notification: { title, body, icon: '/assets/images/icons/icon-192.png', badge: '/assets/images/icons/icon-72.png', data: { linkUrl: linkUrl || '/' } },
+      fcmOptions: { link: linkUrl || '/' },
+    },
+    data: { linkUrl: linkUrl || '/' },
+  });
+
+  if (result.failureCount > 0) {
+    const batch = db.batch();
+    result.responses.forEach((resp, idx) => {
+      if (!resp.success) {
+        const code = resp.error?.code;
+        if (code === 'messaging/registration-token-not-registered' ||
+            code === 'messaging/invalid-registration-token') {
+          batch.delete(tokenDocs[idx].ref);
+        }
+      }
+    });
+    await batch.commit().catch(e => console.warn('sendUserNotification token cleanup:', e));
+  }
+}
+
+exports.registerForCottageMeeting = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
+  }
+  const uid = context.auth.uid;
+  const meetingId = (data && data.meetingId ? String(data.meetingId) : '').trim();
+  const partySize = parseInt(data && data.partySize, 10);
+
+  if (!meetingId) {
+    throw new functions.https.HttpsError('invalid-argument', 'meetingId is required.');
+  }
+  if (!Number.isInteger(partySize) || partySize < 1 || partySize > 50) {
+    throw new functions.https.HttpsError('invalid-argument', 'Party size must be between 1 and 50.');
+  }
+
+  const userSnap = await db.collection('users').doc(uid).get();
+  const user = userSnap.exists ? userSnap.data() : null;
+  if (!user || user.membership !== 'member') {
+    throw new functions.https.HttpsError('permission-denied', 'Cottage meetings are for approved members.');
+  }
+
+  const meetingRef = db.collection('cottageMeetings').doc(meetingId);
+  const regRef = db.collection('cottageRegistrations').doc(uid);
+
+  const result = await db.runTransaction(async (t) => {
+    const meetingSnap = await t.get(meetingRef);
+    if (!meetingSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'That cottage meeting no longer exists.');
+    }
+    const meeting = meetingSnap.data();
+    if (meeting.open === false) {
+      throw new functions.https.HttpsError('failed-precondition', 'Registration for this meeting is closed.');
+    }
+
+    const regSnap = await t.get(regRef);
+    const existing = regSnap.exists ? regSnap.data() : null;
+
+    // One active registration per member.
+    if (existing && existing.meetingId !== meetingId) {
+      throw new functions.https.HttpsError('failed-precondition',
+        'You are already registered for another cottage meeting. Please cancel that one first.');
+    }
+
+    const capacity = meeting.capacity || 0;
+    const seatsTaken = meeting.seatsTaken || 0;
+    const prevParty = (existing && existing.meetingId === meetingId) ? (existing.partySize || 0) : 0;
+    const newSeatsTaken = seatsTaken - prevParty + partySize;
+    if (capacity > 0 && newSeatsTaken > capacity) {
+      const left = Math.max(capacity - (seatsTaken - prevParty), 0);
+      throw new functions.https.HttpsError('resource-exhausted',
+        `Not enough seats — only ${left} left for this meeting.`);
+    }
+
+    t.set(regRef, {
+      uid,
+      meetingId,
+      regionId: meeting.regionId || null,
+      name: user.displayName || user.email || 'Member',
+      phone: user.phone || null,
+      email: user.email || null,
+      partySize,
+      registeredAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    t.update(meetingRef, { seatsTaken: newSeatsTaken });
+    return { meeting, newSeatsTaken, capacity };
+  });
+
+  const m = result.meeting;
+  const when = [m.date, m.time].filter(Boolean).join(' at ');
+  await sendUserNotification(uid, {
+    title: 'Cottage Meeting — Registration Confirmed',
+    body: `You're registered (party of ${partySize}) for ${m.regionName || 'your cottage meeting'}${when ? ' on ' + when : ''}. Venue: ${m.address || 'to be confirmed'}.`,
+    type: 'cottage',
+    linkUrl: '/members/cottage.html',
+  });
+
+  return { success: true, seatsTaken: result.newSeatsTaken, capacity: result.capacity };
+});
+
+exports.cancelCottageRegistration = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
+  }
+  const uid = context.auth.uid;
+  const regRef = db.collection('cottageRegistrations').doc(uid);
+
+  const removed = await db.runTransaction(async (t) => {
+    const regSnap = await t.get(regRef);
+    if (!regSnap.exists) return null;
+    const reg = regSnap.data();
+
+    if (reg.meetingId) {
+      const meetingRef = db.collection('cottageMeetings').doc(reg.meetingId);
+      const meetingSnap = await t.get(meetingRef);
+      if (meetingSnap.exists) {
+        const seatsTaken = meetingSnap.data().seatsTaken || 0;
+        t.update(meetingRef, { seatsTaken: Math.max(0, seatsTaken - (reg.partySize || 0)) });
+      }
+    }
+    t.delete(regRef);
+    return reg;
+  });
+
+  if (removed) {
+    await sendUserNotification(uid, {
+      title: 'Cottage Meeting — Registration Cancelled',
+      body: 'Your cottage meeting registration has been cancelled and your seats released.',
+      type: 'cottage',
+      linkUrl: '/members/cottage.html',
+    });
+  }
+  return { success: true, cancelled: !!removed };
+});

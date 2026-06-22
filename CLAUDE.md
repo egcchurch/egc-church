@@ -54,6 +54,7 @@ church-website-pwa/
 │   ├── live.html               ← Live stream
 │   ├── directory.html          ← Membership directory
 │   ├── groups.html             ← Small groups (browse + join + leader management for own group)
+│   ├── cottage.html            ← Cottage meetings (register with party size; capacity-limited)
 │   ├── prayer.html             ← Prayer requests
 │   ├── devotional.html         ← Daily devotional
 │   ├── gallery.html            ← Members + youth galleries
@@ -67,6 +68,7 @@ church-website-pwa/
 │   ├── blog.html               ← Manage announcements
 │   ├── team.html               ← Manage leadership profiles
 │   ├── groups.html             ← Manage ALL groups (groups.manage permission)
+│   ├── cottage.html            ← Manage cottage meetings (cottage.manage; deacon hosts own, superadmin all)
 │   ├── devotional.html         ← Manage devotional content
 │   ├── gallery.html            ← Manage photo galleries (all audiences)
 │   ├── music.html              ← Manage music library
@@ -160,6 +162,7 @@ church-website-pwa/
 | Live stream             | /members/live       |
 | Membership directory    | /members/directory  |
 | Small groups            | /members/groups     |
+| Cottage meetings        | /members/cottage    |
 | Prayer requests         | /members/prayer     |
 | Daily devotional        | /members/devotional |
 | Members & youth gallery | /members/gallery    |
@@ -175,6 +178,7 @@ church-website-pwa/
 | Manage blog              | /admin/blog          | `blog.manage`              |
 | Manage team              | /admin/team          | `team.manage`              |
 | Manage groups            | /admin/groups        | `groups.manage`            |
+| Manage cottage meetings  | /admin/cottage       | `cottage.manage`           |
 | Manage devotional        | /admin/devotional    | `devotional.manage`        |
 | Manage gallery           | /admin/gallery       | `gallery.manage`           |
 | Manage music             | /admin/music         | `music.manage`             |
@@ -203,9 +207,9 @@ Two independent dimensions per user:
 
 Permissions are stored as Firebase Auth custom claims computed by the `syncUserClaims` Cloud Function.
 
-- `isSuperadmin: true` on the user doc → custom claim `{ superadmin: true }` → all 14 permissions
+- `isSuperadmin: true` on the user doc → custom claim `{ superadmin: true }` → all permissions
 - `roles: [roleIds]` + `extraPermissions: [keys]` → custom claim `{ superadmin: false, perms: [...] }` → additive union
-- See `docs/PERMISSIONS.md` for the full 14-key permission model and default roles
+- See `docs/PERMISSIONS.md` for the full 16-key permission model and default roles
 
 ### Combined Access Matrix
 
@@ -355,6 +359,11 @@ Functions are organised by trigger type:
 - `syncUserNotificationEligibility` — trigger: `/users/{uid}` write — if `membership` drops from `member` to anything else, deletes all docs in `/users/{uid}/fcmTokens` subcollection so the user stops receiving push notifications.
 - `cleanupNonMemberTokens` — callable (superadmin only) — one-time migration: deletes FCM token subcollections for all users where `membership !== 'member'`. Already run on production.
 
+### Cottage Meetings (Phase 1)
+
+- `registerForCottageMeeting` — callable from `/members/cottage.html` — transactionally reserves seats (no overselling), enforces one active registration per member, writes `/cottageRegistrations/{uid}`, increments the meeting's `seatsTaken`, and sends an in-app + push confirmation with the venue/date/time. SMS (SMSPortal) and WhatsApp are planned later phases.
+- `cancelCottageRegistration` — callable from `/members/cottage.html` — transactionally frees the seats and deletes the member's registration.
+
 ---
 
 ## Firestore Data Structure
@@ -489,6 +498,25 @@ Functions are organised by trigger type:
     updatedAt: timestamp,
     updatedBy: uid
   }
+
+/config/cottageRegions                      ← singleton doc (Cottage Meetings)
+  regions: [{ id, name }]                   ← superadmin-managed area list
+
+/cottageMeetings/{meetingId}                ← Cottage Meetings
+  regionId, regionName
+  hostUid, hostName                         ← the deacon running this meeting
+  address, date (YYYY-MM-DD), time
+  capacity (int), seatsTaken (int)          ← seatsTaken maintained by Cloud Functions
+  open: true | false                        ← registration open?
+  notes (nullable)
+  createdAt, createdBy, updatedAt
+
+/cottageRegistrations/{uid}                 ← keyed by member UID (one active registration each)
+  uid, meetingId, regionId
+  name, phone (nullable), email (nullable)
+  partySize (int — total people incl. registrant)
+  registeredAt
+  ← written ONLY by register/cancel Cloud Functions (transactional capacity); host/superadmin may delete for cleanup
 ```
 
 ---

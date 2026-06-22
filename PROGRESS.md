@@ -10,7 +10,51 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — all phases complete, working through backlog
+**Current milestone:** Maintenance — all phases complete; Cottage Meetings (Phase 1) shipped to replace the Google Form
+
+---
+
+## Session: feat — Cottage Meetings registration, Phase 1 (Session 93)
+
+**Date:** 2026-06-22
+**Branch:** `feat/cottage-meetings` (PR pending)
+**Status:** Open
+
+### What was done
+
+Replaces the church's Google Form for cottage-meeting sign-ups with a site-native, capacity-limited registration system. Cottage meetings run in members' homes across regions (East Rand ×2, North, West Rand, South) with limited seats; members register a party size for their region's meeting and get a confirmation.
+
+**Data model**
+- `/config/cottageRegions` — singleton `{ regions: [{id,name}] }`, superadmin-managed (existing `/config/` rule, no rule change). Drives the region dropdown and member grouping.
+- `/cottageMeetings/{id}` — `regionId`/`regionName`, `hostUid`/`hostName` (the deacon), `address`, `date`, `time`, `capacity`, `seatsTaken`, `open`, `notes`. Address/date/time are member-visible (not secret — hosts can change).
+- `/cottageRegistrations/{uid}` — keyed by member UID, so **one active registration per member** is structurally enforced. Holds `meetingId`, `partySize`, contact info.
+
+**Permission** — new `cottage.manage` key (added to `functions/rolesData.js` ALL_PERMISSIONS + the existing **deacon** default role, and to `admin/roles.html`). A deacon manages only the meetings they host; superadmins manage all + the region list.
+
+**Cloud Functions** (`functions/index.js`)
+- `registerForCottageMeeting` — transactional seat reservation (no overselling), enforces one-per-member, writes the registration + increments `seatsTaken`, then sends an **in-app + push confirmation** (the primary channel) with venue/date/time via a new `sendUserNotification` helper.
+- `cancelCottageRegistration` — transactional seat release + registration delete + cancellation notice.
+
+**Pages**
+- `/members/cottage.html` — open meetings grouped by region, "X of Y seats left", Register (party size) / Cancel via the callables; one-per-member UX (shows where you're registered, blocks others until you cancel).
+- `/admin/cottage.html` — gated on `cottage.manage`; create/edit/delete meetings, capacity, open toggle, expandable registrant list; superadmin-only "Regions" manager. Save button uses `finally` (no stuck-Saving regression). Delete cleans up the meeting's registrations first (so no member is left pointing at a deleted meeting).
+
+**Security rules** — `/cottageMeetings` (read: member; create: `cottage.manage` + self-host or superadmin; update/delete: host or superadmin). `/cottageRegistrations` (read: owner / host-of-meeting / superadmin; create+update: **denied** to clients — Cloud Functions only; delete: host/superadmin for cleanup).
+
+**Plumbing** — members-nav + admin-nav links, admin dashboard card, SW cache v46 → v47 (both new pages precached), docs (`PERMISSIONS.md` → 16 keys; `CLAUDE.md` site map / data model / functions).
+
+### Phasing
+- **Phase 1 (this):** in-app + push confirmation (free, already built).
+- **Phase 2 (planned):** SMS via SMSPortal (their existing provider) — store API creds as Firebase secrets, add to the `sendUserNotification`-style dispatch.
+- **Phase 3 (planned):** WhatsApp + per-member preferred-channel opt-in.
+
+### Verification
+TBD — syntax checks, Firestore rules tests (emulator), and a stubbed-browser run of the member register/cancel flow before merge.
+
+### Still pending (manual after merge — CI deploys Hosting only)
+- `firebase deploy --only functions` — new callables.
+- `firebase deploy --only firestore:rules` — cottage rules.
+- Superadmin must add the five regions in `/admin/cottage.html`, and add `cottage.manage` to the live **Deacon** role in `/admin/roles.html` (DEFAULT_ROLES only seeds an empty collection; prod's role docs don't auto-update), then assign the Deacon role to the responsible deacons.
 
 ---
 
