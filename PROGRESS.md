@@ -10,15 +10,15 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — role-change re-login nudge; Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Maintenance — user-approval troubleshooting thread **resolved** (orphan self-heal + hardened create rules + re-login nudge, all live; account self-healed, approved, and deacon login/approval verified in production). Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number.
 
 ---
 
 ## Session: feat — In-app "sign out and back in" nudge on permission change (Session 102)
 
 **Date:** 2026-06-22
-**Branch:** `feat/role-change-relogin-nudge` (PR pending)
-**Status:** Open
+**Branch:** `feat/role-change-relogin-nudge` (PR #158)
+**Status:** Merged + deployed
 
 ### Context
 Permissions are baked into the Firebase ID token, so a role/permission change only
@@ -41,17 +41,15 @@ when a freshly-granted deacon couldn't approve users until logging out and back 
 in-app notification pattern.)
 
 ### Deploy
-`firebase deploy --only functions` (no rules/hosting/SW change).
-
----
+`firebase deploy --only functions` (no rules/hosting/SW change). — done.
 
 ---
 
 ## Session: fix — Self-heal missing /users record (orphaned accounts) (Session 101)
 
 **Date:** 2026-06-22
-**Branch:** `fix/self-heal-user-doc` (PR pending)
-**Status:** Open
+**Branch:** `fix/self-heal-user-doc` (PR #157)
+**Status:** Merged + deployed — **verified in production**: the orphaned account self-healed on sign-in, was approved, and the deacon login can now access admin and approve other users. Troubleshooting thread closed.
 
 ### Bug
 A newly "registered" user wasn't appearing in admin user management. Root cause (diagnosed with the user): the Auth account already existed (created 12 May) and its `/users/{uid}` record had been **removed** (manually in Firestore, not via the in-app delete flow which also removes the Auth login). `onUserCreate` only fires on **brand-new** Auth accounts, so signing back into the existing account never recreated the record → an "orphaned" login that can authenticate but has no member record (invisible in admin, can't be approved). `onUserCreate` itself is fine — the absence of recent executions just meant no new accounts were created.
