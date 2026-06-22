@@ -10,7 +10,97 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — sermon notes upload broadened to PDF/Word/PowerPoint; Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Maintenance — sermon notes now support multiple files (PDF/Word/PowerPoint); Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — Multi-file sermon notes/materials; diagnosed file-picker/rename reports (Session 104)
+
+**Date:** 2026-06-22
+**Branch:** `feat/sermon-notes-multifile` (PR pending)
+**Status:** Open
+
+### Context
+Follow-up to Session 103 (PR #160, merged+deployed). After that fix, user reported two
+more things while testing a `.pptx` upload: (1) the OS file picker defaulted to showing
+PDF files, and (2) after uploading, downloading the file showed it renamed to `.pdf`. Also
+asked: the Notes field only takes one file — what about multiple files of different types?
+
+### Diagnosis of the two reports
+- **File picker defaulting to PDF:** Windows' native Open dialog can group/order filter
+  options by the `accept` attribute, and extension-only lists are more prone to this than
+  combining extensions + MIME types (the documented cross-browser-robust practice). Applied
+  that improvement to `accept`, but this is ultimately an OS-rendering decision a web page
+  doesn't fully control — communicated that honestly rather than over-promising.
+- **Downloaded file renamed to `.pdf`:** the most likely explanation given the timeline —
+  the user was almost certainly still on a browser tab opened *before* PR #160's fix went
+  live. HTML pages are network-first (not SW-cached), but an *already-open* tab keeps
+  running whatever JS it loaded at open time; reloading the page is what picks up new code.
+  Before the fix, the upload path was hardcoded to `notes.pdf` regardless of the real file
+  — so a pre-fix tab would literally store the pptx bytes AT a path named `notes.pdf` (the
+  storage.rules fix that allowed the upload to go through is server-side and applies
+  regardless of which client JS sent the request — only the PATH construction is
+  client-side and would still be stale). This is a "reload the page" issue, not a remaining
+  code bug — confirmed the post-fix path logic is correct via fresh behavioral testing
+  (see Verification). Did not chase this further with live diagnostics once the explanation
+  was clear and well-supported; flagged it plainly to the user instead of guessing further.
+
+### What was built — multi-file materials
+Mirrors established codebase patterns: gallery's staged-files-with-remove-button UI
+(`admin/gallery.html`) and the blog/story `videoId` → `videos[]` legacy-field migration
+(Session 76).
+
+- **Schema:** `/sermons/{sermonId}.materials: [{ url, name }]` (any mix of pdf/doc/docx/
+  ppt/pptx, 0+ files). `notesUrl` is retired — **always written as `null` on every new
+  save** (same convention as `videoId` → `null`), but a sermon saved *before* this feature
+  still has a non-null legacy `notesUrl`, which is read as a 1-item `materials` fallback
+  everywhere it's displayed (never written back).
+- **`admin/sermons.html`** — `<input multiple>` file picker; each selected file validated
+  individually (extension + 50MB) so one bad file in a multi-select batch doesn't block the
+  good ones (toast per rejected file); staged/existing files render as removable rows
+  (`renderMaterialRow`/`removeMaterialRow`); `openForm()` migrates a legacy single
+  `notesUrl` into the list; `saveSermon()` uploads only files still present in the DOM (same
+  two-pass "upload staged → walk DOM order to build final array" pattern as
+  `admin/gallery.html`'s `saveGallery()`), uploading each to
+  `sermons/{sermonId}/materials/{timestamp}_{index}_{safeName}`; removed *existing* files
+  are deleted from Storage on save; `deleteSermon()` cleans up every `materials[]` URL (plus
+  legacy `notesUrl`) when a sermon is deleted.
+- **`js/sermons.js`** (public page) — `createResourceButtons()` renders one "Notes" button
+  per `materials[]` entry (icon by file extension); when there's only one file it's labeled
+  generically "Notes" (matches prior behavior); 2+ files are each labeled with their
+  filename so visitors can tell them apart before clicking. Falls back to a legacy single
+  `notesUrl` the same way.
+- **`storage.rules`** — caught during testing, not after shipping: the existing
+  `match /sermons/{sermonId}/{fileName}` only matches **one** path segment, so the new
+  nested `sermons/{id}/materials/{file}` path would have been silently denied (the exact
+  same class of bug fixed for the old notes path in Session 85). Added a dedicated
+  `match /sermons/{sermonId}/materials/{fileName}` block with the same `isValidDocument()`
+  check before this ever reached production.
+- **`CLAUDE.md`** — data model, storage paths, and upload-flow docs updated for the array
+  field and nested storage path.
+
+### Verification
+- `node -c` / inline-script syntax clean on both JS surfaces.
+- **Admin multi-file flow** (stubbed browser, Playwright) — 12/12: mixed-type batch select
+  with one bad file (toast + good ones staged); removing a staged file before save excludes
+  it from upload; saved `materials[]` matches kept files exactly; upload path is under
+  `materials/`; `notesUrl` forced to `null`; legacy single `notesUrl` migrates into the list
+  on edit and survives being saved alongside a newly added file; removing an *existing*
+  material on edit calls `deleteMedia` for that URL and excludes it from the saved array.
+- **Public rendering** (`createResourceButtons`, isolated `vm` test against the real
+  source) — 8/8: legacy single `notesUrl` → one "Notes" button with the right icon; a
+  single `materials[]` entry → generic "Notes" label; 2+ entries → one button each, labeled
+  with filename, correct distinct icons; no notes at all → no notes button.
+- **`storage.rules`** behaviorally re-verified against the real Storage emulator after
+  adding the nested-path rule — 6/6: pptx and pdf both succeed under `materials/`;
+  disallowed type denied; non-admin denied; `audio.mp3` at the original single-segment path
+  still works (no regression); anonymous read still works.
+
+### Deploy
+`firebase deploy --only storage` (the new nested materials/ rule) — required. No SW cache
+bump needed (no new page/asset).
+
+---
 
 ---
 

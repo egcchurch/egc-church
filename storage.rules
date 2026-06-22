@@ -48,10 +48,18 @@ service firebase.storage {
       allow write: if isOwner(uid) && isValidImage();
     }
 
-    // ── Sermon audio & notes (PDF/Word/PowerPoint) ────────────────────────
+    // ── Sermon audio (single file at this level) ───────────────────────────
     match /sermons/{sermonId}/{fileName} {
       allow read: if true;
       allow write: if isAdminUser() && (isValidAudio() || isValidDocument());
+    }
+
+    // ── Sermon notes/materials (multiple files, nested under materials/) ───
+    // {fileName} above only matches ONE path segment, so files uploaded one
+    // level deeper (sermons/{id}/materials/{file}) need their own match block.
+    match /sermons/{sermonId}/materials/{fileName} {
+      allow read: if true;
+      allow write: if isAdminUser() && isValidDocument();
     }
 
     // ── Gallery images ────────────────────────────────────────────────────

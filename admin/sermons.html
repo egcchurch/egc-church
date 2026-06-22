@@ -127,18 +127,14 @@
           <p id="audio-staged-name" class="hidden text-xs text-gray-500 mt-1"></p>
         </div>
 
-        <!-- Sermon notes/materials upload (PDF, Word, PowerPoint) -->
+        <!-- Sermon notes/materials upload (PDF, Word, PowerPoint — multiple files) -->
         <div class="md:col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">Sermon Notes</label>
-          <div id="pdf-current" class="hidden items-center gap-3 mb-2 text-sm">
-            <i id="pdf-current-icon" class="fas fa-file-pdf text-amber-500"></i>
-            <a id="pdf-current-link" href="#" target="_blank" rel="noopener" class="text-blue-600 underline truncate max-w-xs">Current notes file</a>
-            <button type="button" onclick="removePdfFile()" class="text-red-600 hover:text-red-700 text-xs font-medium">Remove</button>
-          </div>
-          <input id="f-pdf-file" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" onchange="onPdfFileSelected(this)"
+          <label class="block text-sm font-medium text-gray-700 mb-1">Sermon Notes / Materials</label>
+          <div id="materials-list" class="space-y-2 mb-2"></div>
+          <input id="f-pdf-file" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                 multiple onchange="onMaterialFilesSelected(this)"
                  class="text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-amber-100 file:text-amber-700 hover:file:bg-amber-200">
-          <p class="text-xs text-gray-400 mt-1">PDF, Word, or PowerPoint &mdash; max 50MB.</p>
-          <p id="pdf-staged-name" class="hidden text-xs text-gray-500 mt-1"></p>
+          <p class="text-xs text-gray-400 mt-1">PDF, Word, or PowerPoint &mdash; max 50MB each. Select multiple files at once, or add more later.</p>
         </div>
 
         <div class="flex items-center gap-3 pt-2">
@@ -266,21 +262,27 @@
       return m ? m[1].toLowerCase() : '';
     }
 
-    function notesIconClass(url) {
-      const ext = getFileExt((url || '').split('?')[0]);
+    function extIconClass(ext) {
       if (ext === 'pdf') return 'fa-file-pdf';
       if (ext === 'doc' || ext === 'docx') return 'fa-file-word';
       if (ext === 'ppt' || ext === 'pptx') return 'fa-file-powerpoint';
       return 'fa-file-lines';
     }
 
+    function notesIconClass(url) {
+      return extIconClass(getFileExt((url || '').split('?')[0]));
+    }
+
+    function safeName(name) { return String(name).replace(/[^a-zA-Z0-9._-]/g, '_'); }
+
     let stagedAudioFile = null;
     let existingAudioUrl = null;
     let removeAudioFlag = false;
 
-    let stagedPdfFile = null;
-    let existingPdfUrl = null;
-    let removePdfFlag = false;
+    // Sermon notes/materials — multiple files, mixed types (PDF/Word/PowerPoint).
+    let existingMaterials = [];     // [{url, name}] from Firestore (or legacy single notesUrl), null = removed this session
+    let stagedMaterialFiles = [];   // File objects staged for upload, null = removed before save
+    let removedMaterialUrls = [];   // existing URLs removed this session (deleted from Storage on save)
 
     let importNextPageToken = null;
     let importRows = [];          // { youtubeId, thumbnail, date, service, title, speaker, el }
@@ -368,51 +370,72 @@
       renderAudioUI();
     }
 
-    function renderPdfUI() {
-      const currentRow = document.getElementById('pdf-current');
-      const stagedLabel = document.getElementById('pdf-staged-name');
-      if (stagedPdfFile) {
-        currentRow.classList.add('hidden');
-        stagedLabel.textContent = `Will upload: ${stagedPdfFile.name}`;
-        stagedLabel.classList.remove('hidden');
-      } else if (existingPdfUrl && !removePdfFlag) {
-        document.getElementById('pdf-current-link').href = existingPdfUrl;
-        document.getElementById('pdf-current-icon').className = 'fas ' + notesIconClass(existingPdfUrl) + ' text-amber-500';
-        currentRow.classList.remove('hidden');
-        currentRow.classList.add('flex');
-        stagedLabel.classList.add('hidden');
+    // ─── Sermon notes/materials (multi-file) ───────────────────────────────────
+    function renderMaterialRow({ key, name, url }) {
+      const container = document.getElementById('materials-list');
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-3 bg-zinc-50 border border-gray-100 rounded-xl px-3 py-2 text-sm';
+      row.dataset.materialKey = key;
+
+      const icon = document.createElement('i');
+      icon.className = 'fas ' + extIconClass(getFileExt(name)) + ' text-amber-500 flex-shrink-0';
+
+      let labelEl;
+      if (url) {
+        labelEl = document.createElement('a');
+        labelEl.href = url;
+        labelEl.target = '_blank';
+        labelEl.rel = 'noopener';
+        labelEl.className = 'flex-1 truncate text-blue-600 underline';
       } else {
-        currentRow.classList.add('hidden');
-        stagedLabel.classList.add('hidden');
+        labelEl = document.createElement('span');
+        labelEl.className = 'flex-1 truncate text-gray-600';
       }
+      labelEl.textContent = name;
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'text-red-500 hover:text-red-700 text-xs font-medium flex-shrink-0';
+      removeBtn.textContent = 'Remove';
+      removeBtn.addEventListener('click', () => removeMaterialRow(row, key));
+
+      row.appendChild(icon);
+      row.appendChild(labelEl);
+      row.appendChild(removeBtn);
+      container.appendChild(row);
     }
 
-    function onPdfFileSelected(input) {
-      const file = input.files[0] || null;
-      if (!file) return;
-
-      const ext = getFileExt(file.name);
-      if (!NOTES_ALLOWED_EXTENSIONS.includes(ext)) {
-        showToast('Unsupported file type. Please upload a PDF, Word, or PowerPoint file.', 'error');
-        input.value = '';
-        return;
+    function removeMaterialRow(row, key) {
+      if (key.startsWith('existing_')) {
+        const idx = parseInt(key.replace('existing_', ''), 10);
+        if (existingMaterials[idx]) {
+          removedMaterialUrls.push(existingMaterials[idx].url);
+          existingMaterials[idx] = null;
+        }
+      } else if (key.startsWith('staged_')) {
+        const idx = parseInt(key.replace('staged_', ''), 10);
+        stagedMaterialFiles[idx] = null;
       }
-      if (file.size > NOTES_MAX_BYTES) {
-        showToast('File is too large. Maximum size is 50MB.', 'error');
-        input.value = '';
-        return;
-      }
-
-      stagedPdfFile = file;
-      removePdfFlag = false;
-      renderPdfUI();
+      row.remove();
     }
 
-    function removePdfFile() {
-      removePdfFlag = true;
-      stagedPdfFile = null;
-      document.getElementById('f-pdf-file').value = '';
-      renderPdfUI();
+    function onMaterialFilesSelected(input) {
+      const files = Array.from(input.files || []);
+      files.forEach((file) => {
+        const ext = getFileExt(file.name);
+        if (!NOTES_ALLOWED_EXTENSIONS.includes(ext)) {
+          showToast(`"${file.name}" is not a supported file type (PDF, Word, or PowerPoint only).`, 'error');
+          return;
+        }
+        if (file.size > NOTES_MAX_BYTES) {
+          showToast(`"${file.name}" is too large. Maximum size is 50MB.`, 'error');
+          return;
+        }
+        const idx = stagedMaterialFiles.length;
+        stagedMaterialFiles.push(file);
+        renderMaterialRow({ key: `staged_${idx}`, name: file.name });
+      });
+      input.value = ''; // allow re-selecting a file later if it gets removed
     }
 
     // ─── YouTube bulk import ───────────────────────────────────────────────────
@@ -1000,11 +1023,19 @@
       document.getElementById('f-audio-file').value = '';
       renderAudioUI();
 
-      existingPdfUrl = s?.notesUrl || null;
-      stagedPdfFile = null;
-      removePdfFlag = false;
+      // materials[] is authoritative going forward; a legacy single notesUrl
+      // (sermons saved before multi-file support) is migrated into the list
+      // for display/editing but never written back as notesUrl.
+      existingMaterials = Array.isArray(s?.materials) && s.materials.length
+        ? s.materials.slice()
+        : (s?.notesUrl ? [{ url: s.notesUrl, name: 'Sermon Notes' }] : []);
+      stagedMaterialFiles = [];
+      removedMaterialUrls = [];
       document.getElementById('f-pdf-file').value = '';
-      renderPdfUI();
+      document.getElementById('materials-list').innerHTML = '';
+      existingMaterials.forEach((m, idx) => {
+        if (m) renderMaterialRow({ key: `existing_${idx}`, name: m.name || 'Sermon Notes', url: m.url });
+      });
 
       document.getElementById('sermon-form').classList.remove('hidden');
       document.getElementById('sermon-form').scrollIntoView({ behavior: 'smooth' });
@@ -1013,7 +1044,7 @@
     function closeForm() {
       editingId = null;
       stagedAudioFile = null;
-      stagedPdfFile = null;
+      stagedMaterialFiles = [];
       document.getElementById('sermon-form').classList.add('hidden');
     }
 
@@ -1050,13 +1081,33 @@
           audioUrl = null;
         }
 
-        let notesUrl = existingPdfUrl;
-        if (stagedPdfFile) {
-          const notesExt = getFileExt(stagedPdfFile.name) || 'pdf';
-          notesUrl = await uploadMedia(`sermons/${sermonId}/notes.${notesExt}`, stagedPdfFile);
-        } else if (removePdfFlag) {
-          if (existingPdfUrl) await deleteMedia(existingPdfUrl);
-          notesUrl = null;
+        // Upload staged material files (only those still present in the DOM —
+        // a file removed after selection but before save is skipped entirely).
+        const stagedKeyToMaterial = {};
+        for (const el of document.getElementById('materials-list').children) {
+          const key = el.dataset.materialKey;
+          if (key && key.startsWith('staged_')) {
+            const idx = parseInt(key.replace('staged_', ''), 10);
+            const file = stagedMaterialFiles[idx];
+            if (file) {
+              const matPath = `sermons/${sermonId}/materials/${Date.now()}_${idx}_${safeName(file.name)}`;
+              const url = await uploadMedia(matPath, file);
+              stagedKeyToMaterial[key] = { url, name: file.name };
+            }
+          }
+        }
+
+        // Walk the DOM in order to build the final materials array (existing
+        // kept entries + newly uploaded ones), same pattern as the gallery editor.
+        const materials = [];
+        for (const el of document.getElementById('materials-list').children) {
+          const key = el.dataset.materialKey;
+          if (key.startsWith('existing_')) {
+            const idx = parseInt(key.replace('existing_', ''), 10);
+            if (existingMaterials[idx]) materials.push(existingMaterials[idx]);
+          } else if (key.startsWith('staged_') && stagedKeyToMaterial[key]) {
+            materials.push(stagedKeyToMaterial[key]);
+          }
         }
 
         // Resolve the typed series name to an id, creating the series if new.
@@ -1073,7 +1124,8 @@
           description : document.getElementById('f-description').value.trim(),
           youtubeId   : document.getElementById('f-youtube').value.trim(),
           audioUrl,
-          notesUrl,
+          materials,
+          notesUrl    : null, // legacy single-file field retired — materials[] is authoritative going forward
           seriesId    : seriesId,
           seriesOrder : seriesOrderVal !== '' ? parseInt(seriesOrderVal, 10) : null,
           published   : document.getElementById('f-published').checked,
@@ -1085,6 +1137,7 @@
         }
 
         await ref.set(data, { merge: true });
+        await Promise.all(removedMaterialUrls.map(deleteMedia));
         closeForm();
         showToast('Sermon saved.', 'success');
         loadSermons();
@@ -1101,7 +1154,8 @@
       if (!confirm(`Delete "${s?.title || 'this sermon'}"? This cannot be undone.`)) return;
       try {
         await db.collection('sermons').doc(id).delete();
-        await Promise.all([deleteMedia(s?.audioUrl), deleteMedia(s?.notesUrl)]);
+        const materialUrls = Array.isArray(s?.materials) ? s.materials.map(m => m.url) : [];
+        await Promise.all([deleteMedia(s?.audioUrl), deleteMedia(s?.notesUrl), ...materialUrls.map(deleteMedia)]);
         showToast('Sermon deleted.', 'success');
         loadSermons();
       } catch (err) {

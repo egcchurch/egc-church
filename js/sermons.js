@@ -75,13 +75,22 @@ function createResourceButtons(sermon) {
       </a>`;
   }
 
-  if (sermon.notesUrl) {
+  // materials[] is the current (possibly multi-file, mixed-type) notes/slides
+  // field; a legacy single notesUrl (sermons saved before multi-file support)
+  // is shown the same way for sermons that haven't been re-saved since.
+  const materials = Array.isArray(sermon.materials) && sermon.materials.length
+    ? sermon.materials
+    : (sermon.notesUrl ? [{ url: sermon.notesUrl, name: 'Notes' }] : []);
+
+  materials.forEach((m) => {
+    if (!m || !m.url) return;
+    const label = materials.length > 1 ? (m.name || 'Notes') : 'Notes';
     html += `
-      <a href="${sermon.notesUrl}" target="_blank"
+      <a href="${m.url}" target="_blank"
          class="resource-btn bg-blue-100 hover:bg-blue-200 text-blue-700">
-        <i class="fas ${notesIconClass(sermon.notesUrl)}"></i> Notes
+        <i class="fas ${notesIconClass(m.url)}"></i> <span class="truncate max-w-[140px]">${label}</span>
       </a>`;
-  }
+  });
 
   return html || '<span class="text-gray-400 text-xs italic">No resources yet</span>';
 }

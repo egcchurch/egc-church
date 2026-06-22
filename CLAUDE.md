@@ -397,7 +397,10 @@ Functions are organised by trigger type:
   duration (string, e.g. "45 min")
   youtubeId (nullable)
   audioUrl (nullable — Firebase Storage or external)
-  notesUrl (nullable — Firebase Storage)
+  materials: [{ url, name }]     ← sermon notes/slides, any mix of PDF/Word/PowerPoint, 0 or more files
+  notesUrl: null                 ← legacy single-file field, retired — always null on new saves;
+                                    a non-null value only exists on sermons saved before multi-file
+                                    support and is read as a 1-item materials[] fallback for display
   published: true | false
   createdAt, updatedAt
 
@@ -559,7 +562,7 @@ via YouTube public URLs.
 - **Video delivery:** YouTube (primary) — store `youtubeId` in Firestore
 - **Video backup:** Cloudflare R2 or Internet Archive (originals preserved off YouTube)
 - **Audio files:** Firebase Storage at `/sermons/{sermonId}/audio.mp3`
-- **Sermon notes/materials (PDF, Word, or PowerPoint):** Firebase Storage at `/sermons/{sermonId}/notes.{ext}` — original file extension preserved (pdf/doc/docx/ppt/pptx)
+- **Sermon notes/materials (PDF, Word, or PowerPoint, multiple files allowed):** Firebase Storage at `/sermons/{sermonId}/materials/{timestamp}_{index}_{filename}` — original filenames/extensions preserved; the sermon doc's `materials[]` array stores `{ url, name }` per file
 - **Thumbnails:** YouTube public thumbnail URL — no API key required
   - `https://img.youtube.com/vi/{youtubeId}/hqdefault.jpg`
 
@@ -568,7 +571,7 @@ via YouTube public URLs.
 1. Paste YouTube URL → script extracts video ID
 2. Thumbnail auto-previews from YouTube
 3. Fill in metadata (title, speaker, date, scripture, description)
-4. Optional: upload audio file and/or sermon notes (PDF, Word, or PowerPoint)
+4. Optional: upload audio file and/or one or more sermon notes/materials (PDF, Word, or PowerPoint)
 5. Toggle published on/off before saving
 6. Save writes to Firestore — page updates immediately
 
@@ -662,7 +665,7 @@ Firestore rules for `/groups/{groupId}` updates:
 
 ```
 /sermons/{sermonId}/audio.mp3
-/sermons/{sermonId}/notes.{ext}  ← ext is pdf/doc/docx/ppt/pptx (original extension preserved)
+/sermons/{sermonId}/materials/{timestamp}_{index}_{filename}  ← 0+ files, mixed pdf/doc/docx/ppt/pptx
 /team/{memberId}/photo.jpg
 /users/{uid}/photo               ← user profile photos (separate from /team photos)
 /events/{eventId}/cover.jpg      ← event hero image
