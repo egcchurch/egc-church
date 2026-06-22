@@ -188,7 +188,6 @@
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             ${m.title ? `<p class="font-bold text-[#0A3D62] mb-0.5">${escHtml(m.title)}</p>` : ''}
-            ${m.hostName ? `<p class="text-xs text-zinc-400 mb-0.5">Hosted by ${escHtml(m.hostName)}</p>` : ''}
             <p class="font-semibold text-gray-900 whitespace-pre-line"><i class="fas fa-location-dot text-amber-500 mr-1"></i>${escHtml(m.address || 'Venue to be confirmed')}</p>
             ${maps ? `<a href="${escHtml(maps)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mt-1"><i class="fas fa-map-location-dot"></i>Get directions</a>` : ''}
             ${when ? `<p class="text-sm text-gray-500 mt-1"><i class="fas fa-calendar mr-1"></i>${escHtml(when)}</p>` : ''}
