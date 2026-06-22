@@ -10,7 +10,53 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — bulk YouTube import supports permanently ignoring videos (e.g. funeral services); Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Maintenance — sermon videos now play in-page instead of opening YouTube; Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — In-page sermon video player (Session 109)
+
+**Date:** 2026-06-22
+**Branch:** `feat/inline-sermon-video-player` (PR pending)
+**Status:** Open
+
+### What was done
+User asked for sermon videos to play within the site instead of opening YouTube in a new
+tab. Reused the exact video-modal pattern already shipped for `story.html` (Session 76) —
+a fixed overlay with a 16:9 YouTube `embed` iframe — simplified since sermons only ever
+have a `youtubeId` (no direct-video-URL branch needed).
+
+- **`sermons.html`** — added the modal markup + CSS (`#video-modal`, `.video-modal-frame`
+  with the 56.25%-padding-top responsive-iframe trick), same structure as `story.html`.
+- **`js/sermons.js`**:
+  - `openVideoModal(youtubeId)` — looks up the sermon's title from the already-loaded
+    `allSermons` array (avoids needing to pass title text through an inline `onclick`
+    string, which would break on any apostrophe in a sermon title — e.g. "God's Grace");
+    sets the iframe `src` to the embed URL with `autoplay=1`, sets the caption, opens the
+    modal.
+  - `closeVideoModal()` — clears the iframe `src` (stops playback) and closes the modal.
+  - Wired on: the "Watch" resource button (now a `<button>`, not an `<a target="_blank">`,
+    in both table and card views), the card-view thumbnail, and the series-detail
+    thumbnail — three click points, one modal.
+  - Closes via the × button, a backdrop click (checks `e.target.id === 'video-modal'` so
+    clicking inside the content doesn't bubble-close it), or Escape.
+- **`service-worker.js`** — cache v55 → v56 (`js/sermons.js` is cache-first; bumping
+  ensures visitors get the new modal code promptly rather than via the next natural cache
+  miss — same lesson as the stale-tab issue diagnosed earlier this session).
+- **`CLAUDE.md`** — documented the in-page playback behavior.
+
+### Verification
+Syntax-checked. End-to-end in a real browser (Playwright) against the actual files — 11/11:
+no more direct YouTube watch links anywhere on the page; clicking Watch opens the modal
+with the correct embed URL (`autoplay=1`) and the sermon's title; the × button closes it
+and the iframe no longer points at the YouTube embed afterward (playback genuinely stops);
+the card-view thumbnail also opens the modal; a backdrop click closes it; a click on the
+modal's own content does *not* close it; Escape closes it.
+
+### Deploy
+Hosting-only — no rules/functions change, auto-deploys on merge.
+
+---
 
 ---
 

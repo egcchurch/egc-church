@@ -559,13 +559,19 @@ Monitor Firebase Storage usage monthly. Migrate to Cloudflare R2 when approachin
 - Existing rendering code requires no changes
 
 Sermon video stays on YouTube (primary) — `youtubeId` in Firestore, thumbnails/embeds
-via YouTube public URLs.
+via YouTube public URLs. Playback on `/sermons.html` is in-page (a modal with a YouTube
+`embed` iframe) rather than navigating to youtube.com — see Sermon Media Strategy below.
 
 ---
 
 ## Sermon Media Strategy
 
 - **Video delivery:** YouTube (primary) — store `youtubeId` in Firestore
+- **Playback:** in-page modal (`openVideoModal()` in `js/sermons.js`) loads a YouTube
+  `embed` iframe with `autoplay=1` — visitors never leave `/sermons.html`. Triggered from
+  the "Watch" button (table/card/series-detail views) and the card/series-detail
+  thumbnails. Closes on the × button, backdrop click, or Escape; closing clears the
+  iframe `src` so playback actually stops. Same pattern as `story.html`'s video modal.
 - **Video backup:** Cloudflare R2 or Internet Archive (originals preserved off YouTube)
 - **Audio files:** Firebase Storage at `/sermons/{sermonId}/audio.mp3`
 - **Sermon notes/materials (PDF, Word, or PowerPoint, multiple files allowed):** Firebase Storage at `/sermons/{sermonId}/materials/{timestamp}_{index}_{filename}` — original filenames/extensions preserved; the sermon doc's `materials[]` array stores `{ url, name }` per file
