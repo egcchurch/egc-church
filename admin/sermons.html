@@ -446,10 +446,12 @@
       const trimmed = (raw || '').trim();
 
       // Current: 26-0617W - Br Danie Poolman - Sermon Title
-      // The optional "Aud"/"Audio" segment shouldn't normally appear here —
+      // An optional marker can follow the date+letter: "Vid"/"Video" labels
+      // the real upload (seen in the wild, e.g. "26-0506W Vid - ..."), while
+      // "Aud"/"Audio" labels the low-bitrate audio-only duplicate stream —
       // isAudioVariant() filters those rows out before they reach this
-      // parser — but the group stays optional as a harmless fallback.
-      let m = trimmed.match(/^(\d{2})-(\d{2})(\d{2})([A-Za-z])\s*(?:Aud(?:io)?)?\s*-\s*(.+?)\s*-\s*(.+)$/);
+      // parser, but the group stays optional as a harmless fallback either way.
+      let m = trimmed.match(/^(\d{2})-(\d{2})(\d{2})([A-Za-z])\s*(?:Aud(?:io)?|Vid(?:eo)?)?\s*-\s*(.+?)\s*-\s*(.+)$/);
       if (m) {
         const [, yy, mm, dd, letter, speaker, title] = m;
         return {
