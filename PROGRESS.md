@@ -10,7 +10,40 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — Cottage Meetings Phase 2 SMS (SMSPortal) live and confirmed working
+**Current milestone:** Phase 3 — WhatsApp notifications: opt-in shipped (Stage 1); sending (Stage 2) pending Meta WABA + template + secrets
+
+---
+
+## Session: feat — Phase 3 Stage 1: WhatsApp notification opt-in (Session 99)
+
+**Date:** 2026-06-22
+**Branch:** `feat/whatsapp-optin` (PR pending)
+**Status:** Open
+
+### Context / channel model (confirmed with user)
+- **Event registration** (cottage; future youth camps/banquets): in-app + push + **SMS opt-in at registration** (already shipped, unchanged).
+- **WhatsApp**: a **profile opt-in** that applies to **all** notifications for that member — event confirmations *and* general messaging (announcements, prayer alerts, digests). In-app always on.
+- Provider decision: **Meta WhatsApp Cloud API** direct (SMSPortal has no WhatsApp; Twilio ruled out on USD cost for SA volume).
+
+### What was done (Stage 1 — Hosting only, no Meta dependency)
+- `profile.html`: new **Notifications** card with a "Receive notifications on WhatsApp" opt-in (default off = Meta-required consent), stored as `notifyWhatsApp` on the user doc. Uses the member's existing profile phone; enabling without a number prompts to add one first. `saveNotifications()` + load wiring.
+- `CLAUDE.md`: `notifyWhatsApp` added to the `/users` model. SW cache v53 → v54.
+
+Deliberately **no functions changes** this stage, so functions stay deployable while the Meta account/number/token/template are set up.
+
+### Meta setup the user must do (long pole — template approval has lead time)
+1. Meta Business + add WhatsApp product (Cloud API); register a sender number → **Phone Number ID**.
+2. System User **permanent access token** (`whatsapp_business_messaging`).
+3. Approve a **Utility** template, English (en_US): name `egc_notification`, body `Hi! You have an update from Emmanuel Gospel Centre:\n\n{{1}}` (one `{{1}}` variable).
+4. Set secrets: `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`.
+
+### Stage 2 (next, once the above is live)
+Add `sendWhatsApp()` (Meta Graph `POST /v21.0/{phoneId}/messages`, template send, body text → `{{1}}`, SA-number normalised), wire into `sendUserNotification` (cottage + per-user) and the fan-outs (`sendBroadcast`, `onNewPrayerRequest`, `weeklyDigest`) for `notifyWhatsApp` members, behind the secrets in `runWith`; then deploy. Flagged to user: WhatsApp is billed per conversation — may revisit which notice types go to WhatsApp if volume/cost is high.
+
+### Verification
+Profile page syntax-checked; toggle load/save logic added. (Sending verified in Stage 2 with mocked Graph API.)
+
+---
 
 ---
 

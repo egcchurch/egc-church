@@ -379,6 +379,7 @@ Functions are organised by trigger type:
   extraPermissions: [string]          ← Phase 6 — one-off per-user permission keys
   emailVerified: true | false
   membershipRequestedAt: timestamp | null  ← Phase 7 — set when public user requests membership; cleared on approve/decline
+  notifyWhatsApp: true | false        ← Phase 3 — opt-in to receive notifications on WhatsApp (uses phone)
   directoryVisible: true | false      ← appear in /members/directory at all
   directoryShowEmail: true | false    ← expose email in directory
   directoryShowPhone: true | false    ← expose phone in directory
