@@ -137,6 +137,53 @@ describe('Firestore Security Rules', () => {
     });
   });
 
+  describe('Ignored YouTube imports collection', () => {
+    it('sermons.manage holder can write an ignored video', async () => {
+      await seedUser('editor-uid', { membership: 'public', isSuperadmin: false, roles: ['content_editor'] });
+      const db = editorUser().firestore();
+      await assertSucceeds(setDoc(doc(db, 'ignoredYoutubeVideos', 'yt1'), {
+        youtubeId: 'yt1', title: 'Funeral Service', ignoredBy: 'editor-uid',
+      }));
+    });
+
+    it('sermons.manage holder can read the ignored videos list', async () => {
+      await seedUser('editor-uid', { membership: 'public', isSuperadmin: false, roles: ['content_editor'] });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'ignoredYoutubeVideos', 'yt1'), { youtubeId: 'yt1', title: 'Funeral Service' });
+      });
+      const db = editorUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'ignoredYoutubeVideos', 'yt1')));
+    });
+
+    it('plain member cannot read or write ignored videos', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'ignoredYoutubeVideos', 'yt1'), { youtubeId: 'yt1', title: 'Funeral Service' });
+      });
+      const db = memberUser().firestore();
+      await assertFails(getDoc(doc(db, 'ignoredYoutubeVideos', 'yt1')));
+      await assertFails(setDoc(doc(db, 'ignoredYoutubeVideos', 'yt2'), { youtubeId: 'yt2' }));
+    });
+
+    it('unauthenticated user cannot read or write ignored videos', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'ignoredYoutubeVideos', 'yt1'), { youtubeId: 'yt1', title: 'Funeral Service' });
+      });
+      const db = unauthUser().firestore();
+      await assertFails(getDoc(doc(db, 'ignoredYoutubeVideos', 'yt1')));
+      await assertFails(setDoc(doc(db, 'ignoredYoutubeVideos', 'yt2'), { youtubeId: 'yt2' }));
+    });
+
+    it('sermons.manage holder can delete (restore) an ignored video', async () => {
+      await seedUser('editor-uid', { membership: 'public', isSuperadmin: false, roles: ['content_editor'] });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'ignoredYoutubeVideos', 'yt1'), { youtubeId: 'yt1', title: 'Funeral Service' });
+      });
+      const db = editorUser().firestore();
+      await assertSucceeds(deleteDoc(doc(db, 'ignoredYoutubeVideos', 'yt1')));
+    });
+  });
+
   describe('Gallery collection', () => {
     it('public user cannot read members-only gallery', async () => {
       await testEnv.withSecurityRulesDisabled(async (ctx) => {

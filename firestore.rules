@@ -83,6 +83,14 @@ service cloud.firestore {
       allow write: if hasPermission('sermons.manage');
     }
 
+    // ── Ignored YouTube imports ──────────────────────────────────────────────
+    // Lets an admin permanently exclude a channel video (e.g. a funeral
+    // service) from showing up in future bulk-import loads. Admin tool only —
+    // no public read.
+    match /ignoredYoutubeVideos/{youtubeId} {
+      allow read, write: if hasPermission('sermons.manage');
+    }
+
     // ── Events ────────────────────────────────────────────────────────────────
     match /events/{id} {
       allow read: if true;
