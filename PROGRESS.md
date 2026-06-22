@@ -10,7 +10,46 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — sermon notes now support multiple files (PDF/Word/PowerPoint); Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Maintenance — sermon notes resource buttons use short labels with hover tooltips; Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — Short generic labels for multi-file sermon notes buttons (Session 105)
+
+**Date:** 2026-06-22
+**Branch:** `fix/sermon-notes-short-labels` (PR pending)
+**Status:** Open
+
+### What was done
+Follow-up to Session 104. With multiple notes/materials files now supported, the public
+sermons page labeled each resource button with the actual filename — fine for a short
+name, but a long one blew up the button's width on the page.
+
+- **`js/sermons.js`** — `createResourceButtons()`: when a sermon has more than one
+  materials file, each button is now labeled with a short, generic file-extension label
+  (`PDF`, `DOCX`, `PPTX`, ...) instead of the filename, matching the existing
+  icon+short-word pattern already used for video ("Watch") and audio ("Audio"). The full
+  original filename is still available as a native browser tooltip via a `title=` attribute
+  (added to every notes button, including the single-file case). A single-file sermon keeps
+  the generic "Notes" label as before.
+- Added a small `escAttr()` helper (this file had none) to escape the filename going into
+  `title="..."` — an unescaped `"` in an admin-supplied filename could otherwise break out
+  of the attribute and inject arbitrary attributes/HTML, a sharper edge than the existing
+  (accepted, same-trust-level) unescaped text-content rendering of `title`/`speaker`
+  elsewhere on this page.
+
+### Verification
+`node -c` clean. Isolated source test (`vm`, against the real `createResourceButtons`) —
+9/9: legacy single notesUrl still says "Notes"; a single materials[] entry with a long
+filename still says "Notes" (long name only in the tooltip); 2+ materials show short
+extension labels with the full names only in tooltips and distinct icons; a filename
+containing a literal `"` is correctly escaped in the tooltip attribute (no attribute
+breakout); the no-notes case is unaffected.
+
+### Deploy
+Hosting-only (no rules/functions/SW change) — auto-deploys on merge.
+
+---
 
 ---
 
