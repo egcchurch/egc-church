@@ -645,8 +645,10 @@
         showToast('Post saved.', 'success');
         loadPosts();
       } catch (err) {
-        setSaveProgress(false);
         showToast('Error saving post: ' + err.message, 'error');
+      } finally {
+        // Always clear the progress indicator, including on success.
+        setSaveProgress(false);
       }
     }
 

@@ -416,6 +416,9 @@
       } catch (err) {
         console.error(err);
         showToast('Error saving gallery: ' + err.message, 'error');
+      } finally {
+        // Reset the button on success too — otherwise it stays stuck on
+        // "Saving..." when the form is reopened (needed a page refresh before).
         setSaving(false);
       }
     }

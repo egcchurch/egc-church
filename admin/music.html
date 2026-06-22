@@ -297,6 +297,9 @@
       } catch (err) {
         console.error(err);
         showToast('Error saving track: ' + err.message, 'error');
+      } finally {
+        // Reset on success too, or the button stays stuck on "Saving..." when
+        // the form is reopened.
         setSaving(false);
       }
     }
