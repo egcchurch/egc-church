@@ -82,6 +82,21 @@ exports.syncUserClaims = functions.firestore
     await admin.auth().setCustomUserClaims(uid, claims);
 
     console.log(`syncUserClaims: set claims for ${uid}:`, JSON.stringify(claims));
+
+    // Permissions live in the ID token, so a change only takes effect on the
+    // user's next sign-in (or auto-refresh within ~1h). Nudge them in-app.
+    // Skip on initial account creation (beforeData === null) — only fire when an
+    // existing user's roles/permissions actually changed.
+    if (beforeData !== null) {
+      await db.collection('users').doc(uid).collection('notifications').add({
+        title: 'Your access has been updated',
+        body: 'Please sign out and back in for your new permissions to take effect. They will also refresh automatically within an hour.',
+        type: 'access',
+        linkUrl: null,
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+      });
+    }
     return null;
   });
 
