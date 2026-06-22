@@ -1266,7 +1266,7 @@ exports.registerForCottageMeeting = functions
   const when = [m.date, m.time].filter(Boolean).join(' at ');
   const venue = (m.address || 'to be confirmed').replace(/\s*\n\s*/g, ', ');
   const lines = [
-    `You're registered (party of ${partySize}) for ${m.title || m.regionName || 'your cottage meeting'}${when ? ' on ' + when : ''}.`,
+    `You're registered (${partySize} attending) for ${m.title || m.regionName || 'your cottage meeting'}${when ? ' on ' + when : ''}.`,
     `Venue: ${venue}.`,
   ];
   if (m.mapsLink) lines.push(`Map: ${m.mapsLink}`);
@@ -1291,7 +1291,8 @@ exports.registerForCottageMeeting = functions
   // SMS confirmation (Phase 2) — only when the member opted in and a number is
   // available. Best-effort; no-op if SMSPortal isn't configured.
   if (smsOptIn && effectivePhone) {
-    await sendSms(effectivePhone, `EGC Cottage Meeting. ${lines.join(' ')}`);
+    // Newline-separated for SMS readability (in-app/push stay space-joined).
+    await sendSms(effectivePhone, `EGC Cottage Meeting\n\n${lines.join('\n')}`);
   }
 
   return { success: true, seatsTaken: result.newSeatsTaken, capacity: result.capacity };
