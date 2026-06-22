@@ -48,12 +48,23 @@ function setView(view) {
 
 // Sermon notes can be a PDF, Word, or PowerPoint file — pick a matching icon
 // from the file extension on the (Firebase Storage) download URL.
+function fileExtFromUrl(url) {
+  return (url || '').split('?')[0].split('.').pop().toLowerCase();
+}
+
 function notesIconClass(url) {
-  const ext = (url || '').split('?')[0].split('.').pop().toLowerCase();
+  const ext = fileExtFromUrl(url);
   if (ext === 'pdf') return 'fa-file-pdf';
   if (ext === 'doc' || ext === 'docx') return 'fa-file-word';
   if (ext === 'ppt' || ext === 'pptx') return 'fa-file-powerpoint';
   return 'fa-file-lines';
+}
+
+// Attribute-context escaping for the title="" tooltip (filenames are admin-
+// supplied at upload time, same trust level as title/speaker elsewhere on
+// this page, but an unescaped " could break out of the attribute).
+function escAttr(str) {
+  return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
 function createResourceButtons(sermon) {
@@ -84,11 +95,14 @@ function createResourceButtons(sermon) {
 
   materials.forEach((m) => {
     if (!m || !m.url) return;
-    const label = materials.length > 1 ? (m.name || 'Notes') : 'Notes';
+    // Generic short label (matches the Watch/Audio pattern) instead of the raw
+    // filename, which can be long — the full name is still available on hover.
+    const ext = fileExtFromUrl(m.url);
+    const label = materials.length > 1 ? (ext ? ext.toUpperCase() : 'Notes') : 'Notes';
     html += `
-      <a href="${m.url}" target="_blank"
+      <a href="${m.url}" target="_blank" title="${escAttr(m.name || '')}"
          class="resource-btn bg-blue-100 hover:bg-blue-200 text-blue-700">
-        <i class="fas ${notesIconClass(m.url)}"></i> <span class="truncate max-w-[140px]">${label}</span>
+        <i class="fas ${notesIconClass(m.url)}"></i> ${label}
       </a>`;
   });
 
