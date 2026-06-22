@@ -41,7 +41,14 @@
       z-index: 1001; align-items: center; justify-content: center; padding: 1rem;
     }
     #video-modal.open { display: flex; }
-    #video-modal-inner { position: relative; width: 100%; max-width: 56rem; }
+    /* Fit within BOTH viewport width and height — on a landscape phone (wide,
+       short) a width-only cap can make a 16:9 box taller than the screen. The
+       third min() term converts the available height into the equivalent
+       16:9 width, so whichever dimension is tighter wins. */
+    #video-modal-inner {
+      position: relative;
+      width: min(56rem, calc(100vw - 2rem), calc((100vh - 6rem) * 16 / 9));
+    }
     #video-modal-close {
       position: absolute; top: -2.25rem; right: 0;
       color: white; font-size: 1.75rem; cursor: pointer; line-height: 1;
@@ -170,7 +177,7 @@
       <span id="video-modal-close" onclick="closeVideoModal()" title="Close">&times;</span>
       <div class="video-modal-frame">
         <iframe id="video-modal-iframe" src="" frameborder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                 allowfullscreen class="hidden"></iframe>
         <video id="video-modal-direct" src="" controls class="hidden"></video>
       </div>
@@ -378,6 +385,28 @@
       document.getElementById('video-modal-direct').src = '';
       document.getElementById('video-modal-direct').pause?.();
     }
+
+    // When the YouTube player's own fullscreen button is used, try to lock the
+    // screen to landscape so a physical rotation actually fills the screen.
+    // Supported on Android Chrome; iOS Safari has no Screen Orientation API —
+    // it fails silently there and the device's own rotation behavior applies.
+    // Native <video> fullscreen (the direct-URL case) is unaffected — the
+    // browser already handles its own orientation behavior for that.
+    function handleVideoFullscreenChange() {
+      const iframe = document.getElementById('video-modal-iframe');
+      const fsElement = document.fullscreenElement || document.webkitFullscreenElement;
+      const orientation = screen.orientation;
+
+      if (fsElement === iframe) {
+        if (orientation && typeof orientation.lock === 'function') {
+          orientation.lock('landscape').catch(() => {});
+        }
+      } else if (orientation && typeof orientation.unlock === 'function') {
+        try { orientation.unlock(); } catch (_) {}
+      }
+    }
+    document.addEventListener('fullscreenchange', handleVideoFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleVideoFullscreenChange);
 
     document.getElementById('video-modal').addEventListener('click', (e) => {
       if (e.target === document.getElementById('video-modal')) closeVideoModal();
