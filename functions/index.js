@@ -18,6 +18,14 @@ const { Resend } = require('resend');
 const youtubeApiKey = defineSecret('YOUTUBE_APIKEY');
 const youtubeChannelId = defineSecret('YOUTUBE_CHANNELID');
 
+// SMSPortal (cottage meeting SMS confirmations — Phase 2). Set with:
+//   firebase functions:secrets:set SMSPORTAL_CLIENT_ID
+//   firebase functions:secrets:set SMSPORTAL_API_SECRET
+// These MUST exist in Secret Manager before deploying registerForCottageMeeting
+// (it lists them in runWith). If unset, SMS is silently skipped.
+const smsPortalClientId = defineSecret('SMSPORTAL_CLIENT_ID');
+const smsPortalApiSecret = defineSecret('SMSPORTAL_API_SECRET');
+
 // Same migration for the Resend email alert in onNewConnectForm. This feature
 // is not currently in use, so RESEND_APIKEY is a plain string param (default
 // '') rather than a Secret Manager secret — that avoids the deploy needing a
@@ -1135,13 +1143,59 @@ async function sendUserNotification(uid, { title, body, type, linkUrl }) {
   }
 }
 
-exports.registerForCottageMeeting = functions.https.onCall(async (data, context) => {
+// Normalise a SA mobile number to international digits (no +): 0XXXXXXXXX -> 27XXXXXXXXX.
+function normaliseSaNumber(raw) {
+  const d = String(raw || '').replace(/[^0-9]/g, '');
+  if (!d) return '';
+  if (d.startsWith('27')) return d;
+  if (d.startsWith('0')) return '27' + d.slice(1);
+  return d;
+}
+
+// Send a single SMS via the SMSPortal REST API v3 (direct Basic-auth method).
+// Best-effort: returns false and logs on any failure — never throws to the caller.
+// No-op (returns false) when the SMSPORTAL_* secrets are not configured.
+async function sendSms(destination, content) {
+  let clientId = '';
+  let apiSecret = '';
+  try { clientId = smsPortalClientId.value(); apiSecret = smsPortalApiSecret.value(); } catch (_) { /* secret not bound */ }
+  if (!clientId || !apiSecret) {
+    console.log('sendSms: SMSPortal not configured — skipping SMS.');
+    return false;
+  }
+  const dest = normaliseSaNumber(destination);
+  if (!dest) return false;
+
+  const auth = Buffer.from(`${clientId}:${apiSecret}`).toString('base64');
+  try {
+    const resp = await fetch('https://rest.smsportal.com/v3/BulkMessages', {
+      method: 'POST',
+      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ content, destination: dest }] }),
+    });
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => '');
+      console.error('sendSms: SMSPortal returned', resp.status, txt.slice(0, 200));
+      return false;
+    }
+    console.log(`sendSms: sent to ${dest}`);
+    return true;
+  } catch (err) {
+    console.error('sendSms failed:', err.message);
+    return false;
+  }
+}
+
+exports.registerForCottageMeeting = functions
+  .runWith({ secrets: [smsPortalClientId, smsPortalApiSecret] })
+  .https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
   }
   const uid = context.auth.uid;
   const meetingId = (data && data.meetingId ? String(data.meetingId) : '').trim();
   const partySize = parseInt(data && data.partySize, 10);
+  const providedPhone = (data && data.phone ? String(data.phone) : '').trim();
 
   if (!meetingId) {
     throw new functions.https.HttpsError('invalid-argument', 'meetingId is required.');
@@ -1193,7 +1247,7 @@ exports.registerForCottageMeeting = functions.https.onCall(async (data, context)
       meetingId,
       regionId: meeting.regionId || null,
       name: user.displayName || user.email || 'Member',
-      phone: user.phone || null,
+      phone: providedPhone || user.phone || null,
       email: user.email || null,
       partySize,
       registeredAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1219,6 +1273,13 @@ exports.registerForCottageMeeting = functions.https.onCall(async (data, context)
     type: 'cottage',
     linkUrl: '/members/cottage.html',
   });
+
+  // SMS confirmation (Phase 2) — best-effort; no-op if SMSPortal isn't configured
+  // or the member has no number on file.
+  const smsPhone = providedPhone || user.phone || '';
+  if (smsPhone) {
+    await sendSms(smsPhone, `EGC Cottage Meeting. ${lines.join(' ')}`);
+  }
 
   return { success: true, seatsTaken: result.newSeatsTaken, capacity: result.capacity };
 });
