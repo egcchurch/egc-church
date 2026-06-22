@@ -124,6 +124,20 @@ function closeVideoModal() {
   document.getElementById('video-modal-iframe').src = '';
 }
 
+function handleVideoFullscreenChange() {
+  const iframe = document.getElementById('video-modal-iframe');
+  const fsElement = document.fullscreenElement || document.webkitFullscreenElement;
+  const orientation = screen.orientation;
+
+  if (fsElement === iframe) {
+    if (orientation && typeof orientation.lock === 'function') {
+      orientation.lock('landscape').catch(() => {}); // unsupported (e.g. iOS Safari) — ignore
+    }
+  } else if (orientation && typeof orientation.unlock === 'function') {
+    try { orientation.unlock(); } catch (_) {}
+  }
+}
+
 function renderCardView(filtered) {
   const container = document.getElementById('card-view');
   container.innerHTML = '';
@@ -329,4 +343,11 @@ document.addEventListener('DOMContentLoaded', () => {
       closeVideoModal();
     }
   });
+
+  // When the YouTube player's own fullscreen button is used, try to lock the
+  // screen to landscape so a physical rotation actually fills the screen.
+  // Supported on Android Chrome; iOS Safari has no Screen Orientation API —
+  // it fails silently there and the device's own rotation behavior applies.
+  document.addEventListener('fullscreenchange', handleVideoFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', handleVideoFullscreenChange);
 });

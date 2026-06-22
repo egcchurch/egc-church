@@ -571,7 +571,16 @@ via YouTube public URLs. Playback on `/sermons.html` is in-page (a modal with a 
   `embed` iframe with `autoplay=1` — visitors never leave `/sermons.html`. Triggered from
   the "Watch" button (table/card/series-detail views) and the card/series-detail
   thumbnails. Closes on the × button, backdrop click, or Escape; closing clears the
-  iframe `src` so playback actually stops. Same pattern as `story.html`'s video modal.
+  iframe `src` so playback actually stops. Same pattern as `story.html`'s video modal
+  (both share the identical CSS/JS — keep them in sync if one changes).
+  - **Modal sizing** fits within both viewport width AND height (`width: min(56rem,
+    100vw-2rem, (100vh-6rem)*16/9)`) — a width-only cap would let a 16:9 box exceed the
+    screen height on a landscape phone (wide but short).
+  - **Fullscreen + rotation:** the iframe's `allow` list includes `fullscreen`; on
+    `fullscreenchange`, `handleVideoFullscreenChange()` attempts
+    `screen.orientation.lock('landscape')` so a physical rotation fills the screen.
+    Android Chrome only — iOS Safari has no Screen Orientation API and fails silently;
+    rotation behavior there depends on the device's own OS-level rotation-lock setting.
 - **Video backup:** Cloudflare R2 or Internet Archive (originals preserved off YouTube)
 - **Audio files:** Firebase Storage at `/sermons/{sermonId}/audio.mp3`
 - **Sermon notes/materials (PDF, Word, or PowerPoint, multiple files allowed):** Firebase Storage at `/sermons/{sermonId}/materials/{timestamp}_{index}_{filename}` — original filenames/extensions preserved; the sermon doc's `materials[]` array stores `{ url, name }` per file

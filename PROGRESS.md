@@ -10,7 +10,62 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — sermon videos now play in-page instead of opening YouTube; Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Maintenance — fixed mobile overflow + fullscreen rotation on the in-page video player; Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — Mobile overflow + fullscreen rotation on the video modal (Session 110)
+
+**Date:** 2026-06-22
+**Branch:** `fix/video-modal-mobile-overflow-fullscreen` (PR pending)
+**Status:** Open
+
+### Bugs reported (testing Session 109's new in-page player)
+1. On mobile, the video overflows the screen bounds.
+2. Using YouTube's own fullscreen button and rotating the phone to landscape doesn't
+   rotate/fill the screen.
+
+### Root causes
+1. `#video-modal-inner` was sized purely from viewport **width** (`max-width: 56rem`,
+   `width: 100%`). A 16:9 box derived only from width can be **taller** than the screen on
+   a landscape phone (wide but short) — width wasn't the binding constraint there, height
+   was, and nothing accounted for it.
+2. The iframe's `allow` list was missing `fullscreen` (only the legacy `allowfullscreen`
+   boolean attribute was set), and nothing requested a landscape orientation lock when
+   fullscreen starts — so a physical rotation had no API hook to act on. (iOS Safari has no
+   Screen Orientation API at all — this is a platform limitation, not something a page can
+   override; an OS-level rotation-lock toggle would also block any device regardless of
+   page code.)
+
+### Fix — applied to both `sermons.html` and `story.html` (identical shared component)
+- `#video-modal-inner` width changed to
+  `min(56rem, calc(100vw - 2rem), calc((100vh - 6rem) * 16 / 9))` — the third term
+  converts the available *height* into its 16:9-equivalent width, so whichever dimension
+  is tighter (width on portrait, height on landscape) wins. Fits both phones now ported to
+  `story.html` too since it shares the exact same CSS.
+- Iframe `allow` list gains `fullscreen`.
+- New `handleVideoFullscreenChange()` (wired to `fullscreenchange`/`webkitfullscreenchange`)
+  calls `screen.orientation.lock('landscape')` when the video iframe is the fullscreen
+  element, `.catch(() => {})` so unsupported browsers (iOS Safari) no-op silently; unlocks
+  on exit. Added to both `js/sermons.js` and `story.html`'s inline script (the latter only
+  acts on the YouTube-iframe case, leaving native `<video>` fullscreen — its direct-URL
+  video branch — to the browser's own behavior).
+- `service-worker.js` cache v56 → v57 (`js/sermons.js` is cache-first).
+- `CLAUDE.md` documents the sizing formula and the platform caveat.
+
+### Verification
+End-to-end in a real browser at three realistic mobile viewport sizes (iPhone portrait
+390×844, iPhone landscape 844×390, small Android landscape 740×360) — **9/9**: the modal
+box's actual rendered bounding rect stays within both the viewport width *and* height at
+all three sizes (previously would have overflowed vertically on both landscape cases);
+the iframe's `allow` attribute includes `fullscreen`; entering fullscreen on the video
+iframe calls `orientation.lock('landscape')`; the handler doesn't throw when
+`screen.orientation` is undefined (simulated iOS Safari).
+
+### Deploy
+Hosting-only — no rules/functions change, auto-deploys on merge.
+
+---
 
 ---
 
