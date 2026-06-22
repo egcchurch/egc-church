@@ -10,7 +10,45 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — sermon notes resource buttons use short labels with hover tooltips; Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Maintenance — speaker name autocomplete added to sermon forms/bulk import; Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — Speaker name autocomplete on sermon forms + bulk YouTube import (Session 106)
+
+**Date:** 2026-06-22
+**Branch:** `feat/speaker-autocomplete` (PR pending)
+**Status:** Open
+
+### What was done
+User asked specifically for the bulk YouTube import's speaker field to suggest existing
+speakers while typing, but still allow a new name. Implemented via the same `<input
+list="...">` + `<datalist>` autocomplete pattern already used for the Series field
+(Session 91) — a `<datalist>` never restricts input, so "allow a new name" is automatic.
+
+- **`admin/sermons.html`** — one shared `#speaker-datalist`, built by
+  `buildSpeakerDatalist()` from every distinct, non-empty `speaker` already in
+  `sermonsCache` (deduped, alphabetically sorted). Rebuilt at the end of `loadSermons()`'s
+  success path, so it refreshes automatically after every save and after every bulk import
+  (both already call `loadSermons()`).
+- Wired to **both** the bulk-import row speaker input (`makeRowInput()` now takes an
+  optional `listId` param) and the single "Add/Edit Sermon" form's `f-speaker` field — the
+  latter wasn't explicitly asked for, but it's the same underlying data and the same input
+  pattern, so leaving it without autocomplete while the import rows had it would have been
+  an inconsistent experience for literally the same field. Flagged this scope call to the
+  user.
+
+### Verification
+Syntax-checked. End-to-end in a stubbed browser — 6/6: datalist correctly deduplicates and
+sorts seeded speaker names; both the main form and a bulk-import row's speaker input carry
+`list="speaker-datalist"`; typing a brand-new name (not in the list) is accepted and saved
+exactly as typed; the datalist refreshes after save to include the new name with no
+duplicates.
+
+### Deploy
+Hosting-only — no rules/functions/SW change, auto-deploys on merge.
+
+---
 
 ---
 
