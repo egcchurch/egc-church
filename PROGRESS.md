@@ -10,7 +10,34 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — all phases complete, working through backlog; sermon series reworked to inline create/manage (separate screen removed)
+**Current milestone:** Maintenance — all phases complete, working through backlog
+
+---
+
+## Session: fix — Save button stuck on "Saving..." after successful save (Session 92)
+
+**Date:** 2026-06-22
+**Branch:** `fix/save-button-stuck-saving` (PR pending)
+**Status:** Open
+
+### What was done
+
+User-reported bug: in `admin/gallery.html`, after uploading images and saving, the Save button stays in its disabled "Saving..." state. The list reloads fine, but reopening the form via "Add Gallery" still shows the stuck button — only a page refresh cleared it.
+
+**Root cause:** `setSaving(false)` (and the blog equivalent `setSaveProgress(false)`) was called only in the `catch` block. On the success path the button was never reset, so the disabled/"Saving..." state persisted until the page reloaded.
+
+**Fix:** moved the reset into a `finally` block so it always runs, success or failure. Applied to all three admin pages with the same pattern:
+- `admin/gallery.html` — `saveGallery()`
+- `admin/music.html` — `saveTrack()`
+- `admin/blog.html` — `savePost()` (`setSaveProgress(false)` in `finally`)
+
+(`admin/sermons.html` already used `finally` — unaffected.)
+
+### Verification
+Inline-script syntax check on all three. End-to-end browser test (Playwright, Firebase stubbed) on the reported gallery page: after a successful save the button returns to "Save Gallery" and is re-enabled, and stays correct when the form is reopened with no page refresh — 4/4 checks pass, no page errors.
+
+### Notes
+- HTML-only change — Hosting auto-deploys on merge; no rules/functions/storage/index deploy needed.
 
 ---
 
