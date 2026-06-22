@@ -60,6 +60,10 @@ function assignRolesUser() {
   return testEnv.authenticatedContext('assignroles-uid', { perms: ['users.assign_roles'] });
 }
 
+function cottageUser() {
+  return testEnv.authenticatedContext('cottage-uid', { perms: ['cottage.manage'] });
+}
+
 async function seedUser(uid, data) {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), 'users', uid), data);
@@ -729,6 +733,101 @@ describe('Firestore Security Rules', () => {
       const db = superAdmin().firestore();
       await assertSucceeds(setDoc(doc(db, 'config', 'notifications'), { connectAlertEmail: 'office@egc.church' }));
       await assertSucceeds(getDoc(doc(db, 'config', 'notifications')));
+    });
+  });
+
+  describe('Cottage meetings', () => {
+    async function seedMeeting(id, hostUid) {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'cottageMeetings', id), {
+          regionId: 'north', regionName: 'North', hostUid, address: '1 Main Rd',
+          date: '2026-07-01', capacity: 20, seatsTaken: 0, open: true,
+        });
+      });
+    }
+
+    it('member can read a cottage meeting', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedMeeting('m1', 'cottage-uid');
+      const db = memberUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'cottageMeetings', 'm1')));
+    });
+
+    it('non-member cannot read a cottage meeting', async () => {
+      await seedUser('pending-uid', { membership: 'pending' });
+      await seedMeeting('m1', 'cottage-uid');
+      const db = pendingUser().firestore();
+      await assertFails(getDoc(doc(db, 'cottageMeetings', 'm1')));
+    });
+
+    it('cottage.manage holder can create a meeting they host', async () => {
+      const db = cottageUser().firestore();
+      await assertSucceeds(setDoc(doc(db, 'cottageMeetings', 'm2'), {
+        regionId: 'north', hostUid: 'cottage-uid', address: '2 Rd', date: '2026-07-01', capacity: 10, seatsTaken: 0, open: true,
+      }));
+    });
+
+    it('cottage.manage holder cannot create a meeting hosted by someone else', async () => {
+      const db = cottageUser().firestore();
+      await assertFails(setDoc(doc(db, 'cottageMeetings', 'm3'), {
+        regionId: 'north', hostUid: 'someone-else', address: '3 Rd', date: '2026-07-01', capacity: 10, seatsTaken: 0, open: true,
+      }));
+    });
+
+    it('plain member cannot create a cottage meeting', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      const db = memberUser().firestore();
+      await assertFails(setDoc(doc(db, 'cottageMeetings', 'm4'), {
+        regionId: 'north', hostUid: 'member-uid', address: '4 Rd', date: '2026-07-01', capacity: 10, seatsTaken: 0, open: true,
+      }));
+    });
+
+    it('host can update their own meeting', async () => {
+      await seedMeeting('m1', 'cottage-uid');
+      const db = cottageUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'cottageMeetings', 'm1'), { capacity: 30 }));
+    });
+
+    it('cottage holder cannot update a meeting hosted by someone else', async () => {
+      await seedMeeting('m1', 'other-host');
+      const db = cottageUser().firestore();
+      await assertFails(updateDoc(doc(db, 'cottageMeetings', 'm1'), { capacity: 30 }));
+    });
+
+    it('client cannot create a registration directly (function-only)', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      const db = memberUser().firestore();
+      await assertFails(setDoc(doc(db, 'cottageRegistrations', 'member-uid'), {
+        uid: 'member-uid', meetingId: 'm1', partySize: 2,
+      }));
+    });
+
+    it('member can read their own registration', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'cottageRegistrations', 'member-uid'), { uid: 'member-uid', meetingId: 'm1', partySize: 2 });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'cottageRegistrations', 'member-uid')));
+    });
+
+    it('host can delete a registration for their meeting (cleanup)', async () => {
+      await seedMeeting('m1', 'cottage-uid');
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'cottageRegistrations', 'member-uid'), { uid: 'member-uid', meetingId: 'm1', partySize: 2 });
+      });
+      const db = cottageUser().firestore();
+      await assertSucceeds(deleteDoc(doc(db, 'cottageRegistrations', 'member-uid')));
+    });
+
+    it('member cannot delete their own registration directly (must use the function)', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedMeeting('m1', 'cottage-uid');
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'cottageRegistrations', 'member-uid'), { uid: 'member-uid', meetingId: 'm1', partySize: 2 });
+      });
+      const db = memberUser().firestore();
+      await assertFails(deleteDoc(doc(db, 'cottageRegistrations', 'member-uid')));
     });
   });
 

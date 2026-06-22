@@ -19,6 +19,7 @@ const ALL_PERMISSIONS = [
   'users.approve',
   'users.assign_roles',
   'youtube.update',
+  'cottage.manage',
 ];
 
 const DEFAULT_ROLES = [
@@ -39,8 +40,8 @@ const DEFAULT_ROLES = [
   {
     id: 'deacon',
     displayName: 'Deacon',
-    description: 'Approves members, moderates prayer requests, views connect form submissions',
-    permissions: ['users.approve', 'prayer.moderate', 'connect.view'],
+    description: 'Approves members, moderates prayer requests, views connect forms, runs cottage meetings',
+    permissions: ['users.approve', 'prayer.moderate', 'connect.view', 'cottage.manage'],
     isSystem: true,
   },
   {

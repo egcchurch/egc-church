@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>Cottage Meetings | EGC Admin</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans overflow-x-hidden">
+
+  <div id="nav-placeholder"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-6xl mx-auto flex justify-between items-center">
+      <div>
+        <h1 class="text-3xl font-bold tracking-tight">Cottage Meetings</h1>
+        <p class="text-blue-200 mt-1">Create meetings, set capacity, and see who's registered</p>
+      </div>
+      <button onclick="openMeetingForm()"
+              class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+        <i class="fas fa-plus mr-2"></i>New Meeting
+      </button>
+    </div>
+  </div>
+
+  <!-- ADD/EDIT MEETING FORM -->
+  <div id="meeting-form" class="hidden bg-white border-b shadow-sm">
+    <div class="max-w-3xl mx-auto px-6 py-8">
+      <h2 class="text-xl font-bold text-[#0A3D62] mb-6" id="form-title">New Meeting</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Region *</label>
+          <select id="f-region" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"></select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Capacity (seats) *</label>
+          <input id="f-capacity" type="number" min="1" placeholder="e.g. 20"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Venue / Address *</label>
+          <input id="f-address" type="text" placeholder="e.g. 12 Acacia Rd, Bedfordview (the Smith home)"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+          <input id="f-date" type="date" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Time</label>
+          <input id="f-time" type="time" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+          <input id="f-notes" type="text" placeholder="e.g. Bring a dish to share"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div class="flex items-center gap-3">
+          <input id="f-open" type="checkbox" class="w-4 h-4 accent-amber-500" checked>
+          <label for="f-open" class="text-sm font-medium text-gray-700">Open for registration</label>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-6">
+        <button id="save-btn" onclick="saveMeeting()"
+                class="bg-amber-500 hover:bg-amber-600 text-white px-8 py-3 rounded-full text-sm font-medium transition-all">Save Meeting</button>
+        <button onclick="closeMeetingForm()"
+                class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-8 py-3 rounded-full text-sm font-medium transition-all">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="max-w-6xl mx-auto px-6 py-8">
+    <!-- REGIONS (superadmin only) -->
+    <section id="regions-section" class="hidden mb-10">
+      <h2 class="text-lg font-bold text-[#0A3D62] mb-3">Regions</h2>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <p class="text-xs text-gray-400 mb-4">These are the areas members choose from. Add or remove them here.</p>
+        <div id="regions-list" class="flex flex-wrap gap-2 mb-4"></div>
+        <div class="flex gap-2">
+          <input id="new-region" type="text" placeholder="New region name (e.g. East Rand 1)"
+                 class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <button onclick="addRegion()" class="bg-[#0A3D62] hover:bg-[#083352] text-white px-5 py-2.5 rounded-full text-sm font-medium transition">Add</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- MEETINGS -->
+    <h2 class="text-lg font-bold text-[#0A3D62] mb-3">Meetings</h2>
+    <div id="loading" class="text-center py-12 text-zinc-400">
+      <i class="fas fa-spinner fa-spin text-3xl mb-3"></i><p>Loading...</p>
+    </div>
+    <div id="empty" class="hidden text-center py-12 text-zinc-400">
+      <i class="fas fa-house-chimney text-4xl mb-3 opacity-30"></i>
+      <p>No meetings yet. Click "New Meeting" to create one.</p>
+    </div>
+    <div id="meetings-list" class="space-y-4"></div>
+  </main>
+
+  <div id="toast" class="fixed bottom-6 right-6 z-50 hidden px-6 py-3 rounded-2xl text-white text-sm font-medium shadow-lg"></div>
+
+  <script src="/firebase-config.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script src="/js/permissions.js"></script>
+  <script src="/js/admin-auth.js" data-require-perm="cottage.manage"></script>
+  <script>
+    const db = firebase.firestore();
+    let currentUser = null;
+    let isSuperadmin = false;
+    let editingId = null;
+    let regions = [];                 // [{id, name}]
+    const meetingsCache = {};
+
+    function showToast(msg, type) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'fixed bottom-6 right-6 z-50 px-6 py-3 rounded-2xl text-white text-sm font-medium shadow-lg '
+        + (type === 'error' ? 'bg-red-600' : 'bg-green-600');
+      t.classList.remove('hidden');
+      setTimeout(() => t.classList.add('hidden'), 3500);
+    }
+
+    function escHtml(str) {
+      return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function slugify(name) {
+      return String(name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || ('r' + Date.now());
+    }
+
+    function regionName(id) {
+      const r = regions.find(x => x.id === id);
+      return r ? r.name : (id || 'Other');
+    }
+
+    firebase.auth().onAuthStateChanged(async (user) => {
+      if (!user) return;
+      currentUser = user;
+      try {
+        const token = await user.getIdTokenResult();
+        isSuperadmin = token.claims.superadmin === true;
+      } catch (_) {}
+      if (isSuperadmin) document.getElementById('regions-section').classList.remove('hidden');
+      await loadRegions();
+      loadMeetings();
+    });
+
+    // ── Regions ───────────────────────────────────────────────────────────────
+    async function loadRegions() {
+      try {
+        const snap = await db.doc('config/cottageRegions').get();
+        regions = (snap.exists && Array.isArray(snap.data().regions)) ? snap.data().regions : [];
+      } catch (_) { regions = []; }
+      renderRegionSelect();
+      if (isSuperadmin) renderRegionsList();
+    }
+
+    function renderRegionSelect() {
+      const sel = document.getElementById('f-region');
+      sel.innerHTML = regions.length
+        ? regions.map(r => `<option value="${escHtml(r.id)}">${escHtml(r.name)}</option>`).join('')
+        : '<option value="">(No regions yet — ask a superadmin to add them)</option>';
+    }
+
+    function renderRegionsList() {
+      const list = document.getElementById('regions-list');
+      list.innerHTML = regions.length ? '' : '<span class="text-xs text-zinc-400">No regions yet.</span>';
+      regions.forEach(r => {
+        const chip = document.createElement('span');
+        chip.className = 'inline-flex items-center gap-2 bg-zinc-100 text-zinc-700 text-sm px-3 py-1.5 rounded-full';
+        chip.innerHTML = `${escHtml(r.name)} <button title="Remove" class="text-zinc-400 hover:text-red-500"><i class="fas fa-times"></i></button>`;
+        chip.querySelector('button').addEventListener('click', () => removeRegion(r.id));
+        list.appendChild(chip);
+      });
+    }
+
+    async function saveRegions() {
+      await db.doc('config/cottageRegions').set({ regions }, { merge: true });
+    }
+
+    async function addRegion() {
+      const input = document.getElementById('new-region');
+      const name = input.value.trim();
+      if (!name) return;
+      let id = slugify(name);
+      while (regions.some(r => r.id === id)) id += '-1';
+      regions.push({ id, name });
+      try {
+        await saveRegions();
+        input.value = '';
+        renderRegionSelect(); renderRegionsList();
+        showToast('Region added.', 'success');
+      } catch (err) { regions.pop(); showToast('Error: ' + err.message, 'error'); }
+    }
+
+    async function removeRegion(id) {
+      if (!confirm('Remove this region? Existing meetings keep their area label.')) return;
+      const prev = regions;
+      regions = regions.filter(r => r.id !== id);
+      try {
+        await saveRegions();
+        renderRegionSelect(); renderRegionsList();
+        showToast('Region removed.', 'success');
+      } catch (err) { regions = prev; showToast('Error: ' + err.message, 'error'); }
+    }
+
+    // ── Meeting form ────────────────────────────────────────────────────────────
+    function openMeetingForm(id) {
+      editingId = id || null;
+      const m = id ? meetingsCache[id] : null;
+      document.getElementById('form-title').textContent = id ? 'Edit Meeting' : 'New Meeting';
+      renderRegionSelect();
+      document.getElementById('f-region').value   = m?.regionId || (regions[0] ? regions[0].id : '');
+      document.getElementById('f-capacity').value  = m?.capacity != null ? m.capacity : '';
+      document.getElementById('f-address').value   = m?.address || '';
+      document.getElementById('f-date').value      = m?.date || '';
+      document.getElementById('f-time').value      = m?.time || '';
+      document.getElementById('f-notes').value     = m?.notes || '';
+      document.getElementById('f-open').checked     = m ? (m.open !== false) : true;
+      document.getElementById('meeting-form').classList.remove('hidden');
+      document.getElementById('meeting-form').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function closeMeetingForm() {
+      editingId = null;
+      document.getElementById('meeting-form').classList.add('hidden');
+    }
+
+    function setSaving(on) {
+      const b = document.getElementById('save-btn');
+      b.disabled = on; b.textContent = on ? 'Saving...' : 'Save Meeting';
+      b.classList.toggle('opacity-60', on);
+    }
+
+    async function saveMeeting() {
+      const regionId = document.getElementById('f-region').value;
+      const capacity = parseInt(document.getElementById('f-capacity').value, 10);
+      const address  = document.getElementById('f-address').value.trim();
+      const date     = document.getElementById('f-date').value;
+      if (!regionId) { showToast('Pick a region (add one first if the list is empty).', 'error'); return; }
+      if (!address)  { showToast('Venue/address is required.', 'error'); return; }
+      if (!date)     { showToast('Date is required.', 'error'); return; }
+      if (!Number.isInteger(capacity) || capacity < 1) { showToast('Capacity must be at least 1.', 'error'); return; }
+
+      setSaving(true);
+      try {
+        const ref = editingId ? db.collection('cottageMeetings').doc(editingId) : db.collection('cottageMeetings').doc();
+        const data = {
+          regionId,
+          regionName: regionName(regionId),
+          address,
+          date,
+          time: document.getElementById('f-time').value || '',
+          capacity,
+          notes: document.getElementById('f-notes').value.trim(),
+          open: document.getElementById('f-open').checked,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        };
+        if (!editingId) {
+          data.hostUid = currentUser.uid;
+          data.hostName = currentUser.displayName || currentUser.email || 'Host';
+          data.seatsTaken = 0;
+          data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+          data.createdBy = currentUser.uid;
+        }
+        await ref.set(data, { merge: true });
+        closeMeetingForm();
+        showToast('Meeting saved.', 'success');
+        loadMeetings();
+      } catch (err) {
+        console.error(err);
+        showToast('Error saving: ' + err.message, 'error');
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    // ── Meeting list ──────────────────────────────────────────────────────────
+    async function loadMeetings() {
+      const list = document.getElementById('meetings-list');
+      const loading = document.getElementById('loading');
+      const empty = document.getElementById('empty');
+      loading.classList.remove('hidden'); empty.classList.add('hidden'); list.innerHTML = '';
+      try {
+        const query = isSuperadmin
+          ? db.collection('cottageMeetings')
+          : db.collection('cottageMeetings').where('hostUid', '==', currentUser.uid);
+        const snap = await query.get();
+        loading.classList.add('hidden');
+        if (snap.empty) { empty.classList.remove('hidden'); return; }
+
+        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        docs.forEach(m => { meetingsCache[m.id] = m; list.appendChild(buildMeetingRow(m)); });
+      } catch (err) {
+        loading.classList.add('hidden');
+        showToast('Failed to load meetings.', 'error');
+        console.error(err);
+      }
+    }
+
+    function buildMeetingRow(m) {
+      const left = Math.max((m.capacity || 0) - (m.seatsTaken || 0), 0);
+      const when = [m.date, m.time].filter(Boolean).join(' · ');
+      const row = document.createElement('div');
+      row.className = 'bg-white rounded-2xl border border-gray-100 shadow-sm p-5';
+      row.innerHTML = `
+        <div class="flex flex-col md:flex-row md:items-center gap-4">
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-center gap-2 mb-1">
+              <span class="text-xs px-2 py-1 rounded-full bg-indigo-100 text-indigo-700">${escHtml(m.regionName || regionName(m.regionId))}</span>
+              <span class="text-xs px-2 py-1 rounded-full ${m.open !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${m.open !== false ? 'Open' : 'Closed'}</span>
+              <span class="text-xs text-gray-400">${escHtml(when)}</span>
+            </div>
+            <p class="font-semibold text-gray-900">${escHtml(m.address || 'Venue TBC')}</p>
+            <p class="text-sm text-gray-500">${m.seatsTaken || 0} of ${m.capacity || 0} seats taken · ${left} left${isSuperadmin && m.hostName ? ' · host: ' + escHtml(m.hostName) : ''}</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button data-regs class="bg-zinc-50 hover:bg-zinc-100 text-zinc-600 text-sm px-4 py-2 rounded-full transition"><i class="fas fa-users mr-1"></i>Registrations</button>
+            <button data-edit class="bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm px-4 py-2 rounded-full transition"><i class="fas fa-edit mr-1"></i>Edit</button>
+            <button data-del class="bg-red-50 hover:bg-red-100 text-red-600 text-sm px-4 py-2 rounded-full transition"><i class="fas fa-trash mr-1"></i>Delete</button>
+          </div>
+        </div>
+        <div data-regpanel class="hidden mt-4 border-t border-gray-100 pt-4"></div>`;
+
+      row.querySelector('[data-edit]').addEventListener('click', () => openMeetingForm(m.id));
+      row.querySelector('[data-del]').addEventListener('click', () => deleteMeeting(m.id));
+      row.querySelector('[data-regs]').addEventListener('click', () => toggleRegistrations(m.id, row.querySelector('[data-regpanel]')));
+      return row;
+    }
+
+    async function toggleRegistrations(meetingId, panel) {
+      if (!panel.classList.contains('hidden')) { panel.classList.add('hidden'); return; }
+      panel.classList.remove('hidden');
+      panel.innerHTML = '<p class="text-sm text-gray-400">Loading registrations...</p>';
+      try {
+        const snap = await db.collection('cottageRegistrations').where('meetingId', '==', meetingId).get();
+        if (snap.empty) { panel.innerHTML = '<p class="text-sm text-gray-400">No registrations yet.</p>'; return; }
+        const rows = snap.docs.map(d => d.data())
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        const total = rows.reduce((s, r) => s + (r.partySize || 0), 0);
+        panel.innerHTML = `
+          <p class="text-sm font-semibold text-gray-700 mb-2">${rows.length} registration(s) · ${total} people</p>
+          <div class="overflow-x-auto"><table class="w-full text-sm">
+            <thead class="text-gray-400 text-xs uppercase"><tr>
+              <th class="text-left py-1 pr-4">Name</th><th class="text-left py-1 pr-4">Party</th>
+              <th class="text-left py-1 pr-4">Phone</th><th class="text-left py-1">Email</th>
+            </tr></thead><tbody>
+            ${rows.map(r => `<tr class="border-t border-gray-50">
+              <td class="py-1.5 pr-4">${escHtml(r.name)}</td>
+              <td class="py-1.5 pr-4">${r.partySize || 1}</td>
+              <td class="py-1.5 pr-4">${escHtml(r.phone || '—')}</td>
+              <td class="py-1.5">${escHtml(r.email || '—')}</td>
+            </tr>`).join('')}
+          </tbody></table></div>`;
+      } catch (err) {
+        panel.innerHTML = '<p class="text-sm text-red-500">Could not load registrations.</p>';
+        console.error(err);
+      }
+    }
+
+    async function deleteMeeting(id) {
+      const m = meetingsCache[id];
+      if (!confirm(`Delete the meeting at "${m?.address || 'this venue'}"? Its registrations will be removed too.`)) return;
+      try {
+        // Clean up registrations first so no member is left pointing at a deleted meeting.
+        const regs = await db.collection('cottageRegistrations').where('meetingId', '==', id).get();
+        if (!regs.empty) {
+          const batch = db.batch();
+          regs.docs.forEach(d => batch.delete(d.ref));
+          await batch.commit();
+        }
+        await db.collection('cottageMeetings').doc(id).delete();
+        showToast('Meeting deleted.', 'success');
+        loadMeetings();
+      } catch (err) {
+        showToast('Error deleting: ' + err.message, 'error');
+        console.error(err);
+      }
+    }
+  </script>
+</body>
+</html>

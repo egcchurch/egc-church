@@ -47,8 +47,9 @@ Naming convention: `{area}.{action}`, lowercase, dot-separated.
 | `users.approve`      | Approve pending users, set membership tier, handle "Request member access" submissions from `public` users (see `docs/HOMEPAGE.md`) |
 | `users.assign_roles` | Assign roles + extras to users (does NOT include `isSuperadmin` toggle)                                                             |
 | `youtube.update`     | Push corrected sermon metadata (title, description) back to YouTube from `/admin/sermons`. Gates a client-side OAuth flow, not a Firestore write — see "YouTube write-back" below |
+| `cottage.manage`     | Create and manage cottage meetings (set capacity, view registrations) from `/admin/cottage`. A deacon manages only the meetings they host; superadmins manage all and edit the region list |
 
-**15 keys total.** Easy to extend later if `.manage` ever needs to split into `.create / .edit / .delete`, but start coarse.
+**16 keys total.** Easy to extend later if `.manage` ever needs to split into `.create / .edit / .delete`, but start coarse.
 
 ### YouTube write-back (`youtube.update`)
 
@@ -66,7 +67,7 @@ Ship as seed when the roles collection is first created. Superadmin can edit dis
 | ---------------- | ---------------- | ------------------------------------------------------------------------------------------- |
 | `administrator`  | Administrator    | All permissions (equivalent role for non-superadmin admins)                                 |
 | `pastor`         | Pastor           | `sermons.manage`, `devotional.manage`, `events.manage`, `blog.manage`, `notifications.send` |
-| `deacon`         | Deacon           | `users.approve`, `prayer.moderate`, `connect.view`                                          |
+| `deacon`         | Deacon           | `users.approve`, `prayer.moderate`, `connect.view`, `cottage.manage`                        |
 | `media_helper`   | Media helper     | `sermons.manage`, `music.manage`, `gallery.manage`                                          |
 | `communications` | Communications   | `blog.manage`, `homepage.manage`, `notifications.send`, `events.manage`                     |
 | `prayer_lead`    | Prayer team lead | `prayer.moderate`, `notifications.send`                                                     |
