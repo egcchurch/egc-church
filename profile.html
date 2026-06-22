@@ -125,6 +125,27 @@
       </button>
     </div>
 
+    <!-- Notifications -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+      <h2 class="text-lg font-bold text-[#0A3D62] mb-2">Notifications</h2>
+      <p class="text-sm text-gray-500 mb-6">In-app notifications are always on. Choose to also receive them on WhatsApp.</p>
+
+      <div class="space-y-4">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input id="f-whatsapp" type="checkbox" class="w-4 h-4 accent-amber-500">
+          <div>
+            <p class="text-sm font-medium text-gray-700"><i class="fab fa-whatsapp text-green-600 mr-1"></i>Receive notifications on WhatsApp</p>
+            <p class="text-xs text-gray-400">Announcements, reminders and event confirmations, sent to your mobile number above.</p>
+          </div>
+        </label>
+      </div>
+
+      <button onclick="saveNotifications()"
+              class="mt-6 bg-amber-500 hover:bg-amber-600 text-white px-8 py-3 rounded-full text-sm font-medium transition-all">
+        Save Notification Settings
+      </button>
+    </div>
+
     <!-- Change Password -->
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
       <h2 class="text-lg font-bold text-[#0A3D62] mb-6">Change Password</h2>
@@ -203,6 +224,7 @@
         document.getElementById('f-visible').checked = d.directoryVisible ?? true;
         document.getElementById('f-show-email').checked = d.directoryShowEmail ?? false;
         document.getElementById('f-show-phone').checked = d.directoryShowPhone ?? false;
+        document.getElementById('f-whatsapp').checked = d.notifyWhatsApp ?? false;
 
         if (d.membership === 'pending') {
           document.getElementById('pending-banner').classList.remove('hidden');
@@ -269,6 +291,21 @@
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       })
         .then(() => alert('Privacy settings saved.'))
+        .catch(err => alert('Error: ' + err.message));
+    }
+
+    function saveNotifications() {
+      const wantsWhatsApp = document.getElementById('f-whatsapp').checked;
+      const phone = document.getElementById('f-phone').value.trim();
+      if (wantsWhatsApp && !phone) {
+        alert('Add your mobile number in the Profile section above and save it before enabling WhatsApp.');
+        return;
+      }
+      db.collection('users').doc(currentUser.uid).update({
+        notifyWhatsApp: wantsWhatsApp,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      })
+        .then(() => alert('Notification settings saved.'))
         .catch(err => alert('Error: ' + err.message));
     }
 
