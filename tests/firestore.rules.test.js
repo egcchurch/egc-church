@@ -235,6 +235,58 @@ describe('Firestore Security Rules', () => {
       const db = editorUser().firestore();
       await assertSucceeds(updateDoc(doc(db, 'prayer', 'p1'), { status: 'answered' }));
     });
+
+    it('any member can toggle prayedFor on someone else\'s request', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), {
+          uid: 'other-uid', body: 'Pray for me', isAnonymous: false, isPrivate: false, prayedFor: [], status: 'active'
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'prayer', 'p1'), { prayedFor: ['member-uid'] }));
+    });
+
+    it('member cannot piggyback other fields onto a prayedFor update', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), {
+          uid: 'other-uid', body: 'Pray for me', isAnonymous: false, isPrivate: false, prayedFor: [], status: 'active'
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(updateDoc(doc(db, 'prayer', 'p1'), { prayedFor: ['member-uid'], status: 'answered' }));
+    });
+
+    it('member cannot create a prayer request spoofing another author', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      const db = memberUser().firestore();
+      await assertFails(setDoc(doc(db, 'prayer', 'p1'), {
+        uid: 'other-uid', body: 'Not mine', isAnonymous: false, isPrivate: false, prayedFor: []
+      }));
+    });
+
+    it('author can delete own prayer request', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), {
+          uid: 'member-uid', body: 'Pray for me', isAnonymous: false, isPrivate: false, prayedFor: [], status: 'active'
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(deleteDoc(doc(db, 'prayer', 'p1')));
+    });
+
+    it('member cannot delete someone else\'s prayer request', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), {
+          uid: 'other-uid', body: 'Pray for me', isAnonymous: false, isPrivate: false, prayedFor: [], status: 'active'
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(deleteDoc(doc(db, 'prayer', 'p1')));
+    });
   });
 
   describe('Events collection — RSVP', () => {
@@ -437,6 +489,27 @@ describe('Firestore Security Rules', () => {
       const db = unauthUser().firestore();
       await assertSucceeds(setDoc(doc(db, 'connect', 'c1'), {
         name: 'Visitor', email: 'v@example.com', message: 'Hello', read: false
+      }));
+    });
+
+    it('connect submission cannot pre-mark itself as read', async () => {
+      const db = unauthUser().firestore();
+      await assertFails(setDoc(doc(db, 'connect', 'c1'), {
+        name: 'Visitor', email: 'v@example.com', message: 'Hello', read: true
+      }));
+    });
+
+    it('connect submission with an oversized message is rejected', async () => {
+      const db = unauthUser().firestore();
+      await assertFails(setDoc(doc(db, 'connect', 'c1'), {
+        name: 'Visitor', email: 'v@example.com', message: 'x'.repeat(5001), read: false
+      }));
+    });
+
+    it('connect submission with an unexpected field is rejected', async () => {
+      const db = unauthUser().firestore();
+      await assertFails(setDoc(doc(db, 'connect', 'c1'), {
+        name: 'Visitor', email: 'v@example.com', message: 'Hello', read: false, isSuperadmin: true
       }));
     });
 

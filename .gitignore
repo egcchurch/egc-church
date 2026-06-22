@@ -1,11 +1,15 @@
 # Environment variables
 .env
 .env.local
+# Project-specific Firebase Functions env files (.env.<projectId>, .env.local,
+# etc.) — these are where real secrets/overrides go, so never commit them.
+.env.*
 # Exception: non-secret defaults for firebase-functions/params string params
 # (Resend from-address, church domain) — required for non-interactive
 # `firebase deploy --only functions` to resolve them. No real secrets live
 # here; see the comment in functions/index.js.
 !functions/.env
+!.env.example
 
 # VSCode
 .vscode/

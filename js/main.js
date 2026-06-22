@@ -3,7 +3,9 @@
 // Enable Firestore offline persistence on public/member pages.
 // Skipped on admin pages to avoid excessive IndexedDB use with large result sets.
 // Errors are ignored — persistence is best-effort (multi-tab or unsupported browser).
-if (typeof firebase !== 'undefined' && !window.location.pathname.startsWith('/admin/')) {
+if (typeof firebase !== 'undefined' &&
+    typeof firebase.firestore === 'function' &&
+    !window.location.pathname.startsWith('/admin/')) {
   firebase.firestore().enablePersistence({ synchronizeTabs: true }).catch(() => {});
 }
 
