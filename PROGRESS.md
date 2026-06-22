@@ -10,7 +10,40 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — fixed orphaned-account bug (self-heal missing /users record); Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Maintenance — role-change re-login nudge; Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — In-app "sign out and back in" nudge on permission change (Session 102)
+
+**Date:** 2026-06-22
+**Branch:** `feat/role-change-relogin-nudge` (PR pending)
+**Status:** Open
+
+### Context
+Permissions are baked into the Firebase ID token, so a role/permission change only
+takes effect on the user's next sign-in (or auto-refresh within ~1h). The user hit this
+when a freshly-granted deacon couldn't approve users until logging out and back in.
+
+### What was done
+- **`functions/index.js` — `syncUserClaims`:** after recomputing/setting claims, write an
+  in-app notification to the user ("Your access has been updated — sign out and back in…")
+  — but only on an **update** (`beforeData !== null`), never on initial account creation,
+  and only when permission fields actually changed (the existing `permissionFieldsChanged`
+  guard already gates the whole function). Membership approval doesn't touch permission
+  fields (member access is read live, not from claims), so it doesn't trigger this nudge —
+  the existing `welcomeNewMember` notice covers that case.
+- Writes to the `/users/{uid}/notifications` subcollection, which doesn't re-trigger the
+  parent-doc `onWrite` — no loop.
+
+### Verification
+`node -c` + require-load clean. (Mirrors the existing welcomeNewMember/onNewPrayerRequest
+in-app notification pattern.)
+
+### Deploy
+`firebase deploy --only functions` (no rules/hosting/SW change).
+
+---
 
 ---
 
