@@ -10,7 +10,36 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Phase 3 — WhatsApp notifications: opt-in shipped (Stage 1); sending (Stage 2) pending Meta WABA + template + secrets
+**Current milestone:** Phase 3 — WhatsApp notifications: opt-in shipped (Stage 1); Stage 2 design locked (`docs/WHATSAPP.md`), blocked on the church getting a WhatsApp sender number
+
+---
+
+## Session: docs — WhatsApp Stage 2 design locked (Session 100)
+
+**Date:** 2026-06-22
+**Branch:** `docs/whatsapp-stage2-design` (PR pending)
+**Status:** Open
+
+### What was done
+
+User can't get the WhatsApp Business **sender number** yet, so Stage 2 (sending) is
+paused — nothing further built blind. Captured the full Stage 2 design in
+**`docs/WHATSAPP.md`** so it isn't lost, incorporating the user's scoping:
+
+- **Per-broadcast WhatsApp toggle** on `admin/notifications.html` (cost control —
+  WhatsApp billed per conversation; never automatic for general broadcasts).
+- **Imported external contact list** (`whatsappContacts`) for older members on the
+  existing WhatsApp groups who won't use the app.
+- **De-dup by normalised number**: WhatsApp recipients = opted-in app members +
+  imported numbers, minus any imported number that matches an app user (app users get
+  in-app, and WhatsApp only if opted in — never double-messaged).
+- Template (`egc_notification`, Utility, en_US), secrets, and build steps documented.
+
+Docs-only change (no deploy; `docs/**` is ignored by Hosting).
+
+### Blocked on (user)
+Dedicated WhatsApp Business sender number → then Meta WABA + token + approved template +
+`WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` secrets. Then I build Stage 2 per the doc.
 
 ---
 
