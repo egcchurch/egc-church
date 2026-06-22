@@ -361,7 +361,7 @@ Functions are organised by trigger type:
 
 ### Cottage Meetings (Phase 1)
 
-- `registerForCottageMeeting` — callable from `/members/cottage.html` — transactionally reserves seats (no overselling), enforces one active registration per member, writes `/cottageRegistrations/{uid}`, increments the meeting's `seatsTaken`, and sends an in-app + push confirmation with the venue/date/time. SMS (SMSPortal) and WhatsApp are planned later phases.
+- `registerForCottageMeeting` — callable from `/members/cottage.html` — transactionally reserves seats (no overselling), enforces one active registration per member, writes `/cottageRegistrations/{uid}` (incl. the member's phone, captured at registration), increments the meeting's `seatsTaken`, and sends an in-app + push confirmation with the venue/date/time. **Phase 2:** also sends an **SMS via SMSPortal** (`POST rest.smsportal.com/v3/BulkMessages`, Basic auth) when the `SMSPORTAL_CLIENT_ID` / `SMSPORTAL_API_SECRET` secrets are set and the member has a number — best-effort, never blocks registration. WhatsApp + per-member channel preferences are a planned later phase. **Deploy note:** both SMSPORTAL secrets must exist in Secret Manager before deploying this function (listed in its `runWith`).
 - `cancelCottageRegistration` — callable from `/members/cottage.html` — transactionally frees the seats and deletes the member's registration.
 
 ---

@@ -57,6 +57,7 @@
     let regionsList = [];     // [{id, name}]
     let meetings = [];        // open meetings
     let myReg = null;         // { meetingId, partySize, ... } or null
+    let myPhone = '';         // prefill for the SMS confirmation field
 
     function showToast(msg, type) {
       const t = document.getElementById('toast');
@@ -98,16 +99,18 @@
 
     async function loadAll() {
       try {
-        const [regionsSnap, meetingsSnap, regSnap] = await Promise.all([
+        const [regionsSnap, meetingsSnap, regSnap, userSnap] = await Promise.all([
           db.doc('config/cottageRegions').get(),
           db.collection('cottageMeetings').where('open', '==', true).get(),
           db.collection('cottageRegistrations').doc(currentUser.uid).get(),
+          db.collection('users').doc(currentUser.uid).get(),
         ]);
 
         regionsList = (regionsSnap.exists && Array.isArray(regionsSnap.data().regions))
           ? regionsSnap.data().regions : [];
         meetings = meetingsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         myReg = regSnap.exists ? regSnap.data() : null;
+        myPhone = (userSnap.exists && userSnap.data().phone) ? userSnap.data().phone : '';
 
         render();
       } catch (err) {
@@ -176,11 +179,18 @@
         action = `<p class="mt-4 text-sm text-red-500 font-medium">Fully booked</p>`;
       } else {
         action = `
-          <div class="mt-4 flex items-center gap-2">
-            <label class="text-sm text-gray-600">Party size</label>
-            <input type="number" data-party min="1" max="${left}" value="1"
-                   class="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
-            <button data-register class="ml-auto bg-amber-500 hover:bg-amber-600 text-white text-sm px-5 py-2 rounded-full transition">Register</button>
+          <div class="mt-4 space-y-2">
+            <div class="flex items-center gap-2">
+              <label class="text-sm text-gray-600 w-24">Party size</label>
+              <input type="number" data-party min="1" max="${left}" value="1"
+                     class="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-sm text-gray-600 w-24">Mobile number</label>
+              <input type="tel" data-phone value="${escHtml(myPhone)}" placeholder="For SMS confirmation"
+                     class="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+            </div>
+            <button data-register class="w-full bg-amber-500 hover:bg-amber-600 text-white text-sm px-5 py-2 rounded-full transition">Register</button>
           </div>`;
       }
 
@@ -202,7 +212,8 @@
       if (regBtn) {
         regBtn.addEventListener('click', () => {
           const party = parseInt(card.querySelector('[data-party]').value, 10) || 1;
-          register(m.id, party, regBtn);
+          const phone = (card.querySelector('[data-phone]').value || '').trim();
+          register(m.id, party, phone, regBtn);
         });
       }
       const cancelBtn = card.querySelector('[data-cancel]');
@@ -211,10 +222,10 @@
       return card;
     }
 
-    async function register(meetingId, partySize, btn) {
+    async function register(meetingId, partySize, phone, btn) {
       btn.disabled = true; btn.textContent = 'Registering...';
       try {
-        await fns.httpsCallable('registerForCottageMeeting')({ meetingId, partySize });
+        await fns.httpsCallable('registerForCottageMeeting')({ meetingId, partySize, phone });
         showToast('Registered! Check your notifications for the details.', 'success');
         await loadAll();
       } catch (err) {

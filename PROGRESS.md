@@ -10,7 +10,42 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — all phases complete; Cottage Meetings (Phase 1) shipped to replace the Google Form
+**Current milestone:** Maintenance — Cottage Meetings Phase 2 (SMS via SMSPortal) built; awaiting secrets + functions deploy
+
+---
+
+## Session: feat — Cottage Meetings Phase 2: SMS confirmations via SMSPortal (Session 96)
+
+**Date:** 2026-06-22
+**Branch:** `feat/cottage-sms-smsportal` (PR pending)
+**Status:** Open
+
+### What was done
+
+Adds an SMS confirmation (alongside the existing in-app + push) when a member registers for a cottage meeting, using the church's existing **SMSPortal** account.
+
+**`functions/index.js`**
+- New secrets `SMSPORTAL_CLIENT_ID` / `SMSPORTAL_API_SECRET` (`defineSecret`).
+- `sendSms(destination, content)` helper — SMSPortal REST API v3 direct Basic-auth method: `POST https://rest.smsportal.com/v3/BulkMessages` with `Authorization: Basic base64(clientId:apiSecret)` and body `{ messages: [{ content, destination }] }`. Best-effort (logs + returns false on any failure, never throws); no-op when secrets unset. `normaliseSaNumber()` converts `0XXXXXXXXX` → `27XXXXXXXXX`.
+- `registerForCottageMeeting` now `runWith({ secrets: [...] })`; captures a `phone` from the call payload, stores it on the registration, and after the in-app/push confirmation sends the same message by SMS to that number (falls back to the profile phone; skips if neither).
+
+**`members/cottage.html`**
+- Register control now has a **Mobile number** field (prefilled from the member's profile phone) passed to the callable, so SMS has a number even when the profile has none. Loads the user doc in `loadAll` for the prefill.
+
+SW cache v50 → v51; CLAUDE.md updated (functions + data model + deploy note).
+
+### Verification
+TBD — functions load + syntax; SMSPortal `fetch` mocked to assert the register flow calls BulkMessages with Basic auth + the normalised number; member-page register passes `phone`.
+
+### Still pending (manual — order matters)
+1. Superadmin sets the secrets (interactive, values never in chat/logs):
+   `firebase functions:secrets:set SMSPORTAL_CLIENT_ID`
+   `firebase functions:secrets:set SMSPORTAL_API_SECRET`
+2. **Then** `firebase deploy --only functions` (the deploy fails if the secrets don't yet exist, since `registerForCottageMeeting` lists them in `runWith`).
+   - Hosting (the member-page phone field) auto-deploys on merge and is harmless before the functions redeploy (the old function just ignores the extra `phone`).
+
+### Phase 3 (future)
+WhatsApp + per-member preferred-channel opt-in.
 
 ---
 
