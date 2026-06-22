@@ -559,7 +559,7 @@ via YouTube public URLs.
 - **Video delivery:** YouTube (primary) — store `youtubeId` in Firestore
 - **Video backup:** Cloudflare R2 or Internet Archive (originals preserved off YouTube)
 - **Audio files:** Firebase Storage at `/sermons/{sermonId}/audio.mp3`
-- **Sermon notes (PDF):** Firebase Storage at `/sermons/{sermonId}/notes.pdf`
+- **Sermon notes/materials (PDF, Word, or PowerPoint):** Firebase Storage at `/sermons/{sermonId}/notes.{ext}` — original file extension preserved (pdf/doc/docx/ppt/pptx)
 - **Thumbnails:** YouTube public thumbnail URL — no API key required
   - `https://img.youtube.com/vi/{youtubeId}/hqdefault.jpg`
 
@@ -568,7 +568,7 @@ via YouTube public URLs.
 1. Paste YouTube URL → script extracts video ID
 2. Thumbnail auto-previews from YouTube
 3. Fill in metadata (title, speaker, date, scripture, description)
-4. Optional: upload audio file and/or PDF notes
+4. Optional: upload audio file and/or sermon notes (PDF, Word, or PowerPoint)
 5. Toggle published on/off before saving
 6. Save writes to Firestore — page updates immediately
 
@@ -648,7 +648,7 @@ Firestore rules for `/groups/{groupId}` updates:
 - Email verification: required before member approval — resend supported from /profile.html
 - Password reset: handled by Firebase Auth's built-in `sendPasswordResetEmail()` — link on /login.html
 - Firestore database: `(default)` in nam5 region (production mode)
-- Firebase Storage: in use (audio, PDFs, images, music, cover art)
+- Firebase Storage: in use (audio, sermon notes/materials, images, music, cover art)
 - Cloud Messaging (FCM): deployed — VAPID key configured, token registration in js/notifications.js
 - Cloud Functions: `onUserCreate`, `sendBroadcast`, `onNewMessage`, `onNewPrayerRequest`, `onNewConnectForm`, `weeklyDigest` deployed; account deletion (Phase 5)
 - Authorised domains: localhost, 127.0.0.1, egcchurch.github.io, egc-church.firebaseapp.com, egc-church.web.app, staging.egc.church, app.egc.church
@@ -662,7 +662,7 @@ Firestore rules for `/groups/{groupId}` updates:
 
 ```
 /sermons/{sermonId}/audio.mp3
-/sermons/{sermonId}/notes.pdf
+/sermons/{sermonId}/notes.{ext}  ← ext is pdf/doc/docx/ppt/pptx (original extension preserved)
 /team/{memberId}/photo.jpg
 /users/{uid}/photo               ← user profile photos (separate from /team photos)
 /events/{eventId}/cover.jpg      ← event hero image
@@ -676,7 +676,7 @@ Storage rules enforce file size and type per path (see `storage.rules`):
 
 - Images: 5MB max, `image/*` only
 - Audio: 100MB max, `audio/*` only
-- PDFs: 20MB max, `application/pdf` only
+- Sermon notes/materials: 50MB max — PDF, Word (`.doc`/`.docx`), or PowerPoint (`.ppt`/`.pptx`) only
 
 ---
 

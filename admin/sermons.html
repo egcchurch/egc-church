@@ -127,16 +127,17 @@
           <p id="audio-staged-name" class="hidden text-xs text-gray-500 mt-1"></p>
         </div>
 
-        <!-- PDF notes upload -->
+        <!-- Sermon notes/materials upload (PDF, Word, PowerPoint) -->
         <div class="md:col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">Sermon Notes (PDF)</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Sermon Notes</label>
           <div id="pdf-current" class="hidden items-center gap-3 mb-2 text-sm">
-            <i class="fas fa-file-pdf text-amber-500"></i>
+            <i id="pdf-current-icon" class="fas fa-file-pdf text-amber-500"></i>
             <a id="pdf-current-link" href="#" target="_blank" rel="noopener" class="text-blue-600 underline truncate max-w-xs">Current notes file</a>
             <button type="button" onclick="removePdfFile()" class="text-red-600 hover:text-red-700 text-xs font-medium">Remove</button>
           </div>
-          <input id="f-pdf-file" type="file" accept="application/pdf" onchange="onPdfFileSelected(this)"
+          <input id="f-pdf-file" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" onchange="onPdfFileSelected(this)"
                  class="text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-amber-100 file:text-amber-700 hover:file:bg-amber-200">
+          <p class="text-xs text-gray-400 mt-1">PDF, Word, or PowerPoint &mdash; max 50MB.</p>
           <p id="pdf-staged-name" class="hidden text-xs text-gray-500 mt-1"></p>
         </div>
 
@@ -256,6 +257,23 @@
     let seriesList = []; // [{id, title, description, imageUrl, order}]
     const sermonsCache = {};
 
+    // Sermon Notes accepts documents/slides (mirrors storage.rules isValidDocument()).
+    const NOTES_ALLOWED_EXTENSIONS = ['pdf', 'doc', 'docx', 'ppt', 'pptx'];
+    const NOTES_MAX_BYTES = 50 * 1024 * 1024; // 50MB
+
+    function getFileExt(filename) {
+      const m = /\.([a-zA-Z0-9]+)$/.exec(filename || '');
+      return m ? m[1].toLowerCase() : '';
+    }
+
+    function notesIconClass(url) {
+      const ext = getFileExt((url || '').split('?')[0]);
+      if (ext === 'pdf') return 'fa-file-pdf';
+      if (ext === 'doc' || ext === 'docx') return 'fa-file-word';
+      if (ext === 'ppt' || ext === 'pptx') return 'fa-file-powerpoint';
+      return 'fa-file-lines';
+    }
+
     let stagedAudioFile = null;
     let existingAudioUrl = null;
     let removeAudioFlag = false;
@@ -359,6 +377,7 @@
         stagedLabel.classList.remove('hidden');
       } else if (existingPdfUrl && !removePdfFlag) {
         document.getElementById('pdf-current-link').href = existingPdfUrl;
+        document.getElementById('pdf-current-icon').className = 'fas ' + notesIconClass(existingPdfUrl) + ' text-amber-500';
         currentRow.classList.remove('hidden');
         currentRow.classList.add('flex');
         stagedLabel.classList.add('hidden');
@@ -369,7 +388,22 @@
     }
 
     function onPdfFileSelected(input) {
-      stagedPdfFile = input.files[0] || null;
+      const file = input.files[0] || null;
+      if (!file) return;
+
+      const ext = getFileExt(file.name);
+      if (!NOTES_ALLOWED_EXTENSIONS.includes(ext)) {
+        showToast('Unsupported file type. Please upload a PDF, Word, or PowerPoint file.', 'error');
+        input.value = '';
+        return;
+      }
+      if (file.size > NOTES_MAX_BYTES) {
+        showToast('File is too large. Maximum size is 50MB.', 'error');
+        input.value = '';
+        return;
+      }
+
+      stagedPdfFile = file;
       removePdfFlag = false;
       renderPdfUI();
     }
@@ -1018,7 +1052,8 @@
 
         let notesUrl = existingPdfUrl;
         if (stagedPdfFile) {
-          notesUrl = await uploadMedia(`sermons/${sermonId}/notes.pdf`, stagedPdfFile);
+          const notesExt = getFileExt(stagedPdfFile.name) || 'pdf';
+          notesUrl = await uploadMedia(`sermons/${sermonId}/notes.${notesExt}`, stagedPdfFile);
         } else if (removePdfFlag) {
           if (existingPdfUrl) await deleteMedia(existingPdfUrl);
           notesUrl = null;
