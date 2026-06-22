@@ -404,6 +404,12 @@ Functions are organised by trigger type:
   published: true | false
   createdAt, updatedAt
 
+/ignoredYoutubeVideos/{youtubeId}             ← admin tool, sermons.manage gated, no public read
+  youtubeId, title (raw YouTube title, for display in the management list)
+  ignoredAt, ignoredBy (uid)
+  ← permanently excludes a channel video (e.g. a funeral service) from the
+    bulk YouTube import results; "Restore" in admin/sermons.html deletes the doc
+
 /events/{eventId}
   title, description, location
   startDate, endDate (timestamps)

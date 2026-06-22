@@ -166,11 +166,21 @@
         </button>
       </div>
 
-      <button id="load-videos-btn" onclick="loadAllVideos()"
-              class="bg-[#0A3D62] hover:bg-[#083352] text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all mb-4">
-        <i class="fas fa-film mr-2"></i>Load Videos
-      </button>
-      <p class="text-xs text-gray-400 mb-4">Audio-only stream uploads (titles containing "Audio" or "Aud") and videos already imported are excluded automatically — only new videos show up here.</p>
+      <div class="flex items-center gap-4 mb-2">
+        <button id="load-videos-btn" onclick="loadAllVideos()"
+                class="bg-[#0A3D62] hover:bg-[#083352] text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all">
+          <i class="fas fa-film mr-2"></i>Load Videos
+        </button>
+        <button type="button" onclick="toggleIgnoredPanel()" class="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2">
+          <span id="ignored-count-label">Ignored videos (0)</span>
+        </button>
+      </div>
+      <p class="text-xs text-gray-400 mb-4">Audio-only stream uploads (titles containing "Audio" or "Aud"), already-imported videos, and videos you've marked Ignore are excluded automatically — only new videos show up here.</p>
+
+      <div id="ignored-panel" class="hidden mb-6 border border-gray-100 rounded-2xl p-4 bg-zinc-50">
+        <p class="text-xs text-gray-400 mb-3">Permanently excluded from future import loads (e.g. funeral services). Click Restore to make one selectable again.</p>
+        <div id="ignored-list" class="space-y-2"></div>
+      </div>
 
       <div id="import-results" class="hidden mt-6">
         <div class="flex items-center justify-between mb-3">
@@ -199,6 +209,7 @@
                 <th class="px-3 py-2 text-left">Service</th>
                 <th class="px-3 py-2 text-left">Title</th>
                 <th class="px-3 py-2 text-left">Speaker</th>
+                <th class="px-3 py-2 text-left w-16"></th>
               </tr>
             </thead>
             <tbody id="import-rows"></tbody>
@@ -286,7 +297,10 @@
     let removedMaterialUrls = [];   // existing URLs removed this session (deleted from Storage on save)
 
     let importNextPageToken = null;
-    let importRows = [];          // { youtubeId, thumbnail, date, service, title, speaker, el }
+    let importRows = [];          // { youtubeId, thumbnail, rawTitle, date, service, title, speaker, el }
+
+    let ignoredVideoIds = new Set();     // youtubeId set — excluded from future import loads
+    const ignoredVideosCache = {};       // youtubeId -> { title }, for the management list
 
     let hasYoutubeUpdatePermission = false;
     let youtubeAccessToken = null;
@@ -537,14 +551,102 @@
       return Object.values(sermonsCache).some((s) => s.youtubeId === youtubeId);
     }
 
+    // ─── Ignored YouTube videos (permanent import exclusions) ───────────────────
+    async function loadIgnoredVideos() {
+      try {
+        const snap = await db.collection('ignoredYoutubeVideos').get();
+        ignoredVideoIds = new Set();
+        Object.keys(ignoredVideosCache).forEach((k) => delete ignoredVideosCache[k]);
+        snap.forEach((doc) => {
+          ignoredVideoIds.add(doc.id);
+          ignoredVideosCache[doc.id] = doc.data();
+        });
+      } catch (_) {
+        ignoredVideoIds = new Set();
+      }
+      renderIgnoredList();
+    }
+
+    function renderIgnoredList() {
+      const label = document.getElementById('ignored-count-label');
+      if (label) label.textContent = `Ignored videos (${ignoredVideoIds.size})`;
+
+      const list = document.getElementById('ignored-list');
+      if (!list) return;
+      list.innerHTML = '';
+      if (!ignoredVideoIds.size) {
+        list.innerHTML = '<p class="text-xs text-gray-400">No ignored videos.</p>';
+        return;
+      }
+      [...ignoredVideoIds].forEach((youtubeId) => {
+        const data = ignoredVideosCache[youtubeId] || {};
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between gap-3 text-sm bg-white border border-gray-100 rounded-xl px-3 py-2';
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'truncate text-gray-600';
+        nameEl.textContent = data.title || youtubeId;
+
+        const restoreBtn = document.createElement('button');
+        restoreBtn.type = 'button';
+        restoreBtn.className = 'text-blue-600 hover:text-blue-700 text-xs font-medium flex-shrink-0';
+        restoreBtn.textContent = 'Restore';
+        restoreBtn.addEventListener('click', () => unignoreVideo(youtubeId));
+
+        row.appendChild(nameEl);
+        row.appendChild(restoreBtn);
+        list.appendChild(row);
+      });
+    }
+
+    function toggleIgnoredPanel() {
+      document.getElementById('ignored-panel').classList.toggle('hidden');
+    }
+
+    async function ignoreVideo(row, rowEl) {
+      try {
+        await db.collection('ignoredYoutubeVideos').doc(row.youtubeId).set({
+          youtubeId: row.youtubeId,
+          title: row.rawTitle || row.title || '',
+          ignoredAt: firebase.firestore.FieldValue.serverTimestamp(),
+          ignoredBy: firebase.auth().currentUser ? firebase.auth().currentUser.uid : null,
+        });
+
+        ignoredVideoIds.add(row.youtubeId);
+        ignoredVideosCache[row.youtubeId] = { title: row.rawTitle || row.title || '' };
+        renderIgnoredList();
+
+        // Remove from view entirely — same convention as imported rows.
+        rowEl.remove();
+        const idx = importRows.indexOf(row);
+        if (idx !== -1) importRows.splice(idx, 1);
+        showToast('Video ignored — it will be excluded from future imports.', 'success');
+      } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+      }
+    }
+
+    async function unignoreVideo(youtubeId) {
+      try {
+        await db.collection('ignoredYoutubeVideos').doc(youtubeId).delete();
+        ignoredVideoIds.delete(youtubeId);
+        delete ignoredVideosCache[youtubeId];
+        renderIgnoredList();
+        showToast('Video restored. Click Load Videos to see it again.', 'success');
+      } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+      }
+    }
+
     function appendImportRows(videos) {
       const tbody = document.getElementById('import-rows');
       videos
         .filter((video) => !isAudioVariant(video.title))
         .filter((video) => !isAlreadyImported(video.youtubeId))
+        .filter((video) => !ignoredVideoIds.has(video.youtubeId))
         .forEach((video) => {
           const parsed = parseSermonTitle(video.title);
-          const row = { youtubeId: video.youtubeId, thumbnail: video.thumbnail, ...parsed };
+          const row = { youtubeId: video.youtubeId, thumbnail: video.thumbnail, rawTitle: video.title, ...parsed };
           row.el = renderImportRow(row);
           importRows.push(row);
           tbody.appendChild(row.el);
@@ -601,6 +703,17 @@
       tdSpeaker.className = 'px-3 py-2 align-top';
       tdSpeaker.appendChild(makeRowInput('text', row.speaker, 'import-speaker w-32', 'speaker-datalist'));
       tr.appendChild(tdSpeaker);
+
+      const tdAction = document.createElement('td');
+      tdAction.className = 'px-3 py-2 align-top';
+      const ignoreBtn = document.createElement('button');
+      ignoreBtn.type = 'button';
+      ignoreBtn.title = 'Permanently exclude this video from future import loads (e.g. a funeral service)';
+      ignoreBtn.className = 'text-red-500 hover:text-red-700 text-xs font-medium whitespace-nowrap';
+      ignoreBtn.textContent = 'Ignore';
+      ignoreBtn.addEventListener('click', () => ignoreVideo(row, tr));
+      tdAction.appendChild(ignoreBtn);
+      tr.appendChild(tdAction);
 
       return tr;
     }
@@ -1260,6 +1373,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
       await loadSeries();
       loadSermons();
+      loadIgnoredVideos();
     });
 
     firebase.auth().onAuthStateChanged((user) => {

@@ -10,7 +10,57 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — bulk import title parser now recognizes the "Vid" marker; Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Maintenance — bulk YouTube import supports permanently ignoring videos (e.g. funeral services); Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — Ignore videos in bulk YouTube import (Session 108)
+
+**Date:** 2026-06-22
+**Branch:** `feat/ignore-youtube-import-videos` (PR pending)
+**Status:** Open
+
+### What was done
+User's channel has non-sermon content (funeral services) mixed in with real sermons; the
+bulk import had no way to permanently exclude a video, so it kept reappearing on every
+load. Added a third exclusion filter alongside the existing "audio duplicate" and
+"already imported" ones.
+
+- **`firestore.rules`** — new `/ignoredYoutubeVideos/{youtubeId}` collection, gated
+  read+write on `sermons.manage` (admin tool, no public read — mirrors the
+  `notifications.send`-gated `/notifications` collection's single-permission shape).
+- **`admin/sermons.html`**:
+  - "Ignore" button added to each import row (new table column) — writes
+    `{youtubeId, title (raw YouTube title), ignoredAt, ignoredBy}` and removes the row from
+    view immediately, same convention as already-imported rows ("remove from view
+    entirely" — Session 86).
+  - `appendImportRows()` gets a third filter (`!ignoredVideoIds.has(...)`) alongside the
+    existing audio-duplicate and already-imported filters, so ignored videos never
+    reappear on any future load (including "Load More" pagination, which reuses the same
+    function).
+  - "Ignored videos (N)" toggle next to "Load Videos" expands a small management list
+    (raw title + Restore button) — added since a one-way, console-only-undoable action
+    felt risky for a single misclick; Restore just deletes the Firestore doc (the video
+    reappears on the *next* Load Videos, not retroactively into an already-rendered table).
+  - `ignoredVideoIds`/`ignoredVideosCache` loaded once at page init alongside
+    `loadSeries()`/`loadSermons()`.
+- **`tests/firestore.rules.test.js`** — 5 new tests for the new collection.
+- **`CLAUDE.md`** — data model entry added.
+
+### Verification
+- Full Firestore rules suite, **90 passing** (5 new): `sermons.manage` holder can
+  read/write/delete; plain member and unauthenticated both denied read and write.
+- Admin UI end-to-end in a stubbed browser — **10/10**: both videos show before any
+  action; ignoring removes the row from the DOM and the `importRows` array immediately;
+  the ignore is persisted with the raw title; the count label updates; a simulated future
+  load correctly excludes the ignored video; the management panel lists it by title;
+  Restore deletes the Firestore doc, resets the count, and the video reappears on the
+  next load.
+
+### Deploy
+`firebase deploy --only firestore:rules` — required for the new collection's rule.
+
+---
 
 ---
 
