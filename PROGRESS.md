@@ -10,7 +10,60 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — user-approval troubleshooting thread **resolved** (orphan self-heal + hardened create rules + re-login nudge, all live; account self-healed, approved, and deacon login/approval verified in production). Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number.
+**Current milestone:** Maintenance — sermon notes upload broadened to PDF/Word/PowerPoint; Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — Sermon Notes upload rejected non-PDF files (e.g. .pptx) (Session 103)
+
+**Date:** 2026-06-22
+**Branch:** `feat/sermon-notes-doc-types` (PR pending)
+**Status:** Open
+
+### Bug
+User tried to upload a `.pptx` to the sermon "Notes" field and got `storage/unauthorized`
+from `saveSermon()`. Not a code bug — `storage.rules`' `isValidPDF()` only allowed
+`application/pdf`, so the Storage rule correctly (but unhelpfully) denied the write; the
+error surfaced as a generic permission error instead of a clear "wrong file type" message.
+User asked to support uploading other sermon media — clarified scope via AskUserQuestion
+(file-type security/cost decision, not a request to silently expand): **documents & slides
+only** (PDF, Word, PowerPoint), **50MB max** (up from 20MB).
+
+### Fix
+- **`storage.rules`** — `isValidPDF()` → `isValidDocument()`: allows `application/pdf`,
+  `application/msword`, `.docx`, `application/vnd.ms-powerpoint`, `.pptx` (exact
+  content-type list via `in`), raised to 50MB. `/sermons/{sermonId}/{fileName}` write rule
+  now checks `isValidAudio() || isValidDocument()`.
+- **`admin/sermons.html`** — accept attr now `.pdf,.doc,.docx,.ppt,.pptx`; client-side
+  extension + size validation in `onPdfFileSelected()` (friendly toast instead of relying on
+  the Storage rule's unauthorized error); upload path preserves the real extension
+  (`notes.${ext}` instead of hardcoded `notes.pdf` — previously a `.pptx` would have been
+  silently mislabeled `notes.pdf` had the rule allowed it, breaking downloads); the
+  "current notes" icon is now picked dynamically from the file extension
+  (`notesIconClass()` — Word/PowerPoint/PDF/generic).
+- **`js/sermons.js`** (public sermons page) — same dynamic icon logic on the "Notes"
+  resource button, since `notesUrl` is no longer always a PDF.
+- **`CLAUDE.md`** — updated storage rules/paths/upload-flow docs (3 spots) for the new
+  types, size, and `notes.{ext}` path.
+
+### Verification
+- `storage.rules` validated **behaviorally** against the Storage emulator (ad hoc
+  `@firebase/rules-unit-testing` script, not part of the permanent suite — no storage rules
+  test harness exists yet): all 5 allowed content types succeed; a disallowed type (zip) is
+  denied; 51MB is denied; 49MB succeeds (cap is exact); non-admin member denied; anonymous
+  read still works. **10/10 pass.**
+- Admin UI verified end-to-end in a stubbed browser (Playwright): `.zip` rejected with a
+  friendly toast (not staged); `.pptx` (the user's exact case) accepted and staged; 51MB
+  file rejected; on save, the upload path correctly ends in `notes.pptx` (not `notes.pdf`);
+  editing a sermon with a `.docx` notes file shows the Word icon. **6/6 pass.**
+- `node -c` clean on `js/sermons.js`; inline-script syntax check clean on
+  `admin/sermons.html`.
+
+### Deploy
+`firebase deploy --only storage` (the rule change) — required; CI never auto-deploys rules.
+No SW cache bump needed (no new page, no asset-list change).
+
+---
 
 ---
 

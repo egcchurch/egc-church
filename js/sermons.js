@@ -46,6 +46,16 @@ function setView(view) {
   filterAndRender();
 }
 
+// Sermon notes can be a PDF, Word, or PowerPoint file — pick a matching icon
+// from the file extension on the (Firebase Storage) download URL.
+function notesIconClass(url) {
+  const ext = (url || '').split('?')[0].split('.').pop().toLowerCase();
+  if (ext === 'pdf') return 'fa-file-pdf';
+  if (ext === 'doc' || ext === 'docx') return 'fa-file-word';
+  if (ext === 'ppt' || ext === 'pptx') return 'fa-file-powerpoint';
+  return 'fa-file-lines';
+}
+
 function createResourceButtons(sermon) {
   let html = '';
 
@@ -69,7 +79,7 @@ function createResourceButtons(sermon) {
     html += `
       <a href="${sermon.notesUrl}" target="_blank"
          class="resource-btn bg-blue-100 hover:bg-blue-200 text-blue-700">
-        <i class="fas fa-file-pdf"></i> Notes
+        <i class="fas ${notesIconClass(sermon.notesUrl)}"></i> Notes
       </a>`;
   }
 
