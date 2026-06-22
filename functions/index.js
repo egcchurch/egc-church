@@ -1196,6 +1196,7 @@ exports.registerForCottageMeeting = functions
   const meetingId = (data && data.meetingId ? String(data.meetingId) : '').trim();
   const partySize = parseInt(data && data.partySize, 10);
   const providedPhone = (data && data.phone ? String(data.phone) : '').trim();
+  const smsOptIn = !!(data && data.sms === true);
 
   if (!meetingId) {
     throw new functions.https.HttpsError('invalid-argument', 'meetingId is required.');
@@ -1209,6 +1210,10 @@ exports.registerForCottageMeeting = functions
   if (!user || user.membership !== 'member') {
     throw new functions.https.HttpsError('permission-denied', 'Cottage meetings are for approved members.');
   }
+
+  // The member's saved profile number is authoritative; a number is only typed
+  // in at registration when the profile has none.
+  const effectivePhone = providedPhone || user.phone || '';
 
   const meetingRef = db.collection('cottageMeetings').doc(meetingId);
   const regRef = db.collection('cottageRegistrations').doc(uid);
@@ -1247,7 +1252,8 @@ exports.registerForCottageMeeting = functions
       meetingId,
       regionId: meeting.regionId || null,
       name: user.displayName || user.email || 'Member',
-      phone: providedPhone || user.phone || null,
+      phone: effectivePhone || null,
+      smsRequested: smsOptIn,
       email: user.email || null,
       partySize,
       registeredAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1274,11 +1280,18 @@ exports.registerForCottageMeeting = functions
     linkUrl: '/members/cottage.html',
   });
 
-  // SMS confirmation (Phase 2) — best-effort; no-op if SMSPortal isn't configured
-  // or the member has no number on file.
-  const smsPhone = providedPhone || user.phone || '';
-  if (smsPhone) {
-    await sendSms(smsPhone, `EGC Cottage Meeting. ${lines.join(' ')}`);
+  // Back-fill the member's profile number when it was empty, so they only ever
+  // type it once (and it becomes available to the directory/future features).
+  if (!user.phone && providedPhone) {
+    await db.collection('users').doc(uid)
+      .update({ phone: providedPhone, updatedAt: admin.firestore.FieldValue.serverTimestamp() })
+      .catch(e => console.warn('cottage profile phone back-fill failed:', e.message));
+  }
+
+  // SMS confirmation (Phase 2) — only when the member opted in and a number is
+  // available. Best-effort; no-op if SMSPortal isn't configured.
+  if (smsOptIn && effectivePhone) {
+    await sendSms(effectivePhone, `EGC Cottage Meeting. ${lines.join(' ')}`);
   }
 
   return { success: true, seatsTaken: result.newSeatsTaken, capacity: result.capacity };
