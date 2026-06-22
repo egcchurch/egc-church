@@ -87,7 +87,9 @@ church-website-pwa/
 │   └── .gitignore              ← Excludes node_modules
 │
 ├── firebase-config.js          ← Firebase init (committed, public)
-├── firebase.json               ← Firebase Hosting multi-site config
+├── firebase.json               ← Firebase Hosting multi-site config (manifest.json and
+│                                  service-worker.js get an explicit no-cache header —
+│                                  see Sermon Media Strategy / orientation note for why)
 ├── .firebaserc                 ← Firebase project + site target aliases
 ├── firestore.rules             ← Firestore security rules
 ├── firestore.indexes.json      ← Firestore composite indexes
@@ -589,6 +591,12 @@ via YouTube public URLs. Playback on `/sermons.html` is in-page (a modal with a 
     `orientation` doesn't apply there) but not in the installed app, before this was
     changed. Trade-off: this also lets every *other* page rotate to landscape when
     installed, not just the video player — there's no per-page manifest setting.
+    `manifest.json` and `service-worker.js` get an explicit `Cache-Control: no-cache`
+    header in `firebase.json` (Firebase Hosting's default was caching them for 1 hour) so
+    a change like this reaches browsers/CDN immediately — separate from, and not a fix
+    for, Android's own WebAPK rebuild delay (the native app wrapper for an *already
+    installed* PWA can take a while to pick up a manifest change; Chrome periodically
+    re-checks in the background, independent of our cache headers).
 - **Video backup:** Cloudflare R2 or Internet Archive (originals preserved off YouTube)
 - **Audio files:** Firebase Storage at `/sermons/{sermonId}/audio.mp3`
 - **Sermon notes/materials (PDF, Word, or PowerPoint, multiple files allowed):** Firebase Storage at `/sermons/{sermonId}/materials/{timestamp}_{index}_{filename}` — original filenames/extensions preserved; the sermon doc's `materials[]` array stores `{ url, name }` per file
