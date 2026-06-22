@@ -55,6 +55,12 @@ service firebase.storage {
       allow write: if isAdminUser() && isValidImage();
     }
 
+    // ── Sermon series cover images ────────────────────────────────────────
+    match /series/{seriesId}/{fileName} {
+      allow read: if true;
+      allow write: if isAdminUser() && isValidImage();
+    }
+
     // ── Music ─────────────────────────────────────────────────────────────
     match /music/{fileName} {
       allow read: if true;

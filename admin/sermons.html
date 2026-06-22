@@ -37,6 +37,10 @@
                 class="bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
           <i class="fab fa-youtube mr-2"></i>Import from YouTube
         </button>
+        <button onclick="toggleSeriesPanel()"
+                class="bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          <i class="fas fa-layer-group mr-2"></i>Manage Series
+        </button>
         <button onclick="openForm()"
                 class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
           <i class="fas fa-plus mr-2"></i>Add Sermon
@@ -82,10 +86,11 @@
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Series</label>
-          <select id="f-series"
-                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
-            <option value="">(None)</option>
-          </select>
+          <input id="f-series" type="text" list="series-datalist" autocomplete="off"
+                 placeholder="Type to search, or add a new series"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
+          <datalist id="series-datalist"></datalist>
+          <p class="text-xs text-gray-400 mt-1">Pick an existing series or type a new name — it's created automatically on save. Set cover art &amp; order under "Manage Series".</p>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Part # in Series</label>
@@ -209,6 +214,21 @@
     </div>
   </div>
 
+  <!-- MANAGE SERIES PANEL -->
+  <div id="series-panel" class="hidden bg-white border-b shadow-sm">
+    <div class="max-w-7xl mx-auto px-6 py-8">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-xl font-bold text-[#0A3D62]">Manage Series</h2>
+        <button onclick="closeSeriesPanel()" class="text-gray-400 hover:text-gray-600">
+          <i class="fas fa-times text-lg"></i>
+        </button>
+      </div>
+      <p class="text-xs text-gray-400 mb-6">Set a cover image and description, rename, or drag the handle to reorder how series appear on the public page. Series are created from the sermon form — a series with no published sermons is hidden from the public page automatically.</p>
+      <div id="series-rows" class="space-y-3"></div>
+      <p id="series-empty" class="hidden text-sm text-gray-400 py-6 text-center">No series yet. Add one from the Series field when creating a sermon.</p>
+    </div>
+  </div>
+
   <!-- SERMON LIST -->
   <main class="max-w-7xl mx-auto px-6 py-10">
     <div id="sermon-list" class="space-y-4">
@@ -233,7 +253,7 @@
   <script>
     const db = firebase.firestore();
     let editingId = null;
-    let seriesList = []; // [{id, title}]
+    let seriesList = []; // [{id, title, description, imageUrl, order}]
     const sermonsCache = {};
 
     let stagedAudioFile = null;
@@ -685,21 +705,240 @@
       }
     }
 
-    async function loadSeriesDropdown() {
+    function escHtml(str) {
+      return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ─── Series: load + autocomplete datalist ─────────────────────────────────
+    // Single-field orderBy('order') needs no composite index; title is a
+    // client-side tiebreaker.
+    async function loadSeries() {
       try {
-        const snap = await db.collection('series').orderBy('order').orderBy('title').get();
-        seriesList = snap.docs.map(d => ({ id: d.id, title: d.data().title }));
+        const snap = await db.collection('series').orderBy('order').get();
+        seriesList = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (a.order || 0) - (b.order || 0) || (a.title || '').localeCompare(b.title || ''));
       } catch (_) {
         seriesList = [];
       }
-      const sel = document.getElementById('f-series');
-      sel.innerHTML = '<option value="">(None)</option>';
+      const dl = document.getElementById('series-datalist');
+      dl.innerHTML = '';
       seriesList.forEach(s => {
         const opt = document.createElement('option');
-        opt.value = s.id;
-        opt.textContent = s.title;
-        sel.appendChild(opt);
+        opt.value = s.title;
+        dl.appendChild(opt);
       });
+      if (!document.getElementById('series-panel').classList.contains('hidden')) {
+        renderSeriesPanel();
+      }
+    }
+
+    // Resolve a typed series name to an existing id (case/whitespace-insensitive)
+    // or create a new series doc on the fly. Returns null for an empty name.
+    async function resolveSeriesId(rawName) {
+      const name = (rawName || '').trim();
+      if (!name) return null;
+      const norm = name.toLowerCase();
+      const existing = seriesList.find(s => (s.title || '').trim().toLowerCase() === norm);
+      if (existing) return existing.id;
+
+      const nextOrder = seriesList.reduce((max, s) => Math.max(max, s.order || 0), -1) + 1;
+      const ref = db.collection('series').doc();
+      const data = {
+        title: name,
+        description: null,
+        imageUrl: null,
+        order: nextOrder,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      };
+      await ref.set(data);
+      seriesList.push({ id: ref.id, ...data });
+      const opt = document.createElement('option');
+      opt.value = name;
+      document.getElementById('series-datalist').appendChild(opt);
+      return ref.id;
+    }
+
+    // ─── Manage Series panel ──────────────────────────────────────────────────
+    function toggleSeriesPanel() {
+      const panel = document.getElementById('series-panel');
+      const opening = panel.classList.contains('hidden');
+      panel.classList.toggle('hidden');
+      if (opening) { renderSeriesPanel(); panel.scrollIntoView({ behavior: 'smooth' }); }
+    }
+    function closeSeriesPanel() {
+      document.getElementById('series-panel').classList.add('hidden');
+    }
+
+    let seriesDragId = null;
+
+    function renderSeriesPanel() {
+      const rows = document.getElementById('series-rows');
+      const empty = document.getElementById('series-empty');
+      rows.innerHTML = '';
+      if (!seriesList.length) { empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+
+      seriesList.forEach(s => rows.appendChild(buildSeriesRow(s)));
+    }
+
+    function buildSeriesRow(s) {
+      const count = Object.values(sermonsCache).filter(m => m.seriesId === s.id).length;
+
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-3 bg-zinc-50 border border-gray-100 rounded-2xl p-3';
+      row.dataset.id = s.id;
+      row.draggable = true;
+
+      // Drag handle
+      const handle = document.createElement('div');
+      handle.className = 'text-gray-300 cursor-grab px-1 select-none';
+      handle.innerHTML = '<i class="fas fa-grip-vertical"></i>';
+
+      // Cover thumbnail
+      const thumbWrap = document.createElement('label');
+      thumbWrap.className = 'relative w-20 h-14 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer group';
+      thumbWrap.title = 'Click to set cover image';
+      const thumb = document.createElement('div');
+      thumb.className = 'w-full h-full';
+      thumb.innerHTML = s.imageUrl
+        ? `<img src="${escHtml(s.imageUrl)}" class="w-full h-full object-cover" alt="">`
+        : `<div class="w-full h-full bg-gradient-to-br from-[#0A3D62] to-amber-500 flex items-center justify-center"><i class="fas fa-image text-white opacity-70"></i></div>`;
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*';
+      fileInput.className = 'hidden';
+      fileInput.addEventListener('change', () => uploadSeriesCover(s.id, fileInput));
+      thumbWrap.appendChild(thumb);
+      thumbWrap.appendChild(fileInput);
+
+      // Title + description inputs
+      const fields = document.createElement('div');
+      fields.className = 'flex-1 min-w-0 space-y-2';
+      const titleInput = document.createElement('input');
+      titleInput.type = 'text';
+      titleInput.value = s.title || '';
+      titleInput.className = 'w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-400';
+      titleInput.addEventListener('blur', () => renameSeries(s.id, titleInput.value));
+      const descInput = document.createElement('input');
+      descInput.type = 'text';
+      descInput.value = s.description || '';
+      descInput.placeholder = 'Description (optional)';
+      descInput.className = 'w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-400';
+      descInput.addEventListener('blur', () => updateSeriesDescription(s.id, descInput.value));
+      fields.appendChild(titleInput);
+      fields.appendChild(descInput);
+
+      // Count + delete
+      const right = document.createElement('div');
+      right.className = 'flex items-center gap-3 flex-shrink-0';
+      const badge = document.createElement('span');
+      badge.className = 'text-xs text-gray-400 whitespace-nowrap';
+      badge.textContent = `${count} sermon${count !== 1 ? 's' : ''}`;
+      const del = document.createElement('button');
+      del.className = 'text-red-400 hover:text-red-600 px-2';
+      del.title = 'Delete series';
+      del.innerHTML = '<i class="fas fa-trash"></i>';
+      del.addEventListener('click', () => deleteSeries(s.id, s.title));
+      right.appendChild(badge);
+      right.appendChild(del);
+
+      row.appendChild(handle);
+      row.appendChild(thumbWrap);
+      row.appendChild(fields);
+      row.appendChild(right);
+
+      // Drag-and-drop reordering (same pattern as the story gallery)
+      row.addEventListener('dragstart', () => { seriesDragId = s.id; row.classList.add('opacity-50'); });
+      row.addEventListener('dragend', () => { row.classList.remove('opacity-50'); });
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const container = document.getElementById('series-rows');
+        const dragging = container.querySelector(`[data-id="${seriesDragId}"]`);
+        if (!dragging || dragging === row) return;
+        const rect = row.getBoundingClientRect();
+        const after = (e.clientY - rect.top) > rect.height / 2;
+        container.insertBefore(dragging, after ? row.nextSibling : row);
+      });
+      row.addEventListener('drop', (e) => { e.preventDefault(); saveSeriesOrder(); });
+
+      return row;
+    }
+
+    async function saveSeriesOrder() {
+      const ids = [...document.querySelectorAll('#series-rows [data-id]')].map(el => el.dataset.id);
+      const batch = db.batch();
+      ids.forEach((id, i) => {
+        batch.update(db.collection('series').doc(id), { order: i, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        const s = seriesList.find(x => x.id === id);
+        if (s) s.order = i;
+      });
+      try {
+        await batch.commit();
+        seriesList.sort((a, b) => (a.order || 0) - (b.order || 0));
+        showToast('Series order saved.', 'success');
+      } catch (err) {
+        showToast('Error saving order: ' + err.message, 'error');
+      }
+    }
+
+    async function renameSeries(id, newTitle) {
+      const title = (newTitle || '').trim();
+      const s = seriesList.find(x => x.id === id);
+      if (!s || title === (s.title || '') || !title) return;
+      try {
+        await db.collection('series').doc(id).update({ title, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        s.title = title;
+        loadSeries();        // refresh datalist + sermon list labels
+        loadSermons();
+        showToast('Series renamed.', 'success');
+      } catch (err) {
+        showToast('Error renaming: ' + err.message, 'error');
+      }
+    }
+
+    async function updateSeriesDescription(id, desc) {
+      const s = seriesList.find(x => x.id === id);
+      const value = (desc || '').trim() || null;
+      if (!s || value === (s.description || null)) return;
+      try {
+        await db.collection('series').doc(id).update({ description: value, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        s.description = value;
+      } catch (err) {
+        showToast('Error saving description: ' + err.message, 'error');
+      }
+    }
+
+    async function uploadSeriesCover(id, input) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const s = seriesList.find(x => x.id === id);
+      try {
+        showToast('Uploading cover...', 'success');
+        const blob = await compressImage(file);
+        const url = await uploadMedia(`series/${id}/cover.jpg`, blob);
+        await db.collection('series').doc(id).update({ imageUrl: url, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        if (s) s.imageUrl = url;
+        renderSeriesPanel();
+        showToast('Cover updated.', 'success');
+      } catch (err) {
+        showToast('Error uploading cover: ' + err.message, 'error');
+      }
+    }
+
+    async function deleteSeries(id, title) {
+      if (!confirm(`Delete "${title || 'this series'}"? Sermons in it are kept, but lose their series tag.`)) return;
+      const s = seriesList.find(x => x.id === id);
+      try {
+        if (s?.imageUrl) await deleteMedia(s.imageUrl);
+        await db.collection('series').doc(id).delete();
+        seriesList = seriesList.filter(x => x.id !== id);
+        loadSeries();
+        loadSermons();
+        showToast('Series deleted.', 'success');
+      } catch (err) {
+        showToast('Error deleting: ' + err.message, 'error');
+      }
     }
 
     function openForm(id) {
@@ -716,7 +955,8 @@
       document.getElementById('f-description').value  = s?.description  || '';
       document.getElementById('f-youtube').value      = s?.youtubeId    || '';
       updateYoutubeThumb(s?.youtubeId || '');
-      document.getElementById('f-series').value       = s?.seriesId     || '';
+      const curSeries = s?.seriesId ? seriesList.find(x => x.id === s.seriesId) : null;
+      document.getElementById('f-series').value       = curSeries ? curSeries.title : '';
       document.getElementById('f-series-order').value = s?.seriesOrder != null ? s.seriesOrder : '';
       document.getElementById('f-published').checked  = s?.published    ?? true;
 
@@ -784,6 +1024,9 @@
           notesUrl = null;
         }
 
+        // Resolve the typed series name to an id, creating the series if new.
+        const seriesId = await resolveSeriesId(document.getElementById('f-series').value);
+
         const seriesOrderVal = document.getElementById('f-series-order').value;
         const data = {
           title,
@@ -796,7 +1039,7 @@
           youtubeId   : document.getElementById('f-youtube').value.trim(),
           audioUrl,
           notesUrl,
-          seriesId    : document.getElementById('f-series').value || null,
+          seriesId    : seriesId,
           seriesOrder : seriesOrderVal !== '' ? parseInt(seriesOrderVal, 10) : null,
           published   : document.getElementById('f-published').checked,
           updatedAt   : firebase.firestore.FieldValue.serverTimestamp(),
@@ -902,7 +1145,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
-      await loadSeriesDropdown();
+      await loadSeries();
       loadSermons();
     });
 
