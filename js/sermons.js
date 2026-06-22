@@ -72,10 +72,10 @@ function createResourceButtons(sermon) {
 
   if (sermon.youtubeId) {
     html += `
-      <a href="https://www.youtube.com/watch?v=${sermon.youtubeId}" target="_blank"
+      <button onclick="openVideoModal('${sermon.youtubeId}')"
          class="resource-btn bg-red-100 hover:bg-red-200 text-red-700">
         <i class="fab fa-youtube"></i> Watch
-      </a>`;
+      </button>`;
   }
 
   if (sermon.audioUrl) {
@@ -109,6 +109,21 @@ function createResourceButtons(sermon) {
   return html || '<span class="text-gray-400 text-xs italic">No resources yet</span>';
 }
 
+// ── Video modal — plays the sermon inline instead of leaving the site ─────────
+
+function openVideoModal(youtubeId) {
+  if (!youtubeId) return;
+  const sermon = allSermons.find(s => s.youtubeId === youtubeId);
+  document.getElementById('video-modal-iframe').src = `https://www.youtube.com/embed/${youtubeId}?autoplay=1`;
+  document.getElementById('video-modal-title').textContent = sermon ? sermon.title : '';
+  document.getElementById('video-modal').classList.add('open');
+}
+
+function closeVideoModal() {
+  document.getElementById('video-modal').classList.remove('open');
+  document.getElementById('video-modal-iframe').src = '';
+}
+
 function renderCardView(filtered) {
   const container = document.getElementById('card-view');
   container.innerHTML = '';
@@ -121,7 +136,8 @@ function renderCardView(filtered) {
   filtered.forEach(s => {
     const thumb = s.youtubeId
       ? `<img src="https://img.youtube.com/vi/${s.youtubeId}/mqdefault.jpg"
-              class="w-full h-48 object-cover rounded-t-3xl" alt="${s.title}">`
+              class="w-full h-48 object-cover rounded-t-3xl cursor-pointer" alt="${s.title}"
+              onclick="openVideoModal('${s.youtubeId}')">`
       : '';
 
     container.innerHTML += `
@@ -240,7 +256,8 @@ function showSeriesDetail(seriesId) {
   listEl.innerHTML = '';
   seriesSermons.forEach((m, i) => {
     const thumb = m.youtubeId
-      ? `<img src="https://img.youtube.com/vi/${m.youtubeId}/default.jpg" class="w-24 h-16 object-cover rounded-xl flex-shrink-0" alt="">`
+      ? `<img src="https://img.youtube.com/vi/${m.youtubeId}/default.jpg" class="w-24 h-16 object-cover rounded-xl flex-shrink-0 cursor-pointer" alt=""
+              onclick="openVideoModal('${m.youtubeId}')">`
       : `<div class="w-24 h-16 bg-gradient-to-br from-[#0A3D62] to-amber-500 rounded-xl flex-shrink-0 flex items-center justify-center">
            <i class="fas fa-play text-white text-xl opacity-60"></i>
          </div>`;
@@ -303,4 +320,13 @@ document.addEventListener('DOMContentLoaded', () => {
   setView('table');
   document.getElementById('search-input').addEventListener('input', filterAndRender);
   loadSermons();
+
+  document.getElementById('video-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'video-modal') closeVideoModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('video-modal').classList.contains('open')) {
+      closeVideoModal();
+    }
+  });
 });
