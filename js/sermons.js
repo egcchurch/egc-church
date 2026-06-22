@@ -11,7 +11,9 @@ let currentView = 'table';
 // since the two are related but separate pieces of content.
 function loadSermons() {
   const sermonsPromise = db.collection('sermons').where('published', '==', true).orderBy('date', 'desc').get();
-  const seriesPromise = db.collection('series').where('published', '==', true).orderBy('order').get()
+  // Series have no published flag — a series appears on the page only when it
+  // contains at least one published sermon (filtered in renderSeriesView).
+  const seriesPromise = db.collection('series').orderBy('order').get()
     .catch((err) => {
       console.error('Error loading series:', err);
       return null;
@@ -150,12 +152,16 @@ function renderSeriesView() {
   detail.classList.add('hidden');
   grid.innerHTML = '';
 
-  if (allSeries.length === 0) {
+  // Only show series that contain at least one published sermon. allSermons
+  // already holds published sermons only, so a count > 0 is the visibility test.
+  const visibleSeries = allSeries.filter(s => allSermons.some(m => m.seriesId === s.id));
+
+  if (visibleSeries.length === 0) {
     grid.innerHTML = `<div class="col-span-3 text-center py-12 text-gray-400">No series available.</div>`;
     return;
   }
 
-  allSeries.forEach(s => {
+  visibleSeries.forEach(s => {
     const sermonCount = allSermons.filter(m => m.seriesId === s.id).length;
     const thumb = s.imageUrl
       ? `<img src="${s.imageUrl}" class="w-full h-40 object-cover" alt="">`

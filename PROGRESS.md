@@ -9,8 +9,46 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-06-21
-**Current milestone:** Maintenance — all phases complete, working through backlog; YouTube Sermon Management plan fully shipped and stable after a real first-use bug hunt
+**Last worked on:** 2026-06-22
+**Current milestone:** Maintenance — all phases complete, working through backlog; sermon series reworked to inline create/manage (separate screen removed)
+
+---
+
+## Session: feat — Inline sermon series (remove separate series screen) (Session 91)
+
+**Date:** 2026-06-22
+**Branch:** `feat/inline-sermon-series` (PR pending)
+**Status:** Open
+
+### What was done
+
+Reworked sermon series management so series are created/managed without leaving the sermon admin page. User feedback: the separate `/admin/series.html` screen was cumbersome and redundant — you had to create a series there before you could pick it on the sermon form.
+
+**`admin/sermons.html`**
+- Series field changed from a read-only `<select>` (existing series only) to a **type-to-search text input backed by a `<datalist>`**. Pick an existing series or type a new name — it's created automatically on save via `resolveSeriesId()` (case/whitespace-insensitive match to avoid accidental duplicates; new docs get the next `order`).
+- New collapsible **"Manage Series" panel** (header button) for the occasional tasks that can't live on a single sermon: set a **cover image** (uploaded + compressed to `series/{id}/cover.jpg`), edit **title/description** (inline, save on blur — renaming fixes every sermon at once since they reference the series by ID), **drag-and-drop reorder** (reuses the story-gallery drag pattern; writes `order` from final DOM position), and **delete**.
+- `loadSeriesDropdown()` → `loadSeries()` (loads full series docs, single-field `orderBy('order')` + client-side title tiebreaker, so no composite index is needed).
+
+**`js/sermons.js` (public)**
+- Series query drops the `published` filter (the flag is gone). A series now appears on the public Series tab **only if it contains at least one published sermon** — empty/draft series simply don't render.
+
+**Removed**
+- `/admin/series.html` (deleted) + its admin dashboard card.
+- The series `published` checkbox and the numeric "Sort Order" field (replaced by drag-and-drop).
+- The `series (published, order)` composite index from `firestore.indexes.json` (no longer used).
+
+**`storage.rules`**
+- Added `match /series/{seriesId}/{fileName}` — public read, admin write (image only) — for series cover uploads.
+
+**`service-worker.js`**
+- Removed `/admin/series.html` from precache; cache v45 → v46.
+
+### Verification
+- Inline-script syntax checked. End-to-end browser test (Playwright, Firebase stubbed in-memory) — 11/11 behavioural checks pass, no page errors: datalist populated from existing series; Manage panel rows + accurate sermon counts; typing a new series name auto-creates it with the next order and links the sermon; case/space variant reuses the existing series (no duplicate); rename persists; drag-reorder writes `order` from final DOM order.
+
+### Still pending (manual after merge — CI deploys Hosting only)
+- `firebase deploy --only storage` — new series cover rule.
+- `firebase deploy --only firestore:indexes` — removes the now-unused series index.
 
 ---
 
