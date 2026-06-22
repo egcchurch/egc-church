@@ -10,7 +10,41 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — Cottage Meetings Phase 2 (SMS via SMSPortal) built; awaiting secrets + functions deploy
+**Current milestone:** Maintenance — Cottage Meetings Phase 2 (SMS via SMSPortal, opt-in) built; awaiting SMSPortal secrets + functions deploy
+
+---
+
+## Session: feat — Cottage SMS opt-in + profile phone back-fill (Session 97)
+
+**Date:** 2026-06-22
+**Branch:** `feat/cottage-sms-optin` (PR pending)
+**Status:** Open
+
+### What was done
+
+Refined the Phase 2 SMS UX per discussion. The mobile number is treated as **profile data** (single source of truth), and SMS is **opt-in, default off**.
+
+**`members/cottage.html`** — the register control no longer always shows a number field:
+- Member **has** a profile number → an unchecked **"Send me an SMS confirmation to <number>"** checkbox; no editable field (change it in `/profile.html`).
+- Member has **no** profile number → an unchecked **"Send me an SMS confirmation"** checkbox that reveals a mobile input when ticked. Registering with the box ticked but no number shows a prompt.
+- Sends `{ meetingId, partySize, sms, phone }` to the callable.
+
+**`functions/index.js` — `registerForCottageMeeting`:**
+- Reads `sms` (opt-in) + `phone`. `effectivePhone = phone || profile.phone`.
+- **Back-fills** the profile number (`users/{uid}.phone`) only when it was empty.
+- Sends SMS **only when `sms === true` and a number is available** (previously sent whenever any number existed). Stores `smsRequested` on the registration.
+
+SW cache v51 → v52; CLAUDE.md updated.
+
+### Verification
+TBD — functions load + syntax; member-page opt-in flow (default off, reveal-on-tick, prompt when ticked-without-number, payload includes sms/phone); SMS sent only when opted in.
+
+### Still pending — same deploy as Phase 2 (not yet done)
+1. `firebase functions:secrets:set SMSPORTAL_CLIENT_ID` / `SMSPORTAL_API_SECRET`
+2. `firebase deploy --only functions`
+(Hosting auto-deploys the member page; until the functions redeploy, the opt-in does nothing — the live Phase-1 function ignores `sms`/`phone`.)
+
+---
 
 ---
 
