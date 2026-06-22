@@ -61,8 +61,9 @@
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Speaker *</label>
-          <input id="f-speaker" type="text" placeholder="Pastor / Evangelist name"
+          <input id="f-speaker" type="text" list="speaker-datalist" placeholder="Pastor / Evangelist name"
                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <datalist id="speaker-datalist"></datalist>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
@@ -548,11 +549,12 @@
         });
     }
 
-    function makeRowInput(type, value, extraClasses) {
+    function makeRowInput(type, value, extraClasses, listId) {
       const input = document.createElement('input');
       input.type = type;
       input.value = value || '';
       input.className = 'border border-gray-200 rounded-lg px-2 py-1 text-xs w-full focus:outline-none focus:ring-1 focus:ring-amber-400 ' + extraClasses;
+      if (listId) input.setAttribute('list', listId);
       return input;
     }
 
@@ -595,7 +597,7 @@
 
       const tdSpeaker = document.createElement('td');
       tdSpeaker.className = 'px-3 py-2 align-top';
-      tdSpeaker.appendChild(makeRowInput('text', row.speaker, 'import-speaker w-32'));
+      tdSpeaker.appendChild(makeRowInput('text', row.speaker, 'import-speaker w-32', 'speaker-datalist'));
       tr.appendChild(tdSpeaker);
 
       return tr;
@@ -1163,6 +1165,24 @@
       }
     }
 
+    // Builds the shared speaker autocomplete list from every distinct speaker
+    // name already in Firestore — used by both the Add/Edit Sermon form and
+    // each row of the bulk YouTube import. A <datalist> still lets the admin
+    // type any new name freely; it only offers suggestions.
+    function buildSpeakerDatalist() {
+      const speakers = [...new Set(
+        Object.values(sermonsCache).map(s => (s.speaker || '').trim()).filter(Boolean)
+      )].sort((a, b) => a.localeCompare(b));
+
+      const dl = document.getElementById('speaker-datalist');
+      dl.innerHTML = '';
+      speakers.forEach((name) => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        dl.appendChild(opt);
+      });
+    }
+
     function loadSermons() {
       const list = document.getElementById('sermon-list');
       list.innerHTML = `<div class="text-center py-12 text-gray-400">
@@ -1227,6 +1247,8 @@
                 </div>
               </div>`;
           });
+
+          buildSpeakerDatalist();
         })
         .catch(err => {
           list.innerHTML = `<div class="text-center py-12 text-red-400"><p>Error loading sermons.</p></div>`;
