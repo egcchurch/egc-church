@@ -14,6 +14,25 @@
 
 ---
 
+## Session: fix — Cottage meetings discoverability on members dashboard (Session 95)
+
+**Date:** 2026-06-22
+**Branch:** `fix/cottage-dashboard-card` (PR pending)
+**Status:** Open
+
+### What was done
+
+User reported not seeing cottage meetings in the "members area". Deployment verified live via curl (nav link + `/members/cottage.html` both present, HTTP 200), so it wasn't a deploy issue. Two causes: (1) the link was only in the MEMBERS nav dropdown, not a tile on the `/members/index.html` dashboard; (2) the member list intentionally hides past-dated meetings (`date >= today`), so a test meeting dated in the past (e.g. the sample "11 June 2026", before today 22 June) is visible to the admin but hidden from members.
+
+- Added a **Cottage Meetings** tile to the members dashboard (`data-section="cottage"`, emerald house icon) for discoverability.
+- SW cache v48 → v49.
+- No change to the date filter — hiding past meetings is correct; the empty list during testing was the past date.
+
+### Verification
+curl confirmed nav link + page already deployed. Dashboard tile is a static markup addition matching the existing card pattern.
+
+---
+
 ## Session: feat — Cottage meeting fields parity with the old Google Form (Session 94)
 
 **Date:** 2026-06-22
