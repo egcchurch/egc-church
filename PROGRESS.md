@@ -10,7 +10,32 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Phase 3 — WhatsApp notifications: opt-in shipped (Stage 1); Stage 2 design locked (`docs/WHATSAPP.md`), blocked on the church getting a WhatsApp sender number
+**Current milestone:** Maintenance — fixed orphaned-account bug (self-heal missing /users record); Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — Self-heal missing /users record (orphaned accounts) (Session 101)
+
+**Date:** 2026-06-22
+**Branch:** `fix/self-heal-user-doc` (PR pending)
+**Status:** Open
+
+### Bug
+A newly "registered" user wasn't appearing in admin user management. Root cause (diagnosed with the user): the Auth account already existed (created 12 May) and its `/users/{uid}` record had been **removed** (manually in Firestore, not via the in-app delete flow which also removes the Auth login). `onUserCreate` only fires on **brand-new** Auth accounts, so signing back into the existing account never recreated the record → an "orphaned" login that can authenticate but has no member record (invisible in admin, can't be approved). `onUserCreate` itself is fine — the absence of recent executions just meant no new accounts were created.
+
+### Fix
+- **`js/main.js`** — `ensureUserDoc(user)` on auth state: if `/users/{uid}` is missing, create it with safe `pending` defaults (mirrors `onUserCreate`). Self-heals this account on next sign-in and closes the whole orphaned-login class. `onUserCreate` stays as primary.
+- **`firestore.rules`** — hardened `/users` create: a client may only self-create with `membership == 'pending'`, `isSuperadmin == false`, and empty `roles`/`extraPermissions` — so self-provisioning can't be abused to self-promote. (Admin SDK / `onUserCreate` bypasses rules, unaffected.)
+- Tests: self-provision as pending succeeds; as member / superadmin / with-roles all denied.
+- SW cache v54 → v55 (main.js is cache-first).
+
+### Immediate unblock
+Once deployed, the affected user just signs in again and their record is recreated as `pending`, appearing in admin to approve.
+
+### Deploy
+`firebase deploy --only firestore:rules` (hardened create) + Hosting auto-deploy (main.js, SW).
+
+---
 
 ---
 

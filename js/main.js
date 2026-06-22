@@ -98,8 +98,43 @@ function initNavDropdowns() {
 function checkAuthState() {
   if (typeof firebase === 'undefined' || typeof auth === 'undefined') return;
   auth.onAuthStateChanged((user) => {
+    if (user) ensureUserDoc(user);
     updateLoginButtons(user);
   });
+}
+
+// Self-heal: create the /users/{uid} record if it's missing. onUserCreate handles
+// brand-new accounts, but it only fires once at creation — an account whose record
+// was later removed (or any case where the trigger didn't fire) would otherwise be
+// stuck with no member record (invisible in admin, can't be approved). Created with
+// safe 'pending' defaults; the hardened create rule enforces those server-side.
+async function ensureUserDoc(user) {
+  if (typeof firebase === 'undefined' || typeof firebase.firestore !== 'function') return;
+  try {
+    const ref = firebase.firestore().collection('users').doc(user.uid);
+    const snap = await ref.get();
+    if (snap.exists) return;
+    await ref.set({
+      uid: user.uid,
+      email: user.email || '',
+      displayName: user.displayName || '',
+      photoURL: user.photoURL || '',
+      emailVerified: user.emailVerified || false,
+      membership: 'pending',
+      isSuperadmin: false,
+      roles: [],
+      extraPermissions: [],
+      phone: '',
+      directoryVisible: true,
+      directoryShowEmail: false,
+      directoryShowPhone: false,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    console.warn('ensureUserDoc: created missing user record for', user.uid);
+  } catch (e) {
+    console.warn('ensureUserDoc failed:', e.message);
+  }
 }
 
 async function updateLoginButtons(user) {

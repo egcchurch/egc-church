@@ -75,6 +75,38 @@ async function seedUser(uid, data) {
 describe('Firestore Security Rules', () => {
 
   describe('Users collection', () => {
+    it('user can self-provision their own doc as pending', async () => {
+      const db = pendingUser().firestore();
+      await assertSucceeds(setDoc(doc(db, 'users', 'pending-uid'), {
+        uid: 'pending-uid', email: 'p@e.com', membership: 'pending',
+        isSuperadmin: false, roles: [], extraPermissions: [],
+      }));
+    });
+
+    it('user cannot self-provision as a member', async () => {
+      const db = pendingUser().firestore();
+      await assertFails(setDoc(doc(db, 'users', 'pending-uid'), {
+        uid: 'pending-uid', email: 'p@e.com', membership: 'member',
+        isSuperadmin: false, roles: [], extraPermissions: [],
+      }));
+    });
+
+    it('user cannot self-provision as superadmin', async () => {
+      const db = pendingUser().firestore();
+      await assertFails(setDoc(doc(db, 'users', 'pending-uid'), {
+        uid: 'pending-uid', email: 'p@e.com', membership: 'pending',
+        isSuperadmin: true, roles: [], extraPermissions: [],
+      }));
+    });
+
+    it('user cannot self-provision with roles', async () => {
+      const db = pendingUser().firestore();
+      await assertFails(setDoc(doc(db, 'users', 'pending-uid'), {
+        uid: 'pending-uid', email: 'p@e.com', membership: 'pending',
+        isSuperadmin: false, roles: ['administrator'], extraPermissions: [],
+      }));
+    });
+
     it('pending user cannot read another user doc', async () => {
       await seedUser('pending-uid', { membership: 'pending' });
       await seedUser('other-uid', { membership: 'member' });
