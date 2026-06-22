@@ -9,8 +9,53 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — fixed mobile overflow + fullscreen rotation on the in-page video player; Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Last worked on:** 2026-06-23
+**Current milestone:** Maintenance — installed PWA now allows rotation (was hard-locked to portrait at the OS level); Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — Installed PWA didn't rotate for fullscreen video (Session 111)
+
+**Date:** 2026-06-23
+**Branch:** `fix/pwa-orientation-lock` (PR pending)
+**Status:** Open
+
+### Bug
+Follow-up to Session 110's fullscreen-rotation fix. User confirmed rotation now works in a
+regular Chrome tab, but **not** when opened as the installed PWA on Android.
+
+### Root cause
+`manifest.json` had `"orientation": "portrait"`. That field only takes effect for the
+**installed** app — Android hosts an installed PWA as its own Activity with the manifest's
+`orientation` baked in as a native, OS-enforced constraint. No in-page JavaScript —
+including the `screen.orientation.lock('landscape')` call added in Session 110 — can
+override an OS-level Activity orientation lock. This is exactly why the fix worked in a
+plain browser tab (where manifest `orientation` is irrelevant) but not in the installed
+app.
+
+### Decision (asked the user — this is a real trade-off, not a pure bug fix)
+Two paths: (a) loosen the manifest to `orientation: "any"`, letting the whole installed
+app rotate, not just the video player, since the manifest has no per-page granularity; or
+(b) keep the app portrait-locked and fake landscape only for the video via a CSS
+transform reacting to `orientationchange`/`matchMedia`, with more code and edge cases.
+User chose (a) — simplest, accepts that other pages can now also rotate when installed.
+
+### Fix
+- `manifest.json` — `orientation: "portrait"` → `"any"`.
+- `service-worker.js` — cache v57 → v58 (`manifest.json` is cache-first).
+- `CLAUDE.md` — documented why this field must stay `"any"` and the trade-off.
+
+### Note for the user
+Android's WebAPK mechanism can bake manifest properties like `orientation` into the
+already-installed app shell at install time; Chrome periodically re-checks for manifest
+changes and silently updates the WebAPK in the background, but that isn't instant. If the
+already-installed icon on the test phone doesn't pick this up shortly, removing and
+re-adding it to the home screen will force a fresh install with the new setting.
+
+### Deploy
+Hosting-only — no rules/functions change, auto-deploys on merge.
+
+---
 
 ---
 

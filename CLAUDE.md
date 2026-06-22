@@ -92,7 +92,7 @@ church-website-pwa/
 ├── firestore.rules             ← Firestore security rules
 ├── firestore.indexes.json      ← Firestore composite indexes
 ├── storage.rules               ← Firebase Storage security rules
-├── manifest.json               ← PWA manifest (start_url and scope = /)
+├── manifest.json               ← PWA manifest (start_url and scope = /; orientation: "any" — see Sermon Media Strategy for why)
 ├── service-worker.js           ← PWA service worker
 │
 ├── .github/
@@ -581,6 +581,14 @@ via YouTube public URLs. Playback on `/sermons.html` is in-page (a modal with a 
     `screen.orientation.lock('landscape')` so a physical rotation fills the screen.
     Android Chrome only — iOS Safari has no Screen Orientation API and fails silently;
     rotation behavior there depends on the device's own OS-level rotation-lock setting.
+  - **`manifest.json`'s `orientation` must stay `"any"`** (not `"portrait"`) for this to
+    work at all in the **installed PWA**. When installed on Android, the OS hosts the app
+    as its own Activity with the manifest's `orientation` baked in as a native,
+    OS-enforced constraint — no in-page JS (including `screen.orientation.lock()`) can
+    override it. This is why rotation worked in a regular Chrome tab (manifest
+    `orientation` doesn't apply there) but not in the installed app, before this was
+    changed. Trade-off: this also lets every *other* page rotate to landscape when
+    installed, not just the video player — there's no per-page manifest setting.
 - **Video backup:** Cloudflare R2 or Internet Archive (originals preserved off YouTube)
 - **Audio files:** Firebase Storage at `/sermons/{sermonId}/audio.mp3`
 - **Sermon notes/materials (PDF, Word, or PowerPoint, multiple files allowed):** Firebase Storage at `/sermons/{sermonId}/materials/{timestamp}_{index}_{filename}` — original filenames/extensions preserved; the sermon doc's `materials[]` array stores `{ url, name }` per file
