@@ -10,7 +10,32 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — Cottage Meetings Phase 2 (SMS via SMSPortal, opt-in) built; awaiting SMSPortal secrets + functions deploy
+**Current milestone:** Maintenance — Cottage Meetings Phase 2 SMS (SMSPortal) live and confirmed working
+
+---
+
+## Session: fix — Cottage SMS line breaks + "Number attending" wording (Session 98)
+
+**Date:** 2026-06-22
+**Branch:** `fix/cottage-sms-format-wording` (PR pending)
+**Status:** Open
+
+### What was done
+
+Phase 2 SMS confirmed working live (SMS received, profile back-fill worked). Two polish tweaks:
+
+- **SMS readability:** the SMS body is now newline-separated (`EGC Cottage Meeting` header + blank line + one line each for registration/venue/map/contact) instead of one space-joined run. In-app + push stay space-joined (the notification panel clamps to 2 lines).
+- **Wording:** the member form label "Party size" → **"Number attending"**; the confirmation text "(party of N)" → **"(N attending)"** (shared by in-app/push/SMS); the admin registrant table column "Party" → **"Attending"**.
+
+SW cache v52 → v53.
+
+### Verification
+TBD — functions load; SMS body contains newlines; member/admin pages syntax-check.
+
+### Deploy
+`firebase deploy --only functions` (SMSPortal secrets already set/confirmed working) + Hosting auto-deploy.
+
+---
 
 ---
 
