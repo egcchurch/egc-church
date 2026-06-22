@@ -32,7 +32,16 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isOwner(uid) || isSuperadmin() || hasPermission('users.approve')
                   || (isMember() && resource.data.directoryVisible == true);
-      allow create: if isOwner(uid);
+      // Self-provisioning (client create-if-missing on first sign-in) is locked to
+      // safe defaults so a user can never create themselves as a member/superadmin.
+      // The onUserCreate Cloud Function uses the Admin SDK and bypasses this.
+      allow create: if isOwner(uid)
+                    && request.resource.data.membership == 'pending'
+                    && request.resource.data.isSuperadmin == false
+                    && (!('roles' in request.resource.data)
+                        || request.resource.data.roles.size() == 0)
+                    && (!('extraPermissions' in request.resource.data)
+                        || request.resource.data.extraPermissions.size() == 0);
       // isOwner: self-service profile fields (name, photo, privacy)
       // users.approve: set membership tier and membershipRequestedAt only
       // users.assign_roles: set roles/extraPermissions only (not isSuperadmin)
