@@ -14,6 +14,32 @@
 
 ---
 
+## Session: feat — Cottage meeting fields parity with the old Google Form (Session 94)
+
+**Date:** 2026-06-22
+**Branch:** `feat/cottage-meeting-fields` (PR pending)
+**Status:** Open
+
+### What was done
+
+Follow-up to Session 93. The user listed the fields their Google Form used and asked to make sure they're all catered for. Capacity/date/time were already done; added the rest:
+
+- **`title`** (optional) — e.g. "EGC: Cottage Meeting East Rand"; falls back to the region name when blank.
+- **Multi-line venue** — `address` changed from a single-line input to a textarea; rendered with `whitespace-pre-line` on the member card and admin list (no need for the form's 4 separate VENUE_LINE fields).
+- **`mapsLink`** — Google Maps URL; shown as a "Get directions" link (new-tab) on the member card. Guarded by a `safeHttpUrl()` helper so only `http(s)` links render (blocks `javascript:` etc.).
+- **`contactName` / `contactNumber`** — on-the-night contact; number rendered as a sanitised `tel:` link.
+
+Updated `admin/cottage.html` (form fields + save + edit-populate + list row), `members/cottage.html` (card render + helpers), and the **`registerForCottageMeeting`** confirmation message in `functions/index.js` now includes the maps link and contact (multi-line address flattened to commas for the notification body). SW cache v47 → v48; CLAUDE.md data model updated.
+
+### Verification
+TBD — syntax checks, functions load, and a stubbed-browser check that the new fields render (title, multi-line address, directions link, tel link) before merge.
+
+### Still pending (manual after merge — CI deploys Hosting only)
+- `firebase deploy --only functions` — the confirmation-body change.
+- (No rules change this session — field additions live within the existing `cottageMeetings` doc rules.)
+
+---
+
 ## Session: feat — Cottage Meetings registration, Phase 1 (Session 93)
 
 **Date:** 2026-06-22

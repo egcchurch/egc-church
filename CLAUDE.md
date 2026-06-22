@@ -503,9 +503,12 @@ Functions are organised by trigger type:
   regions: [{ id, name }]                   ← superadmin-managed area list
 
 /cottageMeetings/{meetingId}                ← Cottage Meetings
+  title (nullable)                          ← optional display title; falls back to regionName
   regionId, regionName
   hostUid, hostName                         ← the deacon running this meeting
-  address, date (YYYY-MM-DD), time
+  address (multi-line — rendered as typed), date (YYYY-MM-DD), time
+  mapsLink (nullable)                       ← Google Maps URL; shown as "Get directions"
+  contactName, contactNumber (nullable)     ← on-the-night contact; number shown as tel: link
   capacity (int), seatsTaken (int)          ← seatsTaken maintained by Cloud Functions
   open: true | false                        ← registration open?
   notes (nullable)

@@ -1204,9 +1204,18 @@ exports.registerForCottageMeeting = functions.https.onCall(async (data, context)
 
   const m = result.meeting;
   const when = [m.date, m.time].filter(Boolean).join(' at ');
+  const venue = (m.address || 'to be confirmed').replace(/\s*\n\s*/g, ', ');
+  const lines = [
+    `You're registered (party of ${partySize}) for ${m.title || m.regionName || 'your cottage meeting'}${when ? ' on ' + when : ''}.`,
+    `Venue: ${venue}.`,
+  ];
+  if (m.mapsLink) lines.push(`Map: ${m.mapsLink}`);
+  if (m.contactName || m.contactNumber) {
+    lines.push(`Contact: ${[m.contactName, m.contactNumber].filter(Boolean).join(' ')}`);
+  }
   await sendUserNotification(uid, {
     title: 'Cottage Meeting — Registration Confirmed',
-    body: `You're registered (party of ${partySize}) for ${m.regionName || 'your cottage meeting'}${when ? ' on ' + when : ''}. Venue: ${m.address || 'to be confirmed'}.`,
+    body: lines.join(' '),
     type: 'cottage',
     linkUrl: '/members/cottage.html',
   });

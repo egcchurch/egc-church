@@ -37,18 +37,40 @@
     <div class="max-w-3xl mx-auto px-6 py-8">
       <h2 class="text-xl font-bold text-[#0A3D62] mb-6" id="form-title">New Meeting</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Title (optional)</label>
+          <input id="f-title" type="text" placeholder="e.g. EGC: Cottage Meeting East Rand"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <p class="text-xs text-gray-400 mt-1">Leave blank to just show the region name.</p>
+        </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Region *</label>
           <select id="f-region" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"></select>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Capacity (seats) *</label>
-          <input id="f-capacity" type="number" min="1" placeholder="e.g. 20"
+          <input id="f-capacity" type="number" min="1" placeholder="e.g. 35"
                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
         </div>
         <div class="md:col-span-2">
           <label class="block text-sm font-medium text-gray-700 mb-1">Venue / Address *</label>
-          <input id="f-address" type="text" placeholder="e.g. 12 Acacia Rd, Bedfordview (the Smith home)"
+          <textarea id="f-address" rows="3" placeholder="5 Diaz Road,&#10;Witkoppie Ridge,&#10;Impala Park,&#10;Boksburg"
+                    class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"></textarea>
+          <p class="text-xs text-gray-400 mt-1">One line per part of the address — shown exactly as typed.</p>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Google Maps link (optional)</label>
+          <input id="f-maps" type="url" placeholder="https://maps.app.goo.gl/..."
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Contact name (optional)</label>
+          <input id="f-contact-name" type="text" placeholder="e.g. Br Brighton Zimbiti"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Contact number (optional)</label>
+          <input id="f-contact-number" type="tel" placeholder="e.g. 074 532 7103"
                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
         </div>
         <div>
@@ -219,13 +241,17 @@
       const m = id ? meetingsCache[id] : null;
       document.getElementById('form-title').textContent = id ? 'Edit Meeting' : 'New Meeting';
       renderRegionSelect();
-      document.getElementById('f-region').value   = m?.regionId || (regions[0] ? regions[0].id : '');
-      document.getElementById('f-capacity').value  = m?.capacity != null ? m.capacity : '';
-      document.getElementById('f-address').value   = m?.address || '';
-      document.getElementById('f-date').value      = m?.date || '';
-      document.getElementById('f-time').value      = m?.time || '';
-      document.getElementById('f-notes').value     = m?.notes || '';
-      document.getElementById('f-open').checked     = m ? (m.open !== false) : true;
+      document.getElementById('f-title').value          = m?.title || '';
+      document.getElementById('f-region').value         = m?.regionId || (regions[0] ? regions[0].id : '');
+      document.getElementById('f-capacity').value       = m?.capacity != null ? m.capacity : '';
+      document.getElementById('f-address').value        = m?.address || '';
+      document.getElementById('f-maps').value           = m?.mapsLink || '';
+      document.getElementById('f-contact-name').value   = m?.contactName || '';
+      document.getElementById('f-contact-number').value = m?.contactNumber || '';
+      document.getElementById('f-date').value           = m?.date || '';
+      document.getElementById('f-time').value           = m?.time || '';
+      document.getElementById('f-notes').value          = m?.notes || '';
+      document.getElementById('f-open').checked          = m ? (m.open !== false) : true;
       document.getElementById('meeting-form').classList.remove('hidden');
       document.getElementById('meeting-form').scrollIntoView({ behavior: 'smooth' });
     }
@@ -255,9 +281,13 @@
       try {
         const ref = editingId ? db.collection('cottageMeetings').doc(editingId) : db.collection('cottageMeetings').doc();
         const data = {
+          title: document.getElementById('f-title').value.trim(),
           regionId,
           regionName: regionName(regionId),
           address,
+          mapsLink: document.getElementById('f-maps').value.trim(),
+          contactName: document.getElementById('f-contact-name').value.trim(),
+          contactNumber: document.getElementById('f-contact-number').value.trim(),
           date,
           time: document.getElementById('f-time').value || '',
           capacity,
@@ -321,7 +351,9 @@
               <span class="text-xs px-2 py-1 rounded-full ${m.open !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${m.open !== false ? 'Open' : 'Closed'}</span>
               <span class="text-xs text-gray-400">${escHtml(when)}</span>
             </div>
-            <p class="font-semibold text-gray-900">${escHtml(m.address || 'Venue TBC')}</p>
+            ${m.title ? `<p class="font-semibold text-gray-900">${escHtml(m.title)}</p>` : ''}
+            <p class="${m.title ? 'text-sm text-gray-600' : 'font-semibold text-gray-900'} whitespace-pre-line">${escHtml(m.address || 'Venue TBC')}</p>
+            ${m.contactName || m.contactNumber ? `<p class="text-sm text-gray-500 mt-0.5"><i class="fas fa-user mr-1"></i>${escHtml(m.contactName || '')}${m.contactNumber ? ' · ' + escHtml(m.contactNumber) : ''}</p>` : ''}
             <p class="text-sm text-gray-500">${m.seatsTaken || 0} of ${m.capacity || 0} seats taken · ${left} left${isSuperadmin && m.hostName ? ' · host: ' + escHtml(m.hostName) : ''}</p>
           </div>
           <div class="flex flex-wrap gap-2">
