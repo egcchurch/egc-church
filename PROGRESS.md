@@ -10,7 +10,50 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-22
-**Current milestone:** Maintenance — speaker name autocomplete added to sermon forms/bulk import; Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Maintenance — bulk import title parser now recognizes the "Vid" marker; Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — Bulk import title parser didn't recognize the "Vid" marker (Session 107)
+
+**Date:** 2026-06-22
+**Branch:** `fix/import-title-vid-marker` (PR pending)
+**Status:** Open
+
+### Bug
+User reported a title — `26-0506W Vid - Br Joshua Marshall - The Journey of Divine
+Revelation Pt. 1` — didn't get its date/speaker auto-populated during bulk import.
+
+### Root cause
+The "current format" regex in `parseSermonTitle()` only recognized an optional `Aud`/
+`Audio` marker between the date+letter and the speaker/title (added in Session 88 to
+tolerate the audio-duplicate marker even though those rows are filtered out beforehand).
+This channel apparently also tags its real video uploads with `Vid` — a marker the regex
+didn't know about. Since `Vid` didn't match the optional group AND wasn't a literal `-`,
+the whole regex failed and the title fell through to "unrecognised" (blank date/speaker,
+full raw title left for manual edit) — silent, not an error, so easy to miss until the
+specific row was checked.
+
+### Fix
+`admin/sermons.html` — widened the optional marker group from `(?:Aud(?:io)?)?` to
+`(?:Aud(?:io)?|Vid(?:eo)?)?`, so `Vid`/`Video` (the real-upload marker) is recognized and
+skipped the same way `Aud`/`Audio` already was. `isAudioVariant()` (the audio-duplicate
+exclusion filter) is untouched and already correctly leaves `Vid` titles alone — only the
+*parser* needed the fix.
+
+### Verification
+Regex sanity-checked directly, then the real `parseSermonTitle()`/`isAudioVariant()`
+extracted from the file and run in isolation — 12/12: the exact reported title now parses
+to date `2026-05-06`, service Wednesday, speaker "Br Joshua Marshall", correct title; the
+long form "Video" also recognized; all four previously-documented formats (plain current,
+Aud/Audio-marked, mid-era A, old EGC) still parse correctly — no regressions;
+`isAudioVariant` still correctly leaves "Vid" titles unflagged and still correctly flags
+real "Audio" titles and the existing false-positive guards.
+
+### Deploy
+Hosting-only — no rules/functions/SW change, auto-deploys on merge.
+
+---
 
 ---
 
