@@ -525,7 +525,13 @@
 
       const body = document.createElement('div');
       body.className = 'space-y-2';
-      group.slots.forEach((slot) => body.appendChild(renderSlotRow(teamId, slot, isLeader)));
+      // Firestore gives no defined order among slots on the same date/label —
+      // their doc IDs are random, so without an explicit sort the function order
+      // within a tile is arbitrary and changes between loads. Sort alphabetically
+      // by function label so it's the same every time.
+      const sortedSlots = group.slots.slice().sort((a, b) =>
+        (a.functions || []).join(' + ').localeCompare((b.functions || []).join(' + ')));
+      sortedSlots.forEach((slot) => body.appendChild(renderSlotRow(teamId, slot, isLeader)));
       tile.appendChild(body);
 
       return tile;
