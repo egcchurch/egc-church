@@ -10,7 +10,82 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-23
-**Current milestone:** Serving Teams module live in production: foundation (rostering, claim/release, training pairing), add-member-by-UID, Generate Roster (recurring patterns + bulk date-range slot creation), and a tile-grid roster view all shipped and user-tested. Next up: member availability + auto-assign rotation (Phase 1.6), then Equipment Register (Phase 2). Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Serving Teams module live in production: foundation, add-member-by-UID, Generate Roster, tile-grid roster view, and now named/persistent Schedules (edit+regenerate, cascade delete) all shipped and user-tested. Next up: member availability + auto-assign rotation (Phase 1.6), then Equipment Register (Phase 2). Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — named, persistent Schedules for Serving Teams (Session 118)
+
+**Date:** 2026-06-23
+**Branch:** `feat/serving-teams-schedules` (PR pending)
+**Status:** Open
+
+### Context
+User generated a roster for "EGC Elands" via Generate Roster and discovered they'd
+picked Saturday instead of Sunday for one pattern. There was no way to find "the slots
+one generate-run created" — slots had no back-reference to whatever produced them — so
+fixing it meant manually hunting down and deleting every wrongly-dated slot by hand.
+Discussed scope before coding (per repo rule), including dispatching a Plan agent to
+validate the design against the actual current code rather than just a summary of it —
+confirmed accurate, and the agent caught a real gap: `admin/serving-teams.html`'s
+team-delete cascade only cleaned up the `slots` subcollection, which would have left
+orphaned schedule docs behind once schedules existed. Confirmed with the user: the
+regenerate/delete safety check should warn with a count (and flag how many affected
+slots already have a volunteer assigned) rather than hard-block — a backstop for the
+rare case a mistake is caught late, not the common path.
+
+### What was built
+- **`/servingTeams/{teamId}/schedules/{scheduleId}`** (new subcollection) — named,
+  persistent recurrence definitions: `name`, `patterns` (day-of-week + label + functions,
+  same shape as the old `rosterPatterns`), `startDate`/`endDate`. Every slot a schedule
+  creates is tagged `scheduleId`.
+- **`firestore.rules`** — new schedules match block (leader/admin only, no member
+  self-service branch); removed `rosterPatterns` from the team-doc leader-update
+  allowlist now that schedules supersede it.
+- **`members/serving-teams.html`** — replaced the single "Generate Roster" button with
+  a **Schedules** list (name, pattern/date-range summary, slot count, Edit/Regenerate/
+  Delete). The same modal now creates new schedules or edits existing ones (title and
+  button text adapt); all the existing pattern-row editing functions are reused
+  unchanged. Saving an edit always regenerates (delete + recreate), since the corrected
+  pattern/dates might not match what's already there. New `regenerateSchedule` /
+  `regenerateScheduleAsIs` / `deleteSchedule` functions all warn with a count — and how
+  many affected slots already have a volunteer assigned — before doing anything
+  destructive. Extracted `chunkedCommit`/`batchCreateSlots`/`growFunctionsList`/
+  `buildSlotDefsFromPatterns` helpers so create/regenerate/delete share logic instead of
+  duplicating the chunked-batch-write code three times.
+- **`admin/serving-teams.html`** — `deleteTeam()` now also cascade-deletes the
+  `schedules` subcollection (previously only cleaned up `slots`).
+- **No migration for the old `rosterPatterns` field** — left as inert dead data (nothing
+  reads it once this ships, and a real backfill of which old slots belong to which
+  pattern would be unreliable guesswork). One small convenience: the "New Schedule"
+  modal pre-fills from `team.rosterPatterns` the first time a team has zero schedules
+  yet, so nothing typed earlier needs retyping — read-only, not a write.
+- **`tests/firestore.rules.test.js`** — new `describe('Serving Teams schedules
+  subcollection', ...)` block (9 tests: member read / outsider denied, leader
+  create/update/delete, non-leader denied, `servingTeams.manage` bypass). Replaced the
+  now-obsolete "leader can save rosterPatterns" test with a regression test confirming
+  that write now fails. Full suite: **117 passing** (was 108).
+
+### Verification
+- Firestore rules compiled clean and the full suite passes against the emulator.
+- Playwright-verified against the real source file end to end: created "EGC Elands"
+  with a Saturday pattern over Jan 2026 (5 slots, all correctly tagged with the new
+  schedule's id) → opened Edit, confirmed it pre-filled name/dates/day-of-week exactly
+  as saved → changed Saturday to Sunday and saved → confirmed the regenerate warning
+  text ("delete 5 existing slots... recreate 4 fresh slots") → confirmed zero Saturday
+  slots remained and all 4 new slots were correctly Sunday-dated → assigned a volunteer
+  to one slot and hit the standalone Regenerate button → confirmed the warning text
+  correctly said "(1 of which already has a volunteer assigned)" → deleted the schedule
+  → confirmed both the schedule doc and all 4 slots were gone.
+
+### Deploy
+Adds a Firestore rules change — **not auto-deployed by CI.** After this PR merges, run
+`firebase deploy --only firestore:rules`.
+
+### Still open / next session
+- Phase 1.6: member availability (which pattern+function combos a member can do) and an
+  auto-assign rotation option on a schedule's generate/regenerate.
+- Phase 2: Equipment Register — still not started.
 
 ---
 
