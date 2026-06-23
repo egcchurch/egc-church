@@ -10,7 +10,45 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-23
-**Current milestone:** Serving Teams module live in production: foundation, add-member-by-UID, Generate Roster, tile-grid roster view, named/persistent Schedules, a timezone date-shift fix, and now per-member function eligibility (claim restriction + roster filtering) all shipped and user-tested. Next up: day/time availability + auto-assign rotation (Phase 1.7), then Equipment Register (Phase 2). Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Serving Teams module live in production: foundation, add-member-by-UID, Generate Roster, tile-grid roster view, named/persistent Schedules, a timezone date-shift fix, per-member function eligibility, and a manual-assignment crash fix all shipped and user-tested. Next up: day/time availability + auto-assign rotation (Phase 1.7), then Equipment Register (Phase 2). Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — saveSlot() crashed after closeSlotModal() nulled the team id (Session 121)
+
+**Date:** 2026-06-23
+**Branch:** `fix/save-slot-null-teamid-after-close` (PR #180, merged)
+**Status:** Merged, deployed (hosting-only — no rules change)
+
+### Bug reported (testing Session 120's function-eligibility feature)
+Assigning a user to a slot and clicking Save Slot threw `Uncaught (in promise)
+FirebaseError: Function CollectionReference.doc() cannot be called with an empty path`
+in the console. The roster didn't update itself — only a manual page refresh showed the
+change had actually gone through.
+
+### Root cause
+`closeSlotModal()` resets `slotModalTeamId` to `null`. `saveSlot()` called it *before*
+reading that same global for the post-save re-render:
+`closeSlotModal(); reloadTeamCard(slotModalTeamId);` — by the second statement,
+`slotModalTeamId` was already `null`, so `reloadTeamCard(null)` called `.doc(null)`
+internally and threw. The slot write itself had already completed successfully by that
+point (which is why a refresh showed the correct data) — the crash was purely in the
+post-save re-render.
+
+### Fix
+Captured `teamId`/`slotId` into local consts at the top of `saveSlot()`, before any
+modal-closing happens — the same safe pattern already used in `saveAndGenerateSchedule()`
+and `saveMemberFunctions()`. Audited the rest of the file for the same read-after-reset
+pattern; no other instances found.
+
+### Verification
+Playwright-verified against the real source file: opened an existing slot, assigned a
+member, clicked Save Slot — confirmed zero page errors, the slot doc updated correctly,
+the modal closed, and the roster tile updated immediately to show the new assignment
+without needing a refresh.
+
+### Deploy
+Hosting-only — no rules/functions change, auto-deployed on merge.
 
 ---
 
