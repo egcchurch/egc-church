@@ -153,6 +153,22 @@
     </div>
   </div>
 
+  <!-- MEMBER FUNCTIONS MODAL — which functions a member can claim (leader view) -->
+  <div id="member-functions-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="text-lg font-bold text-[#0A3D62]">Functions — <span id="member-functions-name"></span></h3>
+        <button onclick="closeMemberFunctionsModal()" class="text-zinc-400 hover:text-zinc-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <p class="text-xs text-zinc-400 mb-4">A member can only claim slots for functions checked here, and only sees those slots on their roster. Leave everything unchecked to keep them locked out until you decide.</p>
+      <div id="member-functions-checkboxes" class="space-y-2 max-h-64 overflow-y-auto"></div>
+      <div class="mt-6 flex gap-3">
+        <button onclick="saveMemberFunctions()" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">Save</button>
+        <button onclick="closeMemberFunctionsModal()" class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-6 py-2.5 rounded-full text-sm font-medium transition-all">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/js/nav.js"></script>
   <script src="/js/main.js"></script>
   <script>
@@ -169,6 +185,8 @@
     let generateModalTeamId = null;
     let generateModalScheduleId = null; // null = creating a new schedule; set = editing/regenerating an existing one
     let generatePatternRows = []; // [{ id, dayOfWeek, label, functions: [...] }] — staged in the Schedule modal
+    let memberFunctionsModalTeamId = null;
+    let memberFunctionsModalUid = null;
 
     auth.onAuthStateChanged((user) => { currentUser = user; });
 
@@ -364,12 +382,13 @@
       if (!container) return;
       container.innerHTML = '<p class="text-xs text-zinc-400">Loading roster...</p>';
 
-      // Member list with tiers (for display + leader management)
+      // Member list with tiers + assigned functions (for display + leader management)
       const members = [];
       for (const uid of (team.members || [])) {
         const name = await fetchDisplayName(uid);
         const tier = (team.memberTiers || {})[uid] || 'trainee';
-        members.push({ uid, name, tier });
+        const memberFns = (team.memberFunctions || {})[uid] || [];
+        members.push({ uid, name, tier, functions: memberFns });
       }
       teamMembersCache[team.id] = members;
 
@@ -385,7 +404,20 @@
       teamSchedulesCache[team.id] = schedules;
 
       const today = formatDateLocal(new Date());
-      const upcoming = slots.filter((s) => !s.date || s.date >= today);
+      let upcoming = slots.filter((s) => !s.date || s.date >= today);
+
+      // Leaders/admins manage the whole roster and see everything. A regular
+      // member only sees slots matching the functions a leader has assigned them
+      // — plus any slot they're already personally on, so a function change never
+      // hides a commitment they still need to track or release.
+      if (!isLeader) {
+        const myUid = currentUser?.uid;
+        const myFunctions = (team.memberFunctions || {})[myUid] || [];
+        upcoming = upcoming.filter((s) =>
+          (s.functions || []).some((f) => myFunctions.includes(f)) ||
+          s.assignedUid === myUid || s.traineeUid === myUid
+        );
+      }
 
       let html = '';
 
@@ -404,6 +436,8 @@
                 <div class="flex items-center gap-1.5 bg-zinc-100 rounded-full px-3 py-1 text-xs text-zinc-600">
                   <span>${escapeHtml(m.name)}</span>
                   <span class="text-[10px] px-1.5 py-0.5 rounded-full ${m.tier === 'qualified' ? 'bg-green-200 text-green-800' : 'bg-amber-200 text-amber-800'}">${m.tier === 'qualified' ? 'Qualified' : 'Trainee'}</span>
+                  <span class="text-[10px] text-zinc-500" title="Functions this member can claim">${m.functions.length ? escapeHtml(m.functions.join(', ')) : '(none assigned)'}</span>
+                  <button onclick="openMemberFunctionsModal('${team.id}', '${m.uid}', ${JSON.stringify(m.name).replace(/"/g, '&quot;')})" title="Edit functions" class="text-zinc-400 hover:text-amber-600"><i class="fas fa-sliders text-[10px]"></i></button>
                   <button onclick="toggleTier('${team.id}', '${m.uid}', '${m.tier}')" title="Toggle tier" class="text-zinc-400 hover:text-blue-500"><i class="fas fa-arrows-rotate text-[10px]"></i></button>
                   ${m.uid !== currentUser?.uid ? `<button onclick="removeMember('${team.id}', '${m.uid}')" title="Remove" class="text-zinc-400 hover:text-red-500"><i class="fas fa-times text-[10px]"></i></button>` : ''}
                 </div>
@@ -440,7 +474,10 @@
 
       const slotsContainer = document.getElementById(`roster-slots-${team.id}`);
       if (!upcoming.length) {
-        slotsContainer.innerHTML = '<p class="text-xs text-zinc-400">No upcoming slots scheduled yet.</p>';
+        const myFunctions = (team.memberFunctions || {})[currentUser?.uid] || [];
+        slotsContainer.innerHTML = (!isLeader && !myFunctions.length)
+          ? '<p class="text-xs text-zinc-400">A leader hasn\'t assigned you any functions yet, so there\'s nothing to show — ask your team leader to set what you can serve in.</p>'
+          : '<p class="text-xs text-zinc-400">No upcoming slots scheduled yet.</p>';
         return;
       }
 
@@ -550,6 +587,50 @@
       } catch (err) {
         console.error('Tier update failed:', err);
         alert('Failed to update tier.');
+      }
+    }
+
+    // ── Member functions (which slots a member can claim/see) ──────────────────────
+
+    function openMemberFunctionsModal(teamId, uid, name) {
+      memberFunctionsModalTeamId = teamId;
+      memberFunctionsModalUid = uid;
+      document.getElementById('member-functions-name').textContent = name;
+
+      const team = teamsCache[teamId] || {};
+      const teamFunctions = team.functions || [];
+      const mine = (team.memberFunctions || {})[uid] || [];
+
+      const container = document.getElementById('member-functions-checkboxes');
+      container.innerHTML = teamFunctions.length
+        ? teamFunctions.map((f) => `
+            <label class="flex items-center gap-2 text-sm text-zinc-700 cursor-pointer select-none">
+              <input type="checkbox" class="member-fn-checkbox w-4 h-4 accent-amber-500" value="${escapeHtml(f)}" ${mine.includes(f) ? 'checked' : ''}>
+              ${escapeHtml(f)}
+            </label>
+          `).join('')
+        : '<p class="text-xs text-zinc-400 italic">This team has no functions yet — add one via "Add Slot" or a Schedule first.</p>';
+
+      document.getElementById('member-functions-modal').classList.remove('hidden');
+    }
+
+    function closeMemberFunctionsModal() {
+      document.getElementById('member-functions-modal').classList.add('hidden');
+      memberFunctionsModalTeamId = null;
+      memberFunctionsModalUid = null;
+    }
+
+    async function saveMemberFunctions() {
+      const teamId = memberFunctionsModalTeamId;
+      const uid = memberFunctionsModalUid;
+      const selected = [...document.querySelectorAll('.member-fn-checkbox:checked')].map((el) => el.value);
+      try {
+        await db.collection('servingTeams').doc(teamId).update({ [`memberFunctions.${uid}`]: selected });
+        closeMemberFunctionsModal();
+        reloadTeamCard(teamId);
+      } catch (err) {
+        console.error('Save member functions failed:', err);
+        alert('Failed to save functions.');
       }
     }
 

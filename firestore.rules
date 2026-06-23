@@ -175,17 +175,30 @@ service cloud.firestore {
           get(/databases/$(database)/documents/servingTeams/$(teamId)).data.leaders;
     }
 
+    // A member can only claim a slot whose functions overlap with the functions a
+    // leader has assigned them on the team (memberFunctions map). No entry for this
+    // uid (the default for every existing member today) means locked out — a leader
+    // must explicitly assign at least one function before that member can claim
+    // anything. Leaders/admins bypass this entirely via the unrestricted branch above.
+    function isQualifiedForFunctions(teamId, slotFunctions) {
+      let team = get(/databases/$(database)/documents/servingTeams/$(teamId)).data;
+      return ('memberFunctions' in team) &&
+        (request.auth.uid in team.memberFunctions) &&
+        slotFunctions.hasAny(team.memberFunctions[request.auth.uid]);
+    }
+
     match /servingTeams/{teamId} {
       // Team existence/description is browsable by any member (to find/join a team);
       // the roster itself (slots, below) is scoped much more tightly.
       allow read: if isMember();
       allow create: if hasPermission('servingTeams.manage');
       allow update: if hasPermission('servingTeams.manage') ||
-        // Leaders manage their own team's membership, tiers, and function list
-        // (roster patterns now live on named /schedules docs, not this field)
+        // Leaders manage their own team's membership, tiers, function list, and
+        // each member's function eligibility (roster patterns now live on named
+        // /schedules docs, not this field)
         (isSignedIn() && request.auth.uid in resource.data.leaders &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['members', 'pendingMembers', 'memberTiers', 'functions', 'updatedAt'])) ||
+            .hasOnly(['members', 'pendingMembers', 'memberTiers', 'functions', 'memberFunctions', 'updatedAt'])) ||
         // Members can join/leave (add/remove their own UID) — same pattern as /groups
         (isMember() &&
           request.resource.data.diff(resource.data).affectedKeys()
@@ -203,6 +216,7 @@ service cloud.firestore {
       allow update: if hasPermission('servingTeams.manage') || isServingTeamLeader(teamId) ||
         (isServingTeamMember(teamId) &&
           resource.data.assignedUid == null &&
+          isQualifiedForFunctions(teamId, resource.data.functions) &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['assignedUid', 'assignedName', 'status', 'updatedAt']) &&
           request.resource.data.assignedUid == request.auth.uid) ||
@@ -213,6 +227,7 @@ service cloud.firestore {
           request.resource.data.assignedUid == null) ||
         (isServingTeamMember(teamId) &&
           resource.data.traineeUid == null &&
+          isQualifiedForFunctions(teamId, resource.data.functions) &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['traineeUid', 'traineeName', 'updatedAt']) &&
           request.resource.data.traineeUid == request.auth.uid) ||

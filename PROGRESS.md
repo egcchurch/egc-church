@@ -10,7 +10,67 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-23
-**Current milestone:** Serving Teams module live in production: foundation, add-member-by-UID, Generate Roster, tile-grid roster view, named/persistent Schedules, and a timezone date-shift fix all shipped and user-tested. Next up: member availability + auto-assign rotation (Phase 1.6), then Equipment Register (Phase 2). Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Serving Teams module live in production: foundation, add-member-by-UID, Generate Roster, tile-grid roster view, named/persistent Schedules, a timezone date-shift fix, and now per-member function eligibility (claim restriction + roster filtering) all shipped and user-tested. Next up: day/time availability + auto-assign rotation (Phase 1.7), then Equipment Register (Phase 2). Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — per-member function eligibility for Serving Teams (Session 120)
+
+**Date:** 2026-06-23
+**Branch:** `feat/serving-teams-member-functions` (PR pending)
+**Status:** Open
+
+### Context
+Asked how to manually allocate a user to a slot (already possible — the slot editor's
+"Assign to" dropdown) and how to put a member "in a role" (e.g. Sound or Video) so they
+can only enrol for matching slots and their roster view only shows what's relevant to
+them. Confirmed one policy decision before building: a member with no functions assigned
+yet should be **locked out** (sees/claims nothing) rather than unrestricted-by-default —
+the user explicitly chose this since no one has been assigned anything yet, and they'll
+do the assignment pass themselves right after this ships.
+
+### What was built
+- **`memberFunctions: { [uid]: [string] }`** on the team doc — leader-assigned function
+  eligibility per member.
+- **`firestore.rules`** — new `isQualifiedForFunctions(teamId, slotFunctions)` helper;
+  applied to both self-claim branches (lead position, trainee position) on
+  `/servingTeams/{teamId}/slots/{slotId}` — a member can only claim a slot whose
+  `functions` overlaps their assigned set. Release branches are untouched (releasing your
+  own slot is never gated by current eligibility). Added `memberFunctions` to the
+  leader-update allowlist on the team doc.
+- **`members/serving-teams.html`** — a small "Functions" modal per member chip (gear
+  icon) where a leader checks which of the team's functions that member can do; each
+  chip now also shows their currently assigned functions inline. Non-leader roster views
+  now filter to only slots matching the viewer's assigned functions, **plus** any slot
+  they're already personally on (lead or trainee) so a later function change never hides
+  a commitment they still need to track or release. Leaders/admins are never filtered.
+  A locked-out member sees a clear explanatory message instead of a bare "no slots."
+- **`tests/firestore.rules.test.js`** — updated the two existing claim-success tests to
+  seed a matching `memberFunctions` entry (their premise was "any member can claim,"
+  which is now intentionally false by default); added 5 new tests: locked-out-by-default
+  for both lead and trainee positions, non-matching-function denial, leader-can-assign,
+  non-leader-cannot-assign. Full suite: **122 passing** (was 117).
+
+### Verification
+- Firestore rules compiled clean and the full suite passes against the emulator.
+- Playwright-verified against the real source file: leader assigns "Sound" only to a
+  member via the new modal → `team.memberFunctions` updated correctly → switched
+  perspective to that member (non-leader) → roster view correctly showed only the Sound
+  slot, with the Video slot hidden → revoked all functions → confirmed the locked-out
+  explanatory message appears instead of an empty roster.
+- Caught and fixed a bug in the test mock itself (not the product): dot-path update keys
+  like `memberFunctions.uid123` need expanding into a nested map, same class of issue as
+  an earlier session's mock bug — confirmed by symptom (write silently landing under a
+  literal dotted key instead of nesting) before fixing the mock, not the product code.
+
+### Deploy
+Adds a Firestore rules change — **not auto-deployed by CI.** After this PR merges, run
+`firebase deploy --only firestore:rules`.
+
+### Still open / next session
+- Phase 1.7: day/time availability layered on top of function eligibility, and an
+  auto-assign rotation option on Generate/Regenerate.
+- Phase 2: Equipment Register — still not started.
 
 ---
 

@@ -57,6 +57,26 @@ single person, and how many slots/which functions are needed varies service to s
 - A slot's display label is just its functions joined ("Camera + Video Mixing") — no
   separate name field.
 
+### Member functions (eligibility + visibility)
+A leader assigns each member a subset of the team's functions they're qualified for (e.g.
+Sound + Video, but not Piano). This gates two things at once: a member can only **claim**
+a slot whose function is in their assigned set (enforced in Firestore rules, not just the
+UI), and a member's roster view is **filtered** to only those slots — decluttering a large
+team's roster down to what's actually relevant to them.
+
+**Default is locked out, not unrestricted.** A member with no functions assigned yet sees
+nothing and can claim nothing, until a leader explicitly assigns at least one. This was a
+deliberate choice over "open by default, restrict later" — the latter would have silently
+changed behavior for every existing member the moment this shipped (they'd keep seeing
+everything until a leader thought to narrow them down); locked-out-by-default means the
+leader does a one-time pass assigning functions to their existing roster instead.
+
+A member still sees any slot they're already personally on (lead or trainee), even if a
+later function change would otherwise hide it — so a function edit never makes someone
+lose track of a commitment they still need to fulfil or release. Leaders/admins are never
+filtered — they need full visibility to manage the roster regardless of their own
+function assignments.
+
 ### Roster slot
 One person's assignment for one date. A slot is **open** (`assignedUid == null`) or
 **filled**. Filling happens either by the leader pre-assigning someone, or by a member
@@ -134,6 +154,9 @@ it's the kind of thing checked from a phone mid-move.
   memberTiers: { [uid]: "trainee" | "qualified" }   ← map, decoupled from members[] so join/
                                           leave stays a simple array op; new joiners default
                                           to "trainee" until a leader promotes them
+  memberFunctions: { [uid]: [string] }  ← leader-assigned eligibility; absent/empty for a uid
+                                          means locked out of claiming and seeing slots until
+                                          a leader assigns at least one function
   functions: [string]                 ← this team's own grown autocomplete list
   joinPolicy: "open" | "approval" | "invite-only"
   pendingMembers: [uid]                ← for "approval" joinPolicy, mirrors /groups
@@ -202,10 +225,15 @@ Group leaders manage their own group today.
   instead of a manual hunt-and-delete. Delete-schedule cascades to its slots. Both
   regenerate and delete warn with a count, flagging how many affected slots already
   have a volunteer assigned.
-- **Phase 1.6 (planned next):** Member availability (which pattern+function combos a
-  member is able/willing to do) and an auto-assign rotation option on a schedule's
-  generate/regenerate that fills slots from the available pool instead of leaving
-  everything open.
+- **Phase 1.6 (delivered):** Member functions — leader-assigned per-member function
+  eligibility (`memberFunctions`). Gates claiming (enforced in rules) and filters a
+  member's roster view to only their assigned functions. Locked out by default (no
+  functions assigned = sees/claims nothing) rather than open-by-default, so this doesn't
+  silently change behavior for existing members the moment it ships.
+- **Phase 1.7 (planned next):** Day/time availability on top of function eligibility
+  (e.g. "Sound, but only Sunday mornings") and an auto-assign rotation option on a
+  schedule's generate/regenerate that fills slots from the available+eligible pool
+  instead of leaving everything open.
 - **Phase 2 (future):** Equipment Register + Moves, scoped to the Equipment Team.
 - **Explicitly deferred / not in scope yet:** push notifications when a slot opens up
   (claiming is currently "check the roster," not pushed); a personal "my upcoming slots
