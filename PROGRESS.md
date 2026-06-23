@@ -10,7 +10,126 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-23
-**Current milestone:** Serving Teams module (foundation) built end-to-end on `feat/serving-teams-foundation` — rostering, claim/release, training pairing all in place; user is about to start testing. Equipment register (Phase 2) and slot templates (Phase 1.5) still pending. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Serving Teams module live in production: foundation (rostering, claim/release, training pairing), add-member-by-UID, and Generate Roster (recurring patterns + bulk date-range slot creation) all shipped. Next up: member availability + auto-assign rotation (Phase 1.6), then Equipment Register (Phase 2). Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — let leaders add a member by UID; show Member ID on profile (Session 115)
+
+**Date:** 2026-06-23
+**Branch:** `feat/serving-teams-add-member-by-uid` (PR #172, merged)
+**Status:** Merged, deployed (hosting-only — no rules change)
+
+### Context
+Following the foundation PR, asked how to invite someone to a serving team. Found a real
+gap: `invite-only` teams had no join button and no admin UI to add a member either (the
+older Groups feature has the identical gap, never raised before). Leaders already had
+unrestricted write access to their own team doc, so this only needed a UI, not a rules
+change.
+
+### What was built
+- **`members/serving-teams.html`** — "Add Member" UID input + button in the leader's
+  roster section. Looks up the pasted UID against `/users`, alerts clearly if not found,
+  otherwise `arrayUnion`s it into the team.
+- **`profile.html`** — read-only "Member ID" field + copy button, since most team
+  leaders are plain members and can't reach `/admin/users.html` to look someone up.
+  Lets any member self-serve their own UID to hand to a leader directly.
+
+### Verification
+Playwright-verified against the real source files: bad UID shows a clear error and
+doesn't write; valid UID (including an apostrophe-in-name case) gets added and appears
+in the roster, input clears on success; profile's Member ID field populates and copies
+correctly with a "Copied!" confirmation.
+
+### Deploy
+Hosting-only — no rules/functions change, auto-deployed on merge.
+
+---
+
+## Session: feat — find a user's UID from the site (Session 114)
+
+**Date:** 2026-06-23
+**Branch:** `feat/admin-users-find-uid` (PR #171, merged)
+**Status:** Merged, deployed (hosting-only — no rules change)
+
+### Context
+Asked how to find a user's UID (needed for the Serving Teams leaders field, which takes
+raw UIDs). Until now the only way was the Firebase Console — `/admin/users.html` never
+displayed it.
+
+### What was built
+- **`admin/users.html`** — a search box that filters the currently-loaded tab by
+  name/email (client-side, no extra Firestore reads), and a "copy UID" button on every
+  user card (monospace UID + copy icon, brief "Copied!" confirmation).
+
+### Verification
+Playwright-verified against the real source file: search filters correctly, copy writes
+the right UID to the clipboard and reverts the label after the confirmation, clearing
+search restores the full list. Verified the apostrophe-in-name edge case ("Bob O'Brien")
+doesn't break rendering.
+
+### Deploy
+Hosting-only — no rules/functions change, auto-deployed on merge.
+
+---
+
+## Session: feat — Generate Roster (recurring patterns + bulk slot creation) (Session 116)
+
+**Date:** 2026-06-23
+**Branch:** `feat/serving-teams-generate-roster` (PR pending)
+**Status:** Open
+
+### Context
+User flagged a real adoption blocker for the Equipment Team: their roster runs ~6
+months at a time across 3 weekly services (Wednesday + 2 Sunday services), and creating
+every slot by hand through the Add Slot modal was "a lot of work." Discussed scope before
+coding (per repo rule): confirmed the two Sunday services need to be distinguishable on
+the same calendar date (free-text label, e.g. "Morning"/"Evening"), and that full
+availability-based auto-assignment is wanted but large enough to ship as a separate
+follow-up — this PR is deliberately scoped to bulk slot *creation* only, leaving every
+generated slot open for manual assignment or self-claim via the existing flow.
+
+### What was built
+- **`label` field on slots** — optional free-text service-time label (e.g. "Morning"),
+  settable on the existing Add/Edit Slot modal. The roster view now groups upcoming
+  slots by date, then by label within date, so two services on the same date render as
+  distinguishable sub-groups instead of one merged list.
+- **`rosterPatterns` array on the team doc** — saved recurrence rules:
+  `{ id, dayOfWeek, label, functions }`. Added to the leader's allowed-update field list
+  in `firestore.rules` (leaders manage this for their own team, same as `functions`).
+- **Generate Roster modal** (`members/serving-teams.html`) — leader defines/edits pattern
+  rows (day of week, label, function chips) right in the modal, pre-filled from whatever
+  patterns the team already has saved; picks a start/end date; "Generate" computes every
+  matching date per pattern and bulk-creates one open slot per function per occurrence,
+  batched in chunks of 450 writes (under Firestore's 500-per-batch limit) to comfortably
+  cover a 6-month/3-services-a-week roster in one action. Patterns are re-saved to the
+  team doc on every generate, so reopening the modal next time shows them already
+  filled in — just pick a new date range.
+- **`tests/firestore.rules.test.js`** — added a test confirming a team leader can write
+  `rosterPatterns`. Full suite: **108 passing** (was 107).
+
+### Verification
+- Playwright-verified against the real source file: the date-math helper
+  (`getDatesForDayOfWeek`) returns the correct Wednesdays/Sundays for a real month;
+  generating across Jan 2026 with a Sunday-Morning pattern (Sound+Video) and a Wednesday
+  pattern (Sound) produced exactly 12 slots (8 + 4), each chunked-batch-written with the
+  right `label`/`functions`/`date`; the modal closes and the team doc gets
+  `rosterPatterns` + grown `functions` afterward.
+- Playwright-verified: reopening Generate Roster on a team that already has
+  `rosterPatterns` saved pre-fills the day-of-week selects, label inputs, and function
+  chips exactly as saved — confirming the "reuse next time" behavior actually works, not
+  just the generation math.
+
+### Deploy
+Adds a Firestore rules change (`rosterPatterns` in the leader-allowed key list) — **not
+auto-deployed by CI.** After this PR merges, run `firebase deploy --only firestore:rules`.
+
+### Still open / next session
+- **Phase 1.6:** Member availability (which pattern+function combos a member can do) and
+  an auto-assign rotation option in Generate Roster, so slots aren't all left open. User
+  specifically wants people who can only do certain days/times to opt in per pattern+
+  function (e.g. "John: Sunday Morning Words/Video, Wednesday Words/Video").
+- Phase 2: Equipment Register — still not started.
 
 ---
 

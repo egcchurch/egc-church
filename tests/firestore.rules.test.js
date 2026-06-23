@@ -294,6 +294,19 @@ describe('Firestore Security Rules', () => {
       await assertFails(updateDoc(doc(leaderDb, 'servingTeams', 'team1'), { name: 'Hacked' }));
     });
 
+    it('team leader can save rosterPatterns (Generate Roster feature)', async () => {
+      await seedUser('leader-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: ['leader-uid'], members: [], pendingMembers: [], memberTiers: {}, functions: [],
+        });
+      });
+      const leaderDb = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      await assertSucceeds(updateDoc(doc(leaderDb, 'servingTeams', 'team1'), {
+        rosterPatterns: [{ id: 'pat1', dayOfWeek: 0, label: 'Morning', functions: ['Sound'] }],
+      }));
+    });
+
     it('member (non-leader) can join an open team', async () => {
       await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {

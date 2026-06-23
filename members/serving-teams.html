@@ -65,6 +65,11 @@
           <input id="slot-date" type="date" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
         </div>
         <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Service label (optional)</label>
+          <input id="slot-label" type="text" placeholder="e.g. Morning, Evening — only needed if a date has more than one service"
+                 class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
           <label class="block text-sm font-medium text-zinc-700 mb-1">Functions for this slot *</label>
           <div class="flex gap-2 mb-2">
             <input id="slot-function-input" type="text" list="slot-functions-datalist" placeholder="e.g. Camera"
@@ -105,17 +110,58 @@
     </div>
   </div>
 
+  <!-- GENERATE ROSTER MODAL (leader view) -->
+  <div id="generate-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="text-lg font-bold text-[#0A3D62]">Generate Roster</h3>
+        <button onclick="closeGenerateModal()" class="text-zinc-400 hover:text-zinc-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <p class="text-xs text-zinc-400 mb-4">Define the services that repeat every week, then generate every open slot for a date range in one go. Patterns are saved on the team so you can reuse them next time.</p>
+
+      <datalist id="generate-functions-datalist"></datalist>
+
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Start date *</label>
+          <input id="generate-start-date" type="date" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">End date *</label>
+          <input id="generate-end-date" type="date" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between mb-2">
+        <h4 class="text-xs font-semibold text-zinc-500 uppercase">Recurring services</h4>
+        <button type="button" onclick="addPatternRow()" class="text-xs text-blue-600 hover:text-blue-700 font-medium border border-blue-200 hover:border-blue-300 px-3 py-1 rounded-full transition-all">
+          <i class="fas fa-plus mr-1"></i>Add Service
+        </button>
+      </div>
+      <div id="generate-pattern-rows" class="space-y-3"></div>
+
+      <div class="mt-6 flex gap-3">
+        <button onclick="generateRoster()" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">Generate</button>
+        <button onclick="closeGenerateModal()" class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-6 py-2.5 rounded-full text-sm font-medium transition-all">Cancel</button>
+      </div>
+      <p id="generate-form-msg" class="hidden mt-3 text-sm font-medium text-red-500"></p>
+    </div>
+  </div>
+
   <script src="/js/nav.js"></script>
   <script src="/js/main.js"></script>
   <script>
     const db = firebase.firestore();
     let currentUser = null;
     let userNames = {};
+    let teamsCache = {};         // teamId -> raw team doc data (incl. rosterPatterns)
     let teamMembersCache = {};   // teamId -> [{uid, name, tier}]
     let teamSlotsCache = {};     // teamId -> [slot]
     let slotFunctionChips = [];  // staged chips for the open slot form
     let slotModalTeamId = null;
     let editingSlotId = null;
+    let generateModalTeamId = null;
+    let generatePatternRows = []; // [{ id, dayOfWeek, label, functions: [...] }] — staged in the Generate Roster modal
 
     auth.onAuthStateChanged((user) => { currentUser = user; });
 
@@ -152,6 +198,7 @@
       empty.classList.add('hidden');
 
       teams.forEach((t) => {
+        teamsCache[t.id] = t;
         const uid = currentUser?.uid;
         const isMemberOf = uid && (t.members || []).includes(uid);
         const isLeader = uid && (t.leaders || []).includes(uid);
@@ -334,9 +381,14 @@
         html += `
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-sm font-semibold text-zinc-600">Team Roster</h3>
-            <button onclick="openSlotModal('${team.id}')" class="text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all">
-              <i class="fas fa-plus mr-1"></i>Add Slot
-            </button>
+            <div class="flex gap-2">
+              <button onclick="openGenerateModal('${team.id}')" class="text-xs text-blue-600 hover:text-blue-700 font-medium border border-blue-200 hover:border-blue-300 px-3 py-1.5 rounded-full transition-all">
+                <i class="fas fa-calendar-plus mr-1"></i>Generate Roster
+              </button>
+              <button onclick="openSlotModal('${team.id}')" class="text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all">
+                <i class="fas fa-plus mr-1"></i>Add Slot
+              </button>
+            </div>
           </div>
           <div class="mb-5">
             <h4 class="text-xs font-semibold text-zinc-500 uppercase mb-2">Members</h4>
@@ -374,14 +426,31 @@
         return;
       }
 
+      // Group by date, then by label within date — so a date with multiple
+      // services (e.g. Sunday Morning + Evening) shows them as distinct
+      // sub-groups instead of one merged list of functions.
       const grouped = {};
-      upcoming.forEach((s) => { (grouped[s.date] = grouped[s.date] || []).push(s); });
+      upcoming.forEach((s) => {
+        const byLabel = (grouped[s.date] = grouped[s.date] || {});
+        const labelKey = s.label || '';
+        (byLabel[labelKey] = byLabel[labelKey] || []).push(s);
+      });
       Object.keys(grouped).sort().forEach((date) => {
         const dateHeader = document.createElement('div');
         dateHeader.className = 'text-xs font-semibold text-[#0A3D62] mt-3';
         dateHeader.textContent = new Date(date + 'T00:00:00').toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
         slotsContainer.appendChild(dateHeader);
-        grouped[date].forEach((slot) => slotsContainer.appendChild(renderSlotRow(team.id, slot, isLeader)));
+
+        const byLabel = grouped[date];
+        Object.keys(byLabel).sort().forEach((labelKey) => {
+          if (labelKey) {
+            const labelHeader = document.createElement('div');
+            labelHeader.className = 'text-xs font-medium text-zinc-400 mt-1.5 ml-1';
+            labelHeader.textContent = labelKey;
+            slotsContainer.appendChild(labelHeader);
+          }
+          byLabel[labelKey].forEach((slot) => slotsContainer.appendChild(renderSlotRow(team.id, slot, isLeader)));
+        });
       });
     }
 
@@ -536,6 +605,7 @@
       const doc = await db.collection('servingTeams').doc(teamId).get();
       if (!doc.exists) return;
       const team = { id: doc.id, ...doc.data() };
+      teamsCache[teamId] = team;
       const uid = currentUser?.uid;
       const isLeader = uid && (team.leaders || []).includes(uid);
       const isMemberOf = uid && (team.members || []).includes(uid);
@@ -550,6 +620,7 @@
       slotFunctionChips = slot?.functions ? slot.functions.slice() : [];
       document.getElementById('slot-modal-title').textContent = slot ? 'Edit Slot' : 'New Slot';
       document.getElementById('slot-date').value = slot?.date || '';
+      document.getElementById('slot-label').value = slot?.label || '';
       document.getElementById('slot-training').checked = !!slot?.trainingEnabled;
       document.getElementById('slot-notes').value = slot?.notes || '';
       document.getElementById('slot-function-input').value = '';
@@ -657,6 +728,7 @@
 
       const data = {
         date,
+        label: document.getElementById('slot-label').value.trim() || null,
         functions: slotFunctionChips.slice(),
         trainingEnabled,
         assignedUid: assigneeUid,
@@ -705,6 +777,219 @@
       } catch (err) {
         console.error('Delete slot failed:', err);
         alert('Failed to delete slot.');
+      }
+    }
+
+    // ── Generate Roster (bulk-create recurring slots from saved patterns) ──────────
+    // Patterns are saved on the team doc (rosterPatterns) so a leader can reopen
+    // this modal next time (e.g. the next 6-month block) with their services
+    // already defined and just pick a new date range.
+
+    const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    function newPatternRowId() {
+      return 'pat_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
+
+    function openGenerateModal(teamId) {
+      generateModalTeamId = teamId;
+      const team = teamsCache[teamId] || {};
+      generatePatternRows = (team.rosterPatterns || []).map((p) => ({
+        id: p.id || newPatternRowId(),
+        dayOfWeek: p.dayOfWeek ?? 0,
+        label: p.label || '',
+        functions: Array.isArray(p.functions) ? p.functions.slice() : [],
+      }));
+      if (!generatePatternRows.length) {
+        generatePatternRows.push({ id: newPatternRowId(), dayOfWeek: 0, label: '', functions: [] });
+      }
+
+      const dl = document.getElementById('generate-functions-datalist');
+      dl.innerHTML = '';
+      (team.functions || []).forEach((f) => {
+        const opt = document.createElement('option');
+        opt.value = f;
+        dl.appendChild(opt);
+      });
+
+      document.getElementById('generate-start-date').value = '';
+      document.getElementById('generate-end-date').value = '';
+      document.getElementById('generate-form-msg').classList.add('hidden');
+
+      renderGeneratePatternRows();
+      document.getElementById('generate-modal').classList.remove('hidden');
+    }
+
+    function closeGenerateModal() {
+      document.getElementById('generate-modal').classList.add('hidden');
+      generateModalTeamId = null;
+      generatePatternRows = [];
+    }
+
+    function addPatternRow() {
+      generatePatternRows.push({ id: newPatternRowId(), dayOfWeek: 0, label: '', functions: [] });
+      renderGeneratePatternRows();
+    }
+
+    function removePatternRow(idx) {
+      generatePatternRows.splice(idx, 1);
+      renderGeneratePatternRows();
+    }
+
+    function updatePatternRowField(idx, field, value) {
+      generatePatternRows[idx][field] = field === 'dayOfWeek' ? parseInt(value, 10) : value;
+    }
+
+    function addPatternFunctionChip(idx) {
+      const input = document.getElementById(`pattern-fn-input-${idx}`);
+      const value = input.value.trim();
+      if (!value) return;
+      const row = generatePatternRows[idx];
+      if (!row.functions.some((f) => f.toLowerCase() === value.toLowerCase())) {
+        row.functions.push(value);
+      }
+      renderGeneratePatternRows();
+    }
+
+    function removePatternFunctionChip(idx, fi) {
+      generatePatternRows[idx].functions.splice(fi, 1);
+      renderGeneratePatternRows();
+    }
+
+    function renderGeneratePatternRows() {
+      const container = document.getElementById('generate-pattern-rows');
+      container.innerHTML = generatePatternRows.map((row, idx) => `
+        <div class="border border-zinc-200 rounded-xl p-3 space-y-2">
+          <div class="flex items-center gap-2">
+            <select onchange="updatePatternRowField(${idx}, 'dayOfWeek', this.value)" class="border border-zinc-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+              ${DAY_NAMES.map((name, d) => `<option value="${d}" ${row.dayOfWeek === d ? 'selected' : ''}>${name}</option>`).join('')}
+            </select>
+            <input type="text" placeholder="Label (optional, e.g. Morning)" value="${escapeHtml(row.label)}"
+                   onchange="updatePatternRowField(${idx}, 'label', this.value)"
+                   class="flex-1 border border-zinc-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+            <button type="button" onclick="removePatternRow(${idx})" title="Remove service" class="text-zinc-300 hover:text-red-500"><i class="fas fa-trash"></i></button>
+          </div>
+          <div class="flex gap-2">
+            <input type="text" id="pattern-fn-input-${idx}" list="generate-functions-datalist" placeholder="Add a function, e.g. Sound"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();addPatternFunctionChip(${idx});}"
+                   class="flex-1 border border-zinc-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+            <button type="button" onclick="addPatternFunctionChip(${idx})" class="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-3 rounded-lg text-sm font-medium">Add</button>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            ${row.functions.map((f, fi) => `
+              <span class="inline-flex items-center gap-1.5 bg-blue-100 text-blue-800 text-xs font-medium px-3 py-1 rounded-full">
+                ${escapeHtml(f)} <button type="button" onclick="removePatternFunctionChip(${idx},${fi})" class="hover:text-red-600"><i class="fas fa-times"></i></button>
+              </span>
+            `).join('') || '<span class="text-xs text-zinc-400 italic">No functions added yet</span>'}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // All dates between start/end (inclusive, YYYY-MM-DD strings) that fall on
+    // the given day of week (0=Sunday..6=Saturday, matching Date#getDay()).
+    function getDatesForDayOfWeek(startStr, endStr, dayOfWeek) {
+      const dates = [];
+      const cursor = new Date(startStr + 'T00:00:00');
+      const end = new Date(endStr + 'T00:00:00');
+      const offset = (dayOfWeek - cursor.getDay() + 7) % 7;
+      cursor.setDate(cursor.getDate() + offset);
+      while (cursor <= end) {
+        dates.push(cursor.toISOString().slice(0, 10));
+        cursor.setDate(cursor.getDate() + 7);
+      }
+      return dates;
+    }
+
+    async function generateRoster() {
+      const msg = document.getElementById('generate-form-msg');
+      msg.classList.add('hidden');
+
+      const startDate = document.getElementById('generate-start-date').value;
+      const endDate = document.getElementById('generate-end-date').value;
+      if (!startDate || !endDate) {
+        msg.textContent = 'Start and end date are required.';
+        msg.classList.remove('hidden');
+        return;
+      }
+      if (startDate > endDate) {
+        msg.textContent = 'Start date must be before the end date.';
+        msg.classList.remove('hidden');
+        return;
+      }
+
+      const activeRows = generatePatternRows.filter((r) => r.functions.length > 0);
+      if (!activeRows.length) {
+        msg.textContent = 'Add at least one service with at least one function.';
+        msg.classList.remove('hidden');
+        return;
+      }
+
+      const newSlots = [];
+      activeRows.forEach((row) => {
+        const dates = getDatesForDayOfWeek(startDate, endDate, row.dayOfWeek);
+        dates.forEach((date) => {
+          row.functions.forEach((fn) => {
+            newSlots.push({ date, label: row.label || null, functions: [fn] });
+          });
+        });
+      });
+
+      if (!newSlots.length) {
+        msg.textContent = 'No dates in that range match the services you defined.';
+        msg.classList.remove('hidden');
+        return;
+      }
+
+      if (!confirm(`This will create ${newSlots.length} open slot${newSlots.length !== 1 ? 's' : ''} between ${startDate} and ${endDate}. Continue?`)) {
+        return;
+      }
+
+      const teamId = generateModalTeamId;
+      const teamRef = db.collection('servingTeams').doc(teamId);
+      const slotsRef = teamRef.collection('slots');
+
+      try {
+        // Chunked under Firestore's 500-write-per-batch limit.
+        const chunkSize = 450;
+        for (let i = 0; i < newSlots.length; i += chunkSize) {
+          const batch = db.batch();
+          newSlots.slice(i, i + chunkSize).forEach((slot) => {
+            batch.set(slotsRef.doc(), {
+              ...slot,
+              trainingEnabled: false,
+              assignedUid: null,
+              assignedName: null,
+              traineeUid: null,
+              traineeName: null,
+              status: 'open',
+              notes: null,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              createdBy: currentUser ? currentUser.uid : null,
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            });
+          });
+          await batch.commit();
+        }
+
+        // Persist the patterns for reuse next time, and grow the team's function list.
+        const team = teamsCache[teamId] || {};
+        const existingFns = team.functions || [];
+        const allPatternFns = activeRows.flatMap((r) => r.functions);
+        const newFns = allPatternFns.filter((f) => !existingFns.includes(f));
+        const patternsToSave = activeRows.map((r) => ({ id: r.id, dayOfWeek: r.dayOfWeek, label: r.label || null, functions: r.functions }));
+
+        const teamUpdate = { rosterPatterns: patternsToSave, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+        if (newFns.length) teamUpdate.functions = firebase.firestore.FieldValue.arrayUnion(...newFns);
+        await teamRef.update(teamUpdate);
+
+        closeGenerateModal();
+        alert(`Created ${newSlots.length} slot${newSlots.length !== 1 ? 's' : ''}.`);
+        reloadTeamCard(teamId);
+      } catch (err) {
+        console.error('Generate roster failed:', err);
+        msg.textContent = 'Failed to generate roster: ' + err.message;
+        msg.classList.remove('hidden');
       }
     }
 
