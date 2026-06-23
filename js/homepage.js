@@ -24,7 +24,7 @@
     if (!grid) return;
     const list = times && times.length ? times : DEFAULT_SERVICE_TIMES;
     grid.innerHTML = list.map(t => `
-      <div class="bg-white/10 rounded-2xl p-6">
+      <div class="bg-white/10 rounded-2xl p-6 border-l-2 border-amber-400">
         <p class="text-amber-300 font-semibold text-sm uppercase tracking-wider">${esc(t.day)}</p>
         <p class="text-2xl font-bold mt-2">${esc(t.time)}</p>
         <p class="text-blue-200 text-sm mt-1">${esc(t.label)}</p>
@@ -362,14 +362,14 @@
   }
 
   function buildNoticeBoardFeed(announcements) {
-    const items = announcements && announcements.length
-      ? announcements.map(p => `
+    if (!announcements || !announcements.length) return '';
+
+    const items = announcements.map(p => `
           <div class="border border-gray-100 rounded-2xl p-5">
             <p class="font-semibold text-[#0A3D62]">${esc(p.title)}</p>
             ${p.body ? `<p class="text-sm text-gray-500 mt-1 line-clamp-3">${esc(p.body)}</p>` : ''}
             <p class="text-xs text-gray-400 mt-2">${formatDate(toDate(p.publishedAt))}</p>
-          </div>`).join('')
-      : `<p class="text-gray-400 text-sm">No announcements at the moment. Check back soon.</p>`;
+          </div>`).join('');
 
     return `
       <section class="bg-white py-12 px-6">
@@ -408,29 +408,29 @@
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <a href="/members/messages.html"
                class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col items-center gap-2 hover:shadow-md hover:border-amber-300 transition-all text-center group">
-              <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-                <i class="fas fa-comment-dots text-blue-600"></i>
+              <div class="w-10 h-10 bg-[#0A3D62]/10 rounded-xl flex items-center justify-center group-hover:bg-[#0A3D62]/20 transition-colors">
+                <i class="fas fa-comment-dots text-amber-500"></i>
               </div>
               <span class="text-xs font-semibold text-[#0A3D62]">Messages</span>
             </a>
             <a href="/members/prayer.html"
                class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col items-center gap-2 hover:shadow-md hover:border-amber-300 transition-all text-center group">
-              <div class="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center group-hover:bg-purple-200 transition-colors">
-                <i class="fas fa-praying-hands text-purple-600"></i>
+              <div class="w-10 h-10 bg-[#0A3D62]/10 rounded-xl flex items-center justify-center group-hover:bg-[#0A3D62]/20 transition-colors">
+                <i class="fas fa-praying-hands text-amber-500"></i>
               </div>
               <span class="text-xs font-semibold text-[#0A3D62]">Prayer</span>
             </a>
             <a href="/members/directory.html"
                class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col items-center gap-2 hover:shadow-md hover:border-amber-300 transition-all text-center group">
-              <div class="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center group-hover:bg-green-200 transition-colors">
-                <i class="fas fa-users text-green-600"></i>
+              <div class="w-10 h-10 bg-[#0A3D62]/10 rounded-xl flex items-center justify-center group-hover:bg-[#0A3D62]/20 transition-colors">
+                <i class="fas fa-users text-amber-500"></i>
               </div>
               <span class="text-xs font-semibold text-[#0A3D62]">Directory</span>
             </a>
             <a href="/members/groups.html"
                class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col items-center gap-2 hover:shadow-md hover:border-amber-300 transition-all text-center group">
-              <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center group-hover:bg-amber-200 transition-colors">
-                <i class="fas fa-layer-group text-amber-600"></i>
+              <div class="w-10 h-10 bg-[#0A3D62]/10 rounded-xl flex items-center justify-center group-hover:bg-[#0A3D62]/20 transition-colors">
+                <i class="fas fa-layer-group text-amber-500"></i>
               </div>
               <span class="text-xs font-semibold text-[#0A3D62]">Groups</span>
             </a>

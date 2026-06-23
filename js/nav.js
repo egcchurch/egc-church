@@ -47,6 +47,33 @@
         // Don't crash the page if the nav fails to load.
         console.error('Failed to load navigation:', err);
       });
+
+    initFooter();
+  }
+
+  // Shared footer — public pages only. /admin/ and /members/ pages don't get
+  // it, and only opt in by having a #footer-placeholder element at all.
+  function initFooter() {
+    const placeholder = document.getElementById('footer-placeholder');
+    if (!placeholder) return;
+
+    const path = window.location.pathname;
+    if (path.includes('/admin/') || path.includes('/members/')) return;
+
+    fetch('/footer.html', { headers: { Accept: 'text/html' } })
+      .then((res) => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.text();
+      })
+      .then((html) => {
+        placeholder.innerHTML = html;
+        const footerScript = document.createElement('script');
+        footerScript.src = '/js/footer.js';
+        document.head.appendChild(footerScript);
+      })
+      .catch((err) => {
+        console.error('Failed to load footer:', err);
+      });
   }
 
   function highlightActiveLink() {
