@@ -48,6 +48,17 @@ church-website-pwa/
 ├── connect.html                ← Visitor connect form (public)
 ├── gallery.html                ← Public gallery (public)
 ├── music.html                  ← Music library (public)
+├── story.html                  ← Single blog post detail view (?id=, public) — reads /blog/{id}
+├── 404.html                    ← Not-found page
+│
+├── nav.html                    ← Shared public-page nav partial — injected into #nav-placeholder
+│                                  by js/nav.js (script tags inside it never execute; see
+│                                  "Shared partials" note below)
+├── admin-nav.html              ← Shared admin nav partial, same injection mechanism
+├── members-nav.html            ← Shared members nav partial, same injection mechanism
+├── footer.html                 ← Shared public-page footer partial — injected into
+│                                  #footer-placeholder by js/nav.js; admin/members pages excluded.
+│                                  Pure markup only (placeholder ids), populated by js/footer.js
 │
 ├── members/                    ← Member-gated pages (membership: "member" required)
 │   ├── index.html              ← Members area dashboard
@@ -126,9 +137,27 @@ church-website-pwa/
 │   ├── auth.js                 ← Firebase auth logic
 │   ├── admin-auth.js           ← Auth guard for admin pages (role check)
 │   ├── member-auth.js          ← Auth guard for member pages (membership check)
-│   ├── main.js                 ← Global nav, auth state, mobile menu, SW reg
+│   ├── permissions.js          ← Reads custom claims, exposes hasPermission(key) — load after
+│   │                              firebase-auth-compat.js
+│   ├── main.js                 ← Global nav, auth state, mobile menu, SW reg, applyBranding()/
+│   │                              applyFeatures() (Phase 8 /config/* client-side application)
+│   ├── nav.js                  ← Injects nav.html/admin-nav.html/members-nav.html into
+│   │                              #nav-placeholder, and footer.html into #footer-placeholder
+│   │                              (public pages only) — see "Shared partials" note below
+│   ├── footer.js               ← Populates footer.html's placeholder ids from /config/church +
+│   │                              /homepage/content.serviceTimes; loaded dynamically by nav.js
+│   ├── homepage.js             ← Adaptive homepage renderer (Phase 7) — auth-state templates,
+│   │                              service times, quick links, notice board; see docs/HOMEPAGE.md
 │   ├── sermons.js              ← Sermons page (Firestore)
 │   ├── events.js               ← Events page (Firestore)
+│   ├── blog.js                 ← Blog/announcements list page (Firestore)
+│   ├── about.js                ← About/leadership page (Firestore)
+│   ├── connect.js              ← Visitor connect form submission
+│   ├── gallery.js              ← Public gallery page (Firestore)
+│   ├── music.js                ← Music library page (Firestore)
+│   ├── storage-upload.js       ← The ONLY module that knows about Firebase Storage — see
+│   │                              "Media Storage" section below
+│   ├── search.js               ← Global ⌘K/Ctrl+K content search overlay (sermons/events/blog)
 │   ├── notifications.js        ← FCM token registration, in-app notification centre
 │   └── messaging.js            ← Direct messaging (Firestore real-time)
 │
@@ -845,11 +874,14 @@ Storage rules enforce file size and type per path (see `storage.rules`):
 - Firebase Hosting (not GitHub Pages) — supports per-PR preview channels, CDN, custom domains, multi-site
 - All paths use `/` as root (not `/egc-church/` — that was the old GitHub Pages subpath)
 - firebase-config.js is committed (Firebase web configs are public-facing by design)
-- Colour scheme: amber (#F59E0B) + navy (#0A3D62)
+- Colour scheme: amber (#F59E0B) + navy (#0A3D62) — see "Design System" below for the full convention set
 - Service worker: cache-first for static assets, network-first for HTML pages
 - Hero video (CloudVideo.mp4) excluded from caching — too large
 - Firebase auth/API calls excluded from SW interception — must always be live
-- Cache version: bump on each deploy with breaking changes (current: `egc-cache-v25`)
+- Cache version: bump on each deploy with breaking changes. **Don't hardcode the current version number
+  in prose anywhere** (including this file) — it drifts immediately and silently every time someone bumps
+  it without updating the doc. Always read `CACHE_NAME` at the top of `service-worker.js` for the actual
+  current value.
 - Service worker cache list must be updated whenever a new page is added — CI check enforces this
 - Role checks in JS are UX only — Firestore Security Rules are the real enforcement layer
 - Firestore security rules are tested in CI via `@firebase/rules-unit-testing` against the Firebase emulator
@@ -865,6 +897,52 @@ Storage rules enforce file size and type per path (see `storage.rules`):
 - `/team` entries are independent of `/users` — team members are content records, not user accounts
 - Auth guards (`admin-auth.js`, `member-auth.js`) must wait for both `firebase` AND `firebase.firestore` to be ready before running — otherwise they redirect before Firestore is initialised
 - Development uses local Claude Code (not the GitHub Claude agent) — uses subscription instead of API costs
+
+---
+
+## Design System
+
+For any visual/design work — read this before proposing changes, and verify every specific claim
+(a class, a section, a cache version, a page) against the actual current files rather than against
+memory of an earlier version of this site or a comparison to the old site. This codebase has diverged
+substantially from earlier iterations; several things that used to exist no longer do (e.g. there is no
+scripture-quote section on the homepage), and some things assumed to be missing already exist (e.g.
+`/admin/settings.html`). A wrong assumption here is the single most common source of bad design
+suggestions seen so far — always grep/read first.
+
+- **Colours:** navy `#0A3D62` (primary — header bars, nav, dark sections), amber `#F59E0B` (accent —
+  CTAs, active states, highlights). Both are also runtime-editable via `/config/branding`
+  (`primaryColor`/`accentColor`, Phase 8) and applied client-side by `applyBranding()` in `js/main.js` —
+  but the hardcoded Tailwind classes (`bg-[#0A3D62]`, `text-amber-500`, etc.) throughout the static HTML
+  are the actual default/fallback values and what's used in 95% of places; don't assume every navy/amber
+  usage reads from Firestore.
+- **Icons:** Font Awesome 6.5.1 via CDN, **never emoji**. An icon sits in a tinted square/circle container;
+  the established pattern for member-area utility icons (quick links, dashboard cards) is
+  `bg-[#0A3D62]/10` container + `text-amber-500` icon — not the multi-coloured per-item tints
+  (blue-100/purple-100/green-100/etc.) seen in a few older sections that predate this convention being
+  settled. Marketing-style card grids (e.g. the homepage Explore section) instead pair two accent
+  treatments across the card set (amber for one subset, navy-tint for another) rather than one colour
+  per card.
+- **Corners/shape:** `rounded-2xl` for cards/panels, `rounded-xl` for icon containers, `rounded-full` for
+  buttons and pills.
+- **Tailwind:** v4 browser CDN build (`@tailwindcss/browser@4` via jsdelivr) — utility classes scanned and
+  generated at runtime in-browser, no build step, no purge/compile. Arbitrary-value classes like
+  `bg-[#0A3D62]/10` work fine with this build.
+- **Shared partials (nav.html, admin-nav.html, members-nav.html, footer.html):** injected into a
+  placeholder div via `fetch(file).then(html => placeholder.innerHTML = html)` in `js/nav.js`. **A
+  `<script>` tag inside a partial fetched this way will never execute** — script tags inserted via
+  `innerHTML` don't run, by browser design. Any JS needed to populate a partial's dynamic content
+  (`js/notifications.js`, `js/search.js`, `js/footer.js`) is a separate file, dynamically appended via
+  `document.createElement('script')` *after* the partial is injected — see `js/nav.js` for the established
+  pattern. Follow it for any new shared partial; don't add inline scripts to the partial file itself.
+- **Adding the footer to a new public page:** add `<div id="footer-placeholder"></div>` before `</body>`
+  — `js/nav.js` handles the rest automatically (and skips injection entirely on `/admin/` and
+  `/members/` paths). No other wiring needed.
+- **Homepage section order is partly fixed, partly admin-configurable:** the hero, adaptive section,
+  announcement banner, and service times are fixed HTML order (not configurable). Everything inside
+  `<div data-sections-container="homepage">` (Latest Sermons, Explore, Connect CTA) can be toggled/
+  reordered by a superadmin via `/admin/pages.html` → `/config/pages/homepage` (Phase 9). Check which
+  bucket a section is in before assuming a reorder is a simple HTML edit.
 
 ---
 
