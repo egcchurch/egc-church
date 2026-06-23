@@ -23,8 +23,12 @@
   <!-- Navigation (shared — see nav.html, injected by js/nav.js) -->
   <div id="nav-placeholder"></div>
 
-  <!-- HERO VIDEO — not composable, always first -->
-  <header class="relative h-screen flex items-center justify-center text-center text-white overflow-hidden">
+  <!-- HERO VIDEO — not composable, always first. Height is 100vh minus the nav's
+       fixed h-16 + 1px border (65px) — the nav sits in normal flow above this
+       header (not overlapping it), so a plain h-screen here made the page 65px
+       taller than the viewport, pushing bottom-anchored content (the gradient,
+       the scroll chevron) almost entirely below the fold on first load. -->
+  <header class="relative h-[calc(100vh-65px)] flex items-center justify-center text-center text-white overflow-hidden">
     <video id="hero-video"
            class="absolute inset-0 w-full h-full object-cover"
            autoplay muted loop playsinline>
