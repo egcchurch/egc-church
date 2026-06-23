@@ -160,6 +160,68 @@ service cloud.firestore {
       allow delete: if isSuperadmin();
     }
 
+    // ── Serving Teams (rostered volunteer teams) ────────────────────────────────
+    // Distinct from /groups: this is for teams that need scheduling (Equipment,
+    // Worship, Youth Helpers), not standing fellowship groups. See docs/SERVING_TEAMS.md.
+    function isServingTeamMember(teamId) {
+      let team = get(/databases/$(database)/documents/servingTeams/$(teamId)).data;
+      return isSignedIn() &&
+        (request.auth.uid in team.members || request.auth.uid in team.leaders);
+    }
+
+    function isServingTeamLeader(teamId) {
+      return isSignedIn() &&
+        request.auth.uid in
+          get(/databases/$(database)/documents/servingTeams/$(teamId)).data.leaders;
+    }
+
+    match /servingTeams/{teamId} {
+      // Team existence/description is browsable by any member (to find/join a team);
+      // the roster itself (slots, below) is scoped much more tightly.
+      allow read: if isMember();
+      allow create: if hasPermission('servingTeams.manage');
+      allow update: if hasPermission('servingTeams.manage') ||
+        // Leaders manage their own team's membership, tiers, and function list
+        (isSignedIn() && request.auth.uid in resource.data.leaders &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['members', 'pendingMembers', 'memberTiers', 'functions', 'updatedAt'])) ||
+        // Members can join/leave (add/remove their own UID) — same pattern as /groups
+        (isMember() &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['members', 'pendingMembers']));
+      allow delete: if hasPermission('servingTeams.manage');
+    }
+
+    match /servingTeams/{teamId}/slots/{slotId} {
+      allow read: if hasPermission('servingTeams.manage') || isServingTeamMember(teamId);
+      allow create: if hasPermission('servingTeams.manage') || isServingTeamLeader(teamId);
+      allow delete: if hasPermission('servingTeams.manage') || isServingTeamLeader(teamId);
+      // Leaders/admins can edit any field. A regular team member may only claim an
+      // open lead or trainee position for THEMSELVES, or release their own —
+      // never touch anyone else's assignment, the date, functions, or notes.
+      allow update: if hasPermission('servingTeams.manage') || isServingTeamLeader(teamId) ||
+        (isServingTeamMember(teamId) &&
+          resource.data.assignedUid == null &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['assignedUid', 'assignedName', 'status', 'updatedAt']) &&
+          request.resource.data.assignedUid == request.auth.uid) ||
+        (isServingTeamMember(teamId) &&
+          resource.data.assignedUid == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['assignedUid', 'assignedName', 'status', 'updatedAt']) &&
+          request.resource.data.assignedUid == null) ||
+        (isServingTeamMember(teamId) &&
+          resource.data.traineeUid == null &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['traineeUid', 'traineeName', 'updatedAt']) &&
+          request.resource.data.traineeUid == request.auth.uid) ||
+        (isServingTeamMember(teamId) &&
+          resource.data.traineeUid == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['traineeUid', 'traineeName', 'updatedAt']) &&
+          request.resource.data.traineeUid == null);
+    }
+
     // ── Devotionals ───────────────────────────────────────────────────────────
     match /devotionals/{id} {
       allow read: if isMember();

@@ -48,8 +48,9 @@ Naming convention: `{area}.{action}`, lowercase, dot-separated.
 | `users.assign_roles` | Assign roles + extras to users (does NOT include `isSuperadmin` toggle)                                                             |
 | `youtube.update`     | Push corrected sermon metadata (title, description) back to YouTube from `/admin/sermons`. Gates a client-side OAuth flow, not a Firestore write — see "YouTube write-back" below |
 | `cottage.manage`     | Create and manage cottage meetings (set capacity, view registrations) from `/admin/cottage`. A deacon manages only the meetings they host; superadmins manage all and edit the region list |
+| `servingTeams.manage` | Create and delete serving teams from `/admin/serving-teams`. Team leaders manage their own team's roster/membership from `/members/serving-teams` without needing this permission — see `docs/SERVING_TEAMS.md` |
 
-**16 keys total.** Easy to extend later if `.manage` ever needs to split into `.create / .edit / .delete`, but start coarse.
+**17 keys total.** Easy to extend later if `.manage` ever needs to split into `.create / .edit / .delete`, but start coarse.
 
 ### YouTube write-back (`youtube.update`)
 

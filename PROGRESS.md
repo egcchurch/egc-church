@@ -10,7 +10,88 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-23
-**Current milestone:** Maintenance — tightened manifest.json/service-worker.js cache headers; installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Serving Teams module (foundation) built end-to-end on `feat/serving-teams-foundation` — rostering, claim/release, training pairing all in place; user is about to start testing. Equipment register (Phase 2) and slot templates (Phase 1.5) still pending. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — Serving Teams module, foundation (Session 113)
+
+**Date:** 2026-06-23
+**Branch:** `feat/serving-teams-foundation` (PR pending)
+**Status:** Open
+
+### Context
+User asked about the purpose of the existing Groups feature, specifically whether it
+fit the Equipment Team's needs (rostering, move checklists, slot-cover, training,
+equipment location). Concluded Groups is the wrong fit — it has no concept of dated
+slots, claim/release, or skill-based scheduling. Led to an extended design discussion
+(captured in full in `docs/SERVING_TEAMS.md`) covering: atomic "functions" instead of
+fixed roles (so the same engine handles AV combos, a 14-piece band, or "2 Food
+Helpers"); training pairing as a static opt-in-per-slot (always exactly 2 positions
+when enabled, not dynamically spawned); roster visibility scoped to team
+members/leaders/admins only, not all church members; equipment register deferred to
+Phase 2 as a move-checklist (location tracking), explicitly not a booking/reservation
+calendar. User gave full autonomy to build, test, commit, and deploy without further
+check-ins, and to write this entry before stopping.
+
+### What was built
+- **`docs/SERVING_TEAMS.md`** (new) — full design doc: why Groups doesn't fit, core
+  concepts (Team, member tier, functions, roster slot, training pairing, templates,
+  visibility), data model, permission model, phasing. Equipment Register + Moves
+  explicitly scoped as Phase 2; slot templates as Phase 1.5.
+- **Permission:** added `servingTeams.manage` to `functions/rolesData.js`
+  (`ALL_PERMISSIONS`) and `admin/roles.html`. Deliberately not added to any
+  `DEFAULT_ROLES` entry — superadmin assigns it to whichever role fits per-church.
+  `docs/PERMISSIONS.md` updated (17 keys total).
+- **Firestore rules** — new `/servingTeams/{teamId}` and
+  `/servingTeams/{teamId}/slots/{slotId}` match blocks, plus `isServingTeamMember()` /
+  `isServingTeamLeader()` helpers. Slot updates allow leader/admin unrestricted writes,
+  plus member self-service: claim an open lead position, release your own lead
+  assignment, claim an open trainee position, release your own trainee assignment —
+  each scoped so a member can only ever write their own UID into the slot, never
+  someone else's.
+- **`admin/serving-teams.html`** (new) — team CRUD (name, description, joinPolicy,
+  leaders, isPublic), gated on `servingTeams.manage`. Deleting a team batch-deletes its
+  `slots` subcollection first.
+- **`members/serving-teams.html`** (new) — the core page: browse/join/leave teams;
+  leader approval queue for `approval`-joinPolicy teams (defaults new approvals to
+  `trainee` tier); per-team roster showing member chips with tier badges
+  (leader can toggle tier / remove); date-grouped slot list with Claim / "Can't make
+  it" actions per position; full Add/Edit Slot modal — date, function (datalist
+  autocomplete that grows the team's `functions` list via `arrayUnion`), optional
+  training-pairing checkbox, optional lead/trainee pre-assignment, notes.
+  `claimSlot()`/`releaseSlot()` both use `db.runTransaction()` client-side so claims are
+  race-safe without needing a Cloud Function.
+- **Nav/dashboard/SW wiring** — links added to `admin-nav.html`, `members-nav.html`
+  (desktop + mobile), a dashboard card on `admin/index.html`; `service-worker.js` cache
+  bumped to `egc-cache-v59` with both new pages added to the precache list.
+- **`tests/firestore.rules.test.js`** — 17 new tests covering read/write scoping,
+  field-level claim/release restrictions, and delete permissions for both the team doc
+  and the slots subcollection. Full suite: 107 passing (was 90).
+- **`CLAUDE.md`** — file tree, Site Map & Access Control tables, Firestore Data
+  Structure section, and permission-count reference all updated for the new module.
+
+### Verification
+- Firestore rules compiled clean via the emulator; all 107 rules tests passing.
+- Two apostrophe-in-data bugs caught and fixed via Playwright testing against the real
+  source files (an `onclick="...${JSON.stringify(x)}..."` pattern needs the outer
+  attribute double-quoted with `.replace(/"/g, '&quot;')` on the JSON — single-quoting
+  or skipping the escape breaks on names like "Children's Ministry Team").
+- Transactional claim/release verified to actually reject a conflicting claim (pre-set
+  `assignedUid` to another user, attempted claim, confirmed it throws and does not
+  overwrite) rather than just trusting the rule logic on paper.
+
+### Deploy
+Adds new Firestore rules — **not auto-deployed by CI**. After this PR merges, run
+`firebase deploy --only firestore:rules` manually (and `firestore:indexes` if any
+composite index is needed for the slots queries).
+
+### Still open / next session
+- Phase 1.5: slot templates (save a recurring slot shape, e.g. the full band lineup, and
+  stamp out a new date's slots from it in one action).
+- Phase 2: Equipment Register — `/servingTeams/{teamId}/equipment/{itemId}` with a
+  `currentLocation` field, updated via a move-checklist UI rather than a
+  booking/reservation calendar.
 
 ---
 

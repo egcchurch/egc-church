@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>Serving Teams | Emmanuel Gospel Centre</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="/js/member-auth.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans">
+
+  <div id="nav-placeholder"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-7xl mx-auto">
+      <h1 class="text-3xl font-bold tracking-tight">Serving Teams</h1>
+      <p class="text-blue-200 mt-1">Browse teams, join one, or manage your roster</p>
+    </div>
+  </div>
+
+  <!-- TEAMS LIST -->
+  <main class="max-w-7xl mx-auto px-6 py-8">
+    <div id="loading" class="text-center py-16 text-zinc-400">
+      <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+      <p>Loading teams...</p>
+    </div>
+    <div id="empty" class="hidden text-center py-16 text-zinc-400">
+      <i class="fas fa-people-carry-box text-5xl mb-4 opacity-30"></i>
+      <p class="text-lg font-medium">No serving teams available</p>
+    </div>
+    <div id="team-list" class="space-y-6"></div>
+  </main>
+
+  <!-- PENDING APPROVAL MODAL (leader view) -->
+  <div id="pending-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-[#0A3D62]">Pending Requests</h3>
+        <button onclick="closePendingModal()" class="text-zinc-400 hover:text-zinc-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <div id="pending-list" class="space-y-3 max-h-80 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- ADD / EDIT SLOT MODAL (leader view) -->
+  <div id="slot-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-[#0A3D62]" id="slot-modal-title">New Slot</h3>
+        <button onclick="closeSlotModal()" class="text-zinc-400 hover:text-zinc-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Date *</label>
+          <input id="slot-date" type="date" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Functions for this slot *</label>
+          <div class="flex gap-2 mb-2">
+            <input id="slot-function-input" type="text" list="slot-functions-datalist" placeholder="e.g. Camera"
+                   class="flex-1 border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();addSlotFunctionChip();}">
+            <datalist id="slot-functions-datalist"></datalist>
+            <button type="button" onclick="addSlotFunctionChip()" class="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 rounded-xl text-sm font-medium">Add</button>
+          </div>
+          <div id="slot-function-chips" class="flex flex-wrap gap-2"></div>
+          <p class="text-xs text-zinc-400 mt-1">Pick an existing function or type a new one. Add more than one if the same person covers several (e.g. "Camera" + "Video Mixing").</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="slot-training" class="w-4 h-4 accent-amber-500" onchange="toggleSlotTraineeField()">
+          <label for="slot-training" class="text-sm text-zinc-700">Pair a trainee with a mentor on this slot</label>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Assign to (optional — leave open to self-claim)</label>
+          <select id="slot-assignee" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400">
+            <option value="">(Open — anyone can claim)</option>
+          </select>
+        </div>
+        <div id="slot-trainee-field" class="hidden">
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Trainee (optional — leave open to self-claim)</label>
+          <select id="slot-trainee" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400">
+            <option value="">(Open — any trainee can claim)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Notes (optional)</label>
+          <input id="slot-notes" type="text" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+      </div>
+      <div class="mt-6 flex gap-3">
+        <button onclick="saveSlot()" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">Save Slot</button>
+        <button onclick="closeSlotModal()" class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-6 py-2.5 rounded-full text-sm font-medium transition-all">Cancel</button>
+      </div>
+      <p id="slot-form-msg" class="hidden mt-3 text-sm font-medium text-red-500"></p>
+    </div>
+  </div>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    const db = firebase.firestore();
+    let currentUser = null;
+    let userNames = {};
+    let teamMembersCache = {};   // teamId -> [{uid, name, tier}]
+    let teamSlotsCache = {};     // teamId -> [slot]
+    let slotFunctionChips = [];  // staged chips for the open slot form
+    let slotModalTeamId = null;
+    let editingSlotId = null;
+
+    auth.onAuthStateChanged((user) => { currentUser = user; });
+
+    async function fetchDisplayName(uid) {
+      if (userNames[uid]) return userNames[uid];
+      try {
+        const doc = await db.collection('users').doc(uid).get();
+        const name = doc.exists ? (doc.data().displayName || 'Member') : 'Member';
+        userNames[uid] = name;
+        return name;
+      } catch { return 'Member'; }
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function joinPolicyLabel(policy) {
+      if (policy === 'open') return { text: 'Open', cls: 'bg-green-100 text-green-700' };
+      if (policy === 'approval') return { text: 'Approval Required', cls: 'bg-amber-100 text-amber-700' };
+      return { text: 'Invite Only', cls: 'bg-zinc-100 text-zinc-600' };
+    }
+
+    // ── Browse / join / leave (mirrors members/groups.html) ────────────────────
+
+    function renderTeams(teams) {
+      const list = document.getElementById('team-list');
+      const empty = document.getElementById('empty');
+      list.innerHTML = '';
+
+      if (!teams.length) { empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+
+      teams.forEach((t) => {
+        const uid = currentUser?.uid;
+        const isMemberOf = uid && (t.members || []).includes(uid);
+        const isLeader = uid && (t.leaders || []).includes(uid);
+        const isPending = uid && (t.pendingMembers || []).includes(uid);
+        const policy = joinPolicyLabel(t.joinPolicy);
+        const memberCount = (t.members || []).length;
+        const pendingCount = (t.pendingMembers || []).length;
+
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-2xl border border-zinc-200 shadow-sm p-6';
+        card.id = `team-card-${t.id}`;
+        card.innerHTML = `
+          <div class="flex flex-col sm:flex-row sm:items-start gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex flex-wrap items-center gap-2 mb-2">
+                <h2 class="font-bold text-xl text-[#0A3D62]">${escapeHtml(t.name)}</h2>
+                <span class="text-xs font-medium px-2 py-0.5 rounded-full ${policy.cls}">${policy.text}</span>
+                ${isLeader ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">You Lead This</span>' : ''}
+                ${isMemberOf && !isLeader ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Joined</span>' : ''}
+              </div>
+              <p class="text-zinc-600 text-sm leading-relaxed mb-3">${escapeHtml(t.description || '')}</p>
+              <div class="flex flex-wrap gap-4 text-xs text-zinc-400">
+                <span><i class="fas fa-users mr-1"></i>${memberCount} member${memberCount !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
+            <div class="flex flex-col gap-2 sm:items-end flex-shrink-0">
+              ${renderActionButton(t, isMemberOf, isLeader, isPending)}
+              ${isLeader && pendingCount > 0 ? `<button onclick="openPendingModal('${t.id}')" class="text-xs text-amber-600 hover:underline font-medium">${pendingCount} pending request${pendingCount !== 1 ? 's' : ''}</button>` : ''}
+            </div>
+          </div>
+          ${(isMemberOf || isLeader) ? `<div id="roster-section-${t.id}" class="mt-5 pt-5 border-t border-zinc-100"></div>` : ''}
+        `;
+        list.appendChild(card);
+
+        if (isMemberOf || isLeader) renderRosterSection(t, isLeader);
+      });
+    }
+
+    function renderActionButton(t, isMemberOf, isLeader, isPending) {
+      if (isLeader || isMemberOf) {
+        return `<button onclick="leaveTeam('${t.id}')"
+                        class="border border-zinc-200 hover:border-red-200 hover:text-red-500 text-zinc-500 px-4 py-2 rounded-full text-xs font-medium transition-all">
+                  Leave Team
+                </button>`;
+      }
+      if (isPending) {
+        return `<button onclick="cancelRequest('${t.id}')"
+                        class="border border-amber-200 text-amber-600 px-4 py-2 rounded-full text-xs font-medium cursor-default">
+                  <i class="fas fa-clock mr-1"></i>Request Pending
+                </button>`;
+      }
+      if (t.joinPolicy === 'invite-only') {
+        return `<span class="text-xs text-zinc-400 italic">Invite only</span>`;
+      }
+      const label = t.joinPolicy === 'approval' ? 'Request to Join' : 'Join Team';
+      return `<button onclick="joinTeam('${t.id}', '${t.joinPolicy}')"
+                      class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-full text-xs font-medium transition-all">
+                ${label}
+              </button>`;
+    }
+
+    async function joinTeam(teamId, policy) {
+      if (!currentUser) return;
+      const ref = db.collection('servingTeams').doc(teamId);
+      const field = policy === 'approval' ? 'pendingMembers' : 'members';
+      try {
+        await ref.update({ [field]: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) });
+      } catch (err) {
+        console.error('Join failed:', err);
+        alert('Failed to join team. Please try again.');
+      }
+    }
+
+    async function cancelRequest(teamId) {
+      if (!currentUser) return;
+      try {
+        await db.collection('servingTeams').doc(teamId).update({
+          pendingMembers: firebase.firestore.FieldValue.arrayRemove(currentUser.uid),
+        });
+      } catch (err) { console.error('Cancel failed:', err); }
+    }
+
+    async function leaveTeam(teamId) {
+      if (!currentUser) return;
+      if (!confirm('Leave this team?')) return;
+      try {
+        await db.collection('servingTeams').doc(teamId).update({
+          members: firebase.firestore.FieldValue.arrayRemove(currentUser.uid),
+          leaders: firebase.firestore.FieldValue.arrayRemove(currentUser.uid),
+        });
+      } catch (err) {
+        console.error('Leave failed:', err);
+        alert('Failed to leave team.');
+      }
+    }
+
+    // ── Pending requests (leader) ────────────────────────────────────────────────
+
+    let pendingTeamId = null;
+    async function openPendingModal(teamId) {
+      pendingTeamId = teamId;
+      const modal = document.getElementById('pending-modal');
+      const list = document.getElementById('pending-list');
+      modal.classList.remove('hidden');
+      list.innerHTML = '<p class="text-sm text-zinc-400">Loading...</p>';
+
+      const snap = await db.collection('servingTeams').doc(teamId).get();
+      const pendingUids = snap.data()?.pendingMembers || [];
+      list.innerHTML = '';
+
+      if (!pendingUids.length) {
+        list.innerHTML = '<p class="text-sm text-zinc-400">No pending requests</p>';
+        return;
+      }
+
+      for (const uid of pendingUids) {
+        const name = await fetchDisplayName(uid);
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between py-2';
+        row.innerHTML = `
+          <span class="text-sm font-medium text-zinc-700">${escapeHtml(name)}</span>
+          <div class="flex gap-2">
+            <button onclick="approveRequest('${teamId}', '${uid}')" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-full text-xs font-medium transition-all">Approve</button>
+            <button onclick="denyRequest('${teamId}', '${uid}')" class="border border-zinc-200 hover:border-red-200 text-zinc-500 hover:text-red-500 px-3 py-1 rounded-full text-xs font-medium transition-all">Deny</button>
+          </div>
+        `;
+        list.appendChild(row);
+      }
+    }
+
+    function closePendingModal() {
+      document.getElementById('pending-modal').classList.add('hidden');
+      pendingTeamId = null;
+    }
+
+    async function approveRequest(teamId, uid) {
+      const ref = db.collection('servingTeams').doc(teamId);
+      await ref.update({
+        members: firebase.firestore.FieldValue.arrayUnion(uid),
+        pendingMembers: firebase.firestore.FieldValue.arrayRemove(uid),
+        [`memberTiers.${uid}`]: 'trainee', // new joiners default to trainee until promoted
+      });
+      openPendingModal(teamId);
+    }
+
+    async function denyRequest(teamId, uid) {
+      const ref = db.collection('servingTeams').doc(teamId);
+      await ref.update({ pendingMembers: firebase.firestore.FieldValue.arrayRemove(uid) });
+      openPendingModal(teamId);
+    }
+
+    // ── Roster section (members + leaders) ───────────────────────────────────────
+
+    async function renderRosterSection(team, isLeader) {
+      const container = document.getElementById(`roster-section-${team.id}`);
+      if (!container) return;
+      container.innerHTML = '<p class="text-xs text-zinc-400">Loading roster...</p>';
+
+      // Member list with tiers (for display + leader management)
+      const members = [];
+      for (const uid of (team.members || [])) {
+        const name = await fetchDisplayName(uid);
+        const tier = (team.memberTiers || {})[uid] || 'trainee';
+        members.push({ uid, name, tier });
+      }
+      teamMembersCache[team.id] = members;
+
+      const slotsSnap = await db.collection('servingTeams').doc(team.id).collection('slots')
+        .orderBy('date', 'asc').get()
+        .catch((err) => { console.error('Slots load failed:', err); return null; });
+      const slots = slotsSnap ? slotsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) : [];
+      teamSlotsCache[team.id] = slots;
+
+      const today = new Date().toISOString().slice(0, 10);
+      const upcoming = slots.filter((s) => !s.date || s.date >= today);
+
+      let html = '';
+
+      if (isLeader) {
+        html += `
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-zinc-600">Team Roster</h3>
+            <button onclick="openSlotModal('${team.id}')" class="text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all">
+              <i class="fas fa-plus mr-1"></i>Add Slot
+            </button>
+          </div>
+          <div class="mb-5">
+            <h4 class="text-xs font-semibold text-zinc-500 uppercase mb-2">Members</h4>
+            <div class="flex flex-wrap gap-2">
+              ${members.length ? members.map((m) => `
+                <div class="flex items-center gap-1.5 bg-zinc-100 rounded-full px-3 py-1 text-xs text-zinc-600">
+                  <span>${escapeHtml(m.name)}</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded-full ${m.tier === 'qualified' ? 'bg-green-200 text-green-800' : 'bg-amber-200 text-amber-800'}">${m.tier === 'qualified' ? 'Qualified' : 'Trainee'}</span>
+                  <button onclick="toggleTier('${team.id}', '${m.uid}', '${m.tier}')" title="Toggle tier" class="text-zinc-400 hover:text-blue-500"><i class="fas fa-arrows-rotate text-[10px]"></i></button>
+                  ${m.uid !== currentUser?.uid ? `<button onclick="removeMember('${team.id}', '${m.uid}')" title="Remove" class="text-zinc-400 hover:text-red-500"><i class="fas fa-times text-[10px]"></i></button>` : ''}
+                </div>
+              `).join('') : '<span class="text-xs text-zinc-400">No members yet</span>'}
+            </div>
+          </div>
+        `;
+      }
+
+      html += `<h4 class="text-xs font-semibold text-zinc-500 uppercase mb-2">${isLeader ? 'Upcoming Slots' : 'My Team’s Upcoming Roster'}</h4>`;
+      html += `<div id="roster-slots-${team.id}" class="space-y-3"></div>`;
+
+      container.innerHTML = html;
+
+      const slotsContainer = document.getElementById(`roster-slots-${team.id}`);
+      if (!upcoming.length) {
+        slotsContainer.innerHTML = '<p class="text-xs text-zinc-400">No upcoming slots scheduled yet.</p>';
+        return;
+      }
+
+      const grouped = {};
+      upcoming.forEach((s) => { (grouped[s.date] = grouped[s.date] || []).push(s); });
+      Object.keys(grouped).sort().forEach((date) => {
+        const dateHeader = document.createElement('div');
+        dateHeader.className = 'text-xs font-semibold text-[#0A3D62] mt-3';
+        dateHeader.textContent = new Date(date + 'T00:00:00').toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        slotsContainer.appendChild(dateHeader);
+        grouped[date].forEach((slot) => slotsContainer.appendChild(renderSlotRow(team.id, slot, isLeader)));
+      });
+    }
+
+    function renderSlotRow(teamId, slot, isLeader) {
+      const uid = currentUser?.uid;
+      const label = (slot.functions || []).join(' + ') || '(no function set)';
+      const row = document.createElement('div');
+      row.className = 'bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3';
+
+      const leadIsSelf = slot.assignedUid === uid;
+      const traineeIsSelf = slot.traineeUid === uid;
+      const canClaimLead = !slot.assignedUid;
+      const canClaimTrainee = slot.trainingEnabled && !slot.traineeUid;
+
+      let leadHtml;
+      if (slot.assignedUid) {
+        leadHtml = `<span class="text-zinc-700">${escapeHtml(slot.assignedName || 'Assigned')}</span>` +
+          (leadIsSelf ? ` <button onclick="releaseSlot('${teamId}','${slot.id}',false)" class="text-xs text-red-500 hover:underline ml-1">Can't make it</button>` : '');
+      } else {
+        leadHtml = `<span class="text-amber-600 font-medium">Open</span>` +
+          (canClaimLead ? ` <button onclick="claimSlot('${teamId}','${slot.id}',false)" class="text-xs text-blue-600 hover:underline ml-1">Claim</button>` : '');
+      }
+
+      let traineeHtml = '';
+      if (slot.trainingEnabled) {
+        if (slot.traineeUid) {
+          traineeHtml = `<span class="text-zinc-700">${escapeHtml(slot.traineeName || 'Assigned')}</span>` +
+            (traineeIsSelf ? ` <button onclick="releaseSlot('${teamId}','${slot.id}',true)" class="text-xs text-red-500 hover:underline ml-1">Can't make it</button>` : '');
+        } else {
+          traineeHtml = `<span class="text-amber-600 font-medium">Open</span>` +
+            (canClaimTrainee ? ` <button onclick="claimSlot('${teamId}','${slot.id}',true)" class="text-xs text-blue-600 hover:underline ml-1">Claim as trainee</button>` : '');
+        }
+      }
+
+      row.innerHTML = `
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-zinc-800">${escapeHtml(label)}</p>
+            <p class="text-xs text-zinc-500 mt-0.5">${leadHtml}</p>
+            ${slot.trainingEnabled ? `<p class="text-xs text-zinc-400 mt-0.5">Trainee: ${traineeHtml}</p>` : ''}
+            ${slot.notes ? `<p class="text-xs text-zinc-400 mt-1">${escapeHtml(slot.notes)}</p>` : ''}
+          </div>
+          ${isLeader ? `
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <button onclick="openSlotModal('${teamId}', ${JSON.stringify(slot).replace(/"/g, '&quot;')})" title="Edit slot" class="text-zinc-300 hover:text-blue-500"><i class="fas fa-pen text-xs"></i></button>
+              <button onclick="deleteSlot('${teamId}','${slot.id}')" title="Delete slot" class="text-zinc-300 hover:text-red-500"><i class="fas fa-trash text-xs"></i></button>
+            </div>` : ''}
+        </div>
+      `;
+      return row;
+    }
+
+    async function toggleTier(teamId, uid, currentTier) {
+      const next = currentTier === 'qualified' ? 'trainee' : 'qualified';
+      try {
+        await db.collection('servingTeams').doc(teamId).update({ [`memberTiers.${uid}`]: next });
+      } catch (err) {
+        console.error('Tier update failed:', err);
+        alert('Failed to update tier.');
+      }
+    }
+
+    async function removeMember(teamId, uid) {
+      if (!confirm('Remove this member from the team?')) return;
+      try {
+        await db.collection('servingTeams').doc(teamId).update({
+          members: firebase.firestore.FieldValue.arrayRemove(uid),
+        });
+      } catch (err) {
+        console.error('Remove failed:', err);
+        alert('Failed to remove member.');
+      }
+    }
+
+    // ── Claim / release a slot (client-side transaction — no Cloud Function
+    //    needed; correctness comes from Firestore re-validating the read inside
+    //    the transaction, so two people can't both claim the same open slot) ──
+
+    async function claimSlot(teamId, slotId, asTrainee) {
+      if (!currentUser) return;
+      const name = await fetchDisplayName(currentUser.uid);
+      const ref = db.collection('servingTeams').doc(teamId).collection('slots').doc(slotId);
+      try {
+        await db.runTransaction(async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists) throw new Error('This slot no longer exists.');
+          const data = snap.data();
+          if (asTrainee) {
+            if (data.traineeUid) throw new Error('Someone already claimed the trainee spot.');
+            tx.update(ref, { traineeUid: currentUser.uid, traineeName: name });
+          } else {
+            if (data.assignedUid) throw new Error('Someone already claimed this slot.');
+            tx.update(ref, { assignedUid: currentUser.uid, assignedName: name, status: 'filled' });
+          }
+        });
+      } catch (err) {
+        console.error('Claim failed:', err);
+        alert(err.message || 'Failed to claim slot. Please refresh and try again.');
+      }
+      reloadTeamCard(teamId);
+    }
+
+    async function releaseSlot(teamId, slotId, asTrainee) {
+      if (!currentUser) return;
+      if (!confirm("Mark yourself as unable to make this slot? It will open up for someone else.")) return;
+      const ref = db.collection('servingTeams').doc(teamId).collection('slots').doc(slotId);
+      try {
+        await db.runTransaction(async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists) return;
+          const data = snap.data();
+          if (asTrainee) {
+            if (data.traineeUid !== currentUser.uid) throw new Error('You are not on this trainee slot.');
+            tx.update(ref, { traineeUid: null, traineeName: null });
+          } else {
+            if (data.assignedUid !== currentUser.uid) throw new Error('You are not assigned to this slot.');
+            tx.update(ref, { assignedUid: null, assignedName: null, status: 'open' });
+          }
+        });
+      } catch (err) {
+        console.error('Release failed:', err);
+        alert(err.message || 'Failed to update slot. Please refresh and try again.');
+      }
+      reloadTeamCard(teamId);
+    }
+
+    // Re-fetch just this one team + its roster and re-render its card in place,
+    // without reloading the whole page's team list.
+    async function reloadTeamCard(teamId) {
+      const doc = await db.collection('servingTeams').doc(teamId).get();
+      if (!doc.exists) return;
+      const team = { id: doc.id, ...doc.data() };
+      const uid = currentUser?.uid;
+      const isLeader = uid && (team.leaders || []).includes(uid);
+      const isMemberOf = uid && (team.members || []).includes(uid);
+      if (isLeader || isMemberOf) await renderRosterSection(team, isLeader);
+    }
+
+    // ── Add / edit slot (leader) ──────────────────────────────────────────────────
+
+    function openSlotModal(teamId, slot) {
+      slotModalTeamId = teamId;
+      editingSlotId = slot?.id || null;
+      slotFunctionChips = slot?.functions ? slot.functions.slice() : [];
+      document.getElementById('slot-modal-title').textContent = slot ? 'Edit Slot' : 'New Slot';
+      document.getElementById('slot-date').value = slot?.date || '';
+      document.getElementById('slot-training').checked = !!slot?.trainingEnabled;
+      document.getElementById('slot-notes').value = slot?.notes || '';
+      document.getElementById('slot-function-input').value = '';
+      renderSlotFunctionChips();
+      toggleSlotTraineeField();
+
+      populateSlotDatalist(teamId);
+      populateSlotAssigneeSelects(teamId);
+      document.getElementById('slot-assignee').value = slot?.assignedUid || '';
+      document.getElementById('slot-trainee').value = slot?.traineeUid || '';
+
+      document.getElementById('slot-form-msg').classList.add('hidden');
+      document.getElementById('slot-modal').classList.remove('hidden');
+    }
+
+    function closeSlotModal() {
+      document.getElementById('slot-modal').classList.add('hidden');
+      slotModalTeamId = null;
+      editingSlotId = null;
+    }
+
+    function populateSlotDatalist(teamId) {
+      db.collection('servingTeams').doc(teamId).get().then((doc) => {
+        const fns = (doc.data() || {}).functions || [];
+        const dl = document.getElementById('slot-functions-datalist');
+        dl.innerHTML = '';
+        fns.forEach((f) => {
+          const opt = document.createElement('option');
+          opt.value = f;
+          dl.appendChild(opt);
+        });
+      });
+    }
+
+    function populateSlotAssigneeSelects(teamId) {
+      const members = teamMembersCache[teamId] || [];
+      const assigneeSel = document.getElementById('slot-assignee');
+      const traineeSel = document.getElementById('slot-trainee');
+      assigneeSel.innerHTML = '<option value="">(Open — anyone can claim)</option>';
+      traineeSel.innerHTML = '<option value="">(Open — any trainee can claim)</option>';
+      members.forEach((m) => {
+        const opt1 = document.createElement('option');
+        opt1.value = m.uid; opt1.textContent = m.name;
+        assigneeSel.appendChild(opt1);
+        if (m.tier === 'trainee') {
+          const opt2 = document.createElement('option');
+          opt2.value = m.uid; opt2.textContent = m.name;
+          traineeSel.appendChild(opt2);
+        }
+      });
+    }
+
+    function addSlotFunctionChip() {
+      const input = document.getElementById('slot-function-input');
+      const value = input.value.trim();
+      if (!value) return;
+      if (!slotFunctionChips.some((f) => f.toLowerCase() === value.toLowerCase())) {
+        slotFunctionChips.push(value);
+        renderSlotFunctionChips();
+      }
+      input.value = '';
+      input.focus();
+    }
+
+    function removeSlotFunctionChip(idx) {
+      slotFunctionChips.splice(idx, 1);
+      renderSlotFunctionChips();
+    }
+
+    function renderSlotFunctionChips() {
+      const container = document.getElementById('slot-function-chips');
+      container.innerHTML = '';
+      slotFunctionChips.forEach((f, idx) => {
+        const chip = document.createElement('span');
+        chip.className = 'inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 text-xs font-medium px-3 py-1 rounded-full';
+        chip.innerHTML = `${escapeHtml(f)} <button type="button" onclick="removeSlotFunctionChip(${idx})" class="hover:text-red-600"><i class="fas fa-times"></i></button>`;
+        container.appendChild(chip);
+      });
+    }
+
+    function toggleSlotTraineeField() {
+      document.getElementById('slot-trainee-field').classList.toggle('hidden', !document.getElementById('slot-training').checked);
+    }
+
+    async function saveSlot() {
+      const msg = document.getElementById('slot-form-msg');
+      const date = document.getElementById('slot-date').value;
+      if (!date) {
+        msg.textContent = 'Date is required.';
+        msg.classList.remove('hidden');
+        return;
+      }
+      if (!slotFunctionChips.length) {
+        msg.textContent = 'Add at least one function for this slot.';
+        msg.classList.remove('hidden');
+        return;
+      }
+
+      const trainingEnabled = document.getElementById('slot-training').checked;
+      const assigneeUid = document.getElementById('slot-assignee').value || null;
+      const traineeUid = trainingEnabled ? (document.getElementById('slot-trainee').value || null) : null;
+      const members = teamMembersCache[slotModalTeamId] || [];
+      const assigneeName = assigneeUid ? (members.find((m) => m.uid === assigneeUid) || {}).name || null : null;
+      const traineeName = traineeUid ? (members.find((m) => m.uid === traineeUid) || {}).name || null : null;
+
+      const data = {
+        date,
+        functions: slotFunctionChips.slice(),
+        trainingEnabled,
+        assignedUid: assigneeUid,
+        assignedName: assigneeName,
+        traineeUid,
+        traineeName,
+        status: assigneeUid ? 'filled' : 'open',
+        notes: document.getElementById('slot-notes').value.trim() || null,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      };
+
+      try {
+        const teamRef = db.collection('servingTeams').doc(slotModalTeamId);
+        const slotsRef = teamRef.collection('slots');
+        if (editingSlotId) {
+          await slotsRef.doc(editingSlotId).update(data);
+        } else {
+          await slotsRef.add({
+            ...data,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdBy: currentUser ? currentUser.uid : null,
+          });
+        }
+        // Grow the team's function autocomplete list with any new entries.
+        const teamDoc = await teamRef.get();
+        const existingFns = (teamDoc.data() || {}).functions || [];
+        const newFns = slotFunctionChips.filter((f) => !existingFns.includes(f));
+        if (newFns.length) {
+          await teamRef.update({ functions: firebase.firestore.FieldValue.arrayUnion(...newFns) });
+        }
+
+        closeSlotModal();
+        reloadTeamCard(slotModalTeamId);
+      } catch (err) {
+        console.error('Save slot failed:', err);
+        msg.textContent = 'Failed to save slot: ' + err.message;
+        msg.classList.remove('hidden');
+      }
+    }
+
+    async function deleteSlot(teamId, slotId) {
+      if (!confirm('Delete this slot? This cannot be undone.')) return;
+      try {
+        await db.collection('servingTeams').doc(teamId).collection('slots').doc(slotId).delete();
+        reloadTeamCard(teamId);
+      } catch (err) {
+        console.error('Delete slot failed:', err);
+        alert('Failed to delete slot.');
+      }
+    }
+
+    // ── Initial load ──────────────────────────────────────────────────────────────
+
+    function loadTeams() {
+      db.collection('servingTeams')
+        .where('isPublic', '==', true)
+        .onSnapshot((snap) => {
+          document.getElementById('loading').classList.add('hidden');
+          const teams = snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          renderTeams(teams);
+        }, (err) => {
+          console.error('Teams load failed:', err);
+          document.getElementById('loading').innerHTML =
+            '<p class="text-red-500">Failed to load teams.</p>';
+        });
+    }
+
+    document.addEventListener('nav-loaded', loadTeams);
+  </script>
+</body>
+</html>

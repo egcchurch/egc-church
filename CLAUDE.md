@@ -55,6 +55,7 @@ church-website-pwa/
 │   ├── directory.html          ← Membership directory
 │   ├── groups.html             ← Small groups (browse + join + leader management for own group)
 │   ├── cottage.html            ← Cottage meetings (register with party size; capacity-limited)
+│   ├── serving-teams.html      ← Rostered volunteer teams (Equipment, Worship, Youth Helpers...)
 │   ├── prayer.html             ← Prayer requests
 │   ├── devotional.html         ← Daily devotional
 │   ├── gallery.html            ← Members + youth galleries
@@ -69,6 +70,7 @@ church-website-pwa/
 │   ├── team.html               ← Manage leadership profiles
 │   ├── groups.html             ← Manage ALL groups (groups.manage permission)
 │   ├── cottage.html            ← Manage cottage meetings (cottage.manage; deacon hosts own, superadmin all)
+│   ├── serving-teams.html      ← Create serving teams (servingTeams.manage); leaders manage their own
 │   ├── devotional.html         ← Manage devotional content
 │   ├── gallery.html            ← Manage photo galleries (all audiences)
 │   ├── music.html              ← Manage music library
@@ -165,6 +167,7 @@ church-website-pwa/
 | Membership directory    | /members/directory  |
 | Small groups            | /members/groups     |
 | Cottage meetings        | /members/cottage    |
+| Serving teams           | /members/serving-teams |
 | Prayer requests         | /members/prayer     |
 | Daily devotional        | /members/devotional |
 | Members & youth gallery | /members/gallery    |
@@ -181,6 +184,7 @@ church-website-pwa/
 | Manage team              | /admin/team          | `team.manage`              |
 | Manage groups            | /admin/groups        | `groups.manage`            |
 | Manage cottage meetings  | /admin/cottage       | `cottage.manage`           |
+| Create serving teams     | /admin/serving-teams | `servingTeams.manage` (leaders manage their own team without this permission) |
 | Manage devotional        | /admin/devotional    | `devotional.manage`        |
 | Manage gallery           | /admin/gallery       | `gallery.manage`           |
 | Manage music             | /admin/music         | `music.manage`             |
@@ -211,7 +215,7 @@ Permissions are stored as Firebase Auth custom claims computed by the `syncUserC
 
 - `isSuperadmin: true` on the user doc → custom claim `{ superadmin: true }` → all permissions
 - `roles: [roleIds]` + `extraPermissions: [keys]` → custom claim `{ superadmin: false, perms: [...] }` → additive union
-- See `docs/PERMISSIONS.md` for the full 16-key permission model and default roles
+- See `docs/PERMISSIONS.md` for the full 17-key permission model and default roles
 
 ### Combined Access Matrix
 
@@ -532,6 +536,26 @@ Functions are organised by trigger type:
   partySize (int — total people incl. registrant)
   registeredAt
   ← written ONLY by register/cancel Cloud Functions (transactional capacity); host/superadmin may delete for cleanup
+
+/servingTeams/{teamId}                      ← Serving Teams (see docs/SERVING_TEAMS.md)
+  name, description
+  leaders: [uid array]
+  members: [uid array]
+  pendingMembers: [uid array]                ← for "approval" joinPolicy
+  memberTiers: { [uid]: "trainee" | "seasoned" }  ← per-member training tier, leader-managed
+  functions: [string array]                  ← growing free-text list of skills/roles used by this team's slots (e.g. "Sound", "Piano", "Food Helper")
+  isPublic: true | false
+  joinPolicy: "open" | "approval" | "invite-only"
+  createdAt, updatedAt
+
+/servingTeams/{teamId}/slots/{slotId}        ← one roster slot for one date
+  date (YYYY-MM-DD), function (string — one of the team's functions)
+  assignedUid, assignedName (nullable — open until claimed)
+  isTrainingPair: true | false               ← opt-in at creation; when true, slot also carries a trainee position
+  traineeUid, traineeName (nullable — independent claim/release from the lead position)
+  notes (nullable)
+  createdAt, updatedAt, createdBy (uid)
+  ← claim/release done client-side via db.runTransaction() for race-safety — no Cloud Function needed
 ```
 
 ---

@@ -64,6 +64,10 @@ function cottageUser() {
   return testEnv.authenticatedContext('cottage-uid', { perms: ['cottage.manage'] });
 }
 
+function servingTeamsManagerUser() {
+  return testEnv.authenticatedContext('stmanager-uid', { perms: ['servingTeams.manage'] });
+}
+
 async function seedUser(uid, data) {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), 'users', uid), data);
@@ -246,6 +250,201 @@ describe('Firestore Security Rules', () => {
       });
       const db = memberUser().firestore();
       await assertFails(updateDoc(doc(db, 'groups', 'g1'), { name: 'Hacked' }));
+    });
+  });
+
+  describe('Serving Teams collection', () => {
+    it('any member can read a team', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: [], members: [], pendingMembers: [], memberTiers: {}, functions: [],
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'servingTeams', 'team1')));
+    });
+
+    it('plain member cannot create a team', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      const db = memberUser().firestore();
+      await assertFails(setDoc(doc(db, 'servingTeams', 'team1'), {
+        name: 'Hack Team', leaders: ['member-uid'], members: [], pendingMembers: [], memberTiers: {}, functions: [],
+      }));
+    });
+
+    it('servingTeams.manage holder can create a team', async () => {
+      const db = servingTeamsManagerUser().firestore();
+      await assertSucceeds(setDoc(doc(db, 'servingTeams', 'team1'), {
+        name: 'Equipment Team', leaders: [], members: [], pendingMembers: [], memberTiers: {}, functions: [],
+      }));
+    });
+
+    it('team leader can update members/pendingMembers/memberTiers/functions but not name', async () => {
+      await seedUser('leader-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: ['leader-uid'], members: [], pendingMembers: [], memberTiers: {}, functions: [],
+        });
+      });
+      const leaderDb = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      await assertSucceeds(updateDoc(doc(leaderDb, 'servingTeams', 'team1'), {
+        members: ['leader-uid'], memberTiers: { 'leader-uid': 'qualified' }, functions: ['Sound'],
+      }));
+      await assertFails(updateDoc(doc(leaderDb, 'servingTeams', 'team1'), { name: 'Hacked' }));
+    });
+
+    it('member (non-leader) can join an open team', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Open Team', leaders: ['other-uid'], members: [], pendingMembers: [], memberTiers: {}, functions: [], joinPolicy: 'open',
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1'), { members: ['member-uid'] }));
+    });
+
+    it('non-leader member cannot change the team name', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Team', leaders: ['other-uid'], members: [], pendingMembers: [], memberTiers: {}, functions: [],
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(updateDoc(doc(db, 'servingTeams', 'team1'), { name: 'Hacked' }));
+    });
+
+    it('servingTeams.manage holder can delete a team', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Team', leaders: [], members: [], pendingMembers: [], memberTiers: {}, functions: [],
+        });
+      });
+      const db = servingTeamsManagerUser().firestore();
+      await assertSucceeds(deleteDoc(doc(db, 'servingTeams', 'team1')));
+    });
+  });
+
+  describe('Serving Teams slots subcollection', () => {
+    async function seedTeamAndSlot({ leaders = [], members = [] } = {}) {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders, members, pendingMembers: [], memberTiers: {}, functions: ['Sound'],
+        });
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1', 'slots', 'slot1'), {
+          date: '2026-07-05', functions: ['Sound'], assignedUid: null, assignedName: null,
+          trainingEnabled: true, traineeUid: null, traineeName: null, status: 'open', notes: null,
+        });
+      });
+    }
+
+    it('team member can read slots; an outsider cannot', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedUser('outsider-uid', { membership: 'member' });
+      await seedTeamAndSlot({ members: ['member-uid'] });
+      const memberDb = testEnv.authenticatedContext('member-uid', {}).firestore();
+      const outsiderDb = testEnv.authenticatedContext('outsider-uid', {}).firestore();
+      await assertSucceeds(getDoc(doc(memberDb, 'servingTeams', 'team1', 'slots', 'slot1')));
+      await assertFails(getDoc(doc(outsiderDb, 'servingTeams', 'team1', 'slots', 'slot1')));
+    });
+
+    it('servingTeams.manage holder can read slots without being a team member', async () => {
+      await seedTeamAndSlot({});
+      const db = servingTeamsManagerUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1')));
+    });
+
+    it('leader can create and fully edit a slot', async () => {
+      await seedTeamAndSlot({ leaders: ['leader-uid'] });
+      const db = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1'), {
+        functions: ['Sound', 'Camera'], notes: 'bring extra cable',
+      }));
+      await assertSucceeds(setDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot2'), {
+        date: '2026-07-06', functions: ['Words'], assignedUid: null, assignedName: null,
+        trainingEnabled: false, traineeUid: null, traineeName: null, status: 'open', notes: null,
+      }));
+    });
+
+    it('a member can claim an open slot for themselves', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndSlot({ members: ['member-uid'] });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1'), {
+        assignedUid: 'member-uid', assignedName: 'Member', status: 'filled',
+      }));
+    });
+
+    it('a member cannot assign someone else to an open slot', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndSlot({ members: ['member-uid'] });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertFails(updateDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1'), {
+        assignedUid: 'someone-else', assignedName: 'Someone Else', status: 'filled',
+      }));
+    });
+
+    it('a member cannot claim an already-filled slot out from under someone', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: [], members: ['member-uid'], pendingMembers: [], memberTiers: {}, functions: ['Sound'],
+        });
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1', 'slots', 'slot1'), {
+          date: '2026-07-05', functions: ['Sound'], assignedUid: 'other-uid', assignedName: 'Other',
+          trainingEnabled: false, traineeUid: null, traineeName: null, status: 'filled', notes: null,
+        });
+      });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertFails(updateDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1'), {
+        assignedUid: 'member-uid', assignedName: 'Member', status: 'filled',
+      }));
+    });
+
+    it('a member can release their own slot back to open, but not someone else\'s', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedUser('other-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: [], members: ['member-uid', 'other-uid'], pendingMembers: [], memberTiers: {}, functions: ['Sound'],
+        });
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1', 'slots', 'slot1'), {
+          date: '2026-07-05', functions: ['Sound'], assignedUid: 'member-uid', assignedName: 'Member',
+          trainingEnabled: false, traineeUid: null, traineeName: null, status: 'filled', notes: null,
+        });
+      });
+      const otherDb = testEnv.authenticatedContext('other-uid', {}).firestore();
+      await assertFails(updateDoc(doc(otherDb, 'servingTeams', 'team1', 'slots', 'slot1'), {
+        assignedUid: null, assignedName: null, status: 'open',
+      }));
+      const ownerDb = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertSucceeds(updateDoc(doc(ownerDb, 'servingTeams', 'team1', 'slots', 'slot1'), {
+        assignedUid: null, assignedName: null, status: 'open',
+      }));
+    });
+
+    it('a member can claim the trainee position independently of the lead position', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndSlot({ members: ['member-uid'] });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1'), {
+        traineeUid: 'member-uid', traineeName: 'Member',
+      }));
+    });
+
+    it('a member cannot delete a slot (leader/admin only)', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndSlot({ members: ['member-uid'] });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertFails(deleteDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1')));
+    });
+
+    it('leader can delete a slot', async () => {
+      await seedTeamAndSlot({ leaders: ['leader-uid'] });
+      const db = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      await assertSucceeds(deleteDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1')));
     });
   });
 
