@@ -110,16 +110,21 @@
     </div>
   </div>
 
-  <!-- GENERATE ROSTER MODAL (leader view) -->
+  <!-- SCHEDULE MODAL — create/edit a named recurring schedule (leader view) -->
   <div id="generate-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-1">
-        <h3 class="text-lg font-bold text-[#0A3D62]">Generate Roster</h3>
+        <h3 class="text-lg font-bold text-[#0A3D62]" id="generate-modal-title">New Schedule</h3>
         <button onclick="closeGenerateModal()" class="text-zinc-400 hover:text-zinc-600"><i class="fas fa-times text-xl"></i></button>
       </div>
-      <p class="text-xs text-zinc-400 mb-4">Define the services that repeat every week, then generate every open slot for a date range in one go. Patterns are saved on the team so you can reuse them next time.</p>
+      <p class="text-xs text-zinc-400 mb-4">Define the services that repeat every week, then generate every open slot for a date range in one go. Saving changes to an existing schedule regenerates its slots from the corrected definition.</p>
 
       <datalist id="generate-functions-datalist"></datalist>
+
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-zinc-700 mb-1">Schedule name *</label>
+        <input id="generate-schedule-name" type="text" placeholder="e.g. EGC Elands" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+      </div>
 
       <div class="grid grid-cols-2 gap-4 mb-4">
         <div>
@@ -141,7 +146,7 @@
       <div id="generate-pattern-rows" class="space-y-3"></div>
 
       <div class="mt-6 flex gap-3">
-        <button onclick="generateRoster()" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">Generate</button>
+        <button onclick="saveAndGenerateSchedule()" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all" id="generate-save-btn">Create &amp; Generate</button>
         <button onclick="closeGenerateModal()" class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-6 py-2.5 rounded-full text-sm font-medium transition-all">Cancel</button>
       </div>
       <p id="generate-form-msg" class="hidden mt-3 text-sm font-medium text-red-500"></p>
@@ -154,14 +159,16 @@
     const db = firebase.firestore();
     let currentUser = null;
     let userNames = {};
-    let teamsCache = {};         // teamId -> raw team doc data (incl. rosterPatterns)
+    let teamsCache = {};         // teamId -> raw team doc data
     let teamMembersCache = {};   // teamId -> [{uid, name, tier}]
     let teamSlotsCache = {};     // teamId -> [slot]
+    let teamSchedulesCache = {}; // teamId -> [{id, name, patterns, startDate, endDate}]
     let slotFunctionChips = [];  // staged chips for the open slot form
     let slotModalTeamId = null;
     let editingSlotId = null;
     let generateModalTeamId = null;
-    let generatePatternRows = []; // [{ id, dayOfWeek, label, functions: [...] }] — staged in the Generate Roster modal
+    let generateModalScheduleId = null; // null = creating a new schedule; set = editing/regenerating an existing one
+    let generatePatternRows = []; // [{ id, dayOfWeek, label, functions: [...] }] — staged in the Schedule modal
 
     auth.onAuthStateChanged((user) => { currentUser = user; });
 
@@ -372,6 +379,11 @@
       const slots = slotsSnap ? slotsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) : [];
       teamSlotsCache[team.id] = slots;
 
+      const schedulesSnap = await db.collection('servingTeams').doc(team.id).collection('schedules').get()
+        .catch((err) => { console.error('Schedules load failed:', err); return null; });
+      const schedules = schedulesSnap ? schedulesSnap.docs.map((d) => ({ id: d.id, ...d.data() })) : [];
+      teamSchedulesCache[team.id] = schedules;
+
       const today = new Date().toISOString().slice(0, 10);
       const upcoming = slots.filter((s) => !s.date || s.date >= today);
 
@@ -381,14 +393,9 @@
         html += `
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-sm font-semibold text-zinc-600">Team Roster</h3>
-            <div class="flex gap-2">
-              <button onclick="openGenerateModal('${team.id}')" class="text-xs text-blue-600 hover:text-blue-700 font-medium border border-blue-200 hover:border-blue-300 px-3 py-1.5 rounded-full transition-all">
-                <i class="fas fa-calendar-plus mr-1"></i>Generate Roster
-              </button>
-              <button onclick="openSlotModal('${team.id}')" class="text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all">
-                <i class="fas fa-plus mr-1"></i>Add Slot
-              </button>
-            </div>
+            <button onclick="openSlotModal('${team.id}')" class="text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all">
+              <i class="fas fa-plus mr-1"></i>Add Slot
+            </button>
           </div>
           <div class="mb-5">
             <h4 class="text-xs font-semibold text-zinc-500 uppercase mb-2">Members</h4>
@@ -411,6 +418,17 @@
               </button>
             </div>
             <p class="text-xs text-zinc-400 mt-1.5">Ask the member for their Member ID — they can copy it from their <a href="/profile.html" class="text-blue-600 hover:underline">Profile page</a>.</p>
+          </div>
+          <div class="mb-5">
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-xs font-semibold text-zinc-500 uppercase">Schedules</h4>
+              <button onclick="openGenerateModal('${team.id}')" class="text-xs text-blue-600 hover:text-blue-700 font-medium border border-blue-200 hover:border-blue-300 px-3 py-1.5 rounded-full transition-all">
+                <i class="fas fa-calendar-plus mr-1"></i>New Schedule
+              </button>
+            </div>
+            <div id="schedules-list-${team.id}" class="space-y-2">
+              ${schedules.length ? schedules.map((s) => renderScheduleRowHtml(team.id, s, slots)).join('') : '<p class="text-xs text-zinc-400">No schedules yet — use "New Schedule" to bulk-create a recurring roster.</p>'}
+            </div>
           </div>
         `;
       }
@@ -789,10 +807,12 @@
       }
     }
 
-    // ── Generate Roster (bulk-create recurring slots from saved patterns) ──────────
-    // Patterns are saved on the team doc (rosterPatterns) so a leader can reopen
-    // this modal next time (e.g. the next 6-month block) with their services
-    // already defined and just pick a new date range.
+    // ── Schedules (named, persistent recurrence definitions) ───────────────────────
+    // Each schedule bulk-creates slots across a date range from saved pattern rows
+    // (day of week + label + functions) and tags every slot it creates with its own
+    // id, so a mistake (e.g. wrong day of week) can be fixed by editing the schedule
+    // and regenerating — deleting and recreating exactly its own slots in one action
+    // — instead of hunting individually-wrong slots down by hand.
 
     const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -800,10 +820,50 @@
       return 'pat_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     }
 
-    function openGenerateModal(teamId) {
+    function renderScheduleRowHtml(teamId, schedule, slots) {
+      const count = slots.filter((s) => s.scheduleId === schedule.id).length;
+      const patSummary = (schedule.patterns || []).map((p) =>
+        `${DAY_NAMES[p.dayOfWeek].slice(0, 3)}${p.label ? ' (' + escapeHtml(p.label) + ')' : ''}: ${(p.functions || []).map(escapeHtml).join(', ')}`
+      ).join(' &middot; ') || '(no services defined)';
+      return `
+        <div class="bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-sm font-semibold text-zinc-800">${escapeHtml(schedule.name)}</p>
+              <p class="text-xs text-zinc-500 mt-0.5">${patSummary}</p>
+              <p class="text-xs text-zinc-400 mt-0.5">${escapeHtml(schedule.startDate || '')} to ${escapeHtml(schedule.endDate || '')} &middot; ${count} slot${count !== 1 ? 's' : ''}</p>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <button onclick="openGenerateModal('${teamId}', '${schedule.id}')" title="Edit schedule" class="text-zinc-400 hover:text-blue-500"><i class="fas fa-pen text-xs"></i></button>
+              <button onclick="regenerateScheduleAsIs('${teamId}', '${schedule.id}')" title="Regenerate" class="text-zinc-400 hover:text-amber-600"><i class="fas fa-arrows-rotate text-xs"></i></button>
+              <button onclick="deleteSchedule('${teamId}', '${schedule.id}')" title="Delete schedule" class="text-zinc-400 hover:text-red-500"><i class="fas fa-trash text-xs"></i></button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function openGenerateModal(teamId, scheduleId) {
       generateModalTeamId = teamId;
+      generateModalScheduleId = scheduleId || null;
       const team = teamsCache[teamId] || {};
-      generatePatternRows = (team.rosterPatterns || []).map((p) => ({
+      const schedule = scheduleId
+        ? (teamSchedulesCache[teamId] || []).find((s) => s.id === scheduleId)
+        : null;
+
+      document.getElementById('generate-schedule-name').value = schedule?.name || '';
+      document.getElementById('generate-modal-title').textContent = schedule ? 'Edit Schedule' : 'New Schedule';
+      document.getElementById('generate-save-btn').textContent = schedule ? 'Save & Regenerate' : 'Create & Generate';
+
+      // Legacy convenience: a team with no schedules yet but old rosterPatterns data
+      // (from before schedules existed) gets it pre-filled once, so nothing typed
+      // earlier is lost. This is a read-only convenience, not a migration/write.
+      const noSchedulesYet = !(teamSchedulesCache[teamId] || []).length;
+      const sourcePatterns = schedule
+        ? schedule.patterns
+        : (noSchedulesYet ? (team.rosterPatterns || []) : []);
+
+      generatePatternRows = (sourcePatterns || []).map((p) => ({
         id: p.id || newPatternRowId(),
         dayOfWeek: p.dayOfWeek ?? 0,
         label: p.label || '',
@@ -821,8 +881,8 @@
         dl.appendChild(opt);
       });
 
-      document.getElementById('generate-start-date').value = '';
-      document.getElementById('generate-end-date').value = '';
+      document.getElementById('generate-start-date').value = schedule?.startDate || '';
+      document.getElementById('generate-end-date').value = schedule?.endDate || '';
       document.getElementById('generate-form-msg').classList.add('hidden');
 
       renderGeneratePatternRows();
@@ -832,6 +892,7 @@
     function closeGenerateModal() {
       document.getElementById('generate-modal').classList.add('hidden');
       generateModalTeamId = null;
+      generateModalScheduleId = null;
       generatePatternRows = [];
     }
 
@@ -910,12 +971,84 @@
       return dates;
     }
 
-    async function generateRoster() {
+    // Pure function: turn pattern rows + a date range into flat slot definitions
+    // (one entry per function per matching date). Used by both the modal's save
+    // path and a schedule row's standalone "Regenerate" button.
+    function buildSlotDefsFromPatterns(patterns, startDate, endDate) {
+      const defs = [];
+      (patterns || []).filter((r) => (r.functions || []).length > 0).forEach((row) => {
+        const dates = getDatesForDayOfWeek(startDate, endDate, row.dayOfWeek);
+        dates.forEach((date) => {
+          row.functions.forEach((fn) => {
+            defs.push({ date, label: row.label || null, functions: [fn] });
+          });
+        });
+      });
+      return defs;
+    }
+
+    // Generic chunked batch commit — Firestore caps a batch at 500 writes;
+    // chunk at 450 to leave headroom. `ops` is [{ type: 'set'|'delete', ref, data? }].
+    async function chunkedCommit(ops) {
+      const chunkSize = 450;
+      for (let i = 0; i < ops.length; i += chunkSize) {
+        const batch = db.batch();
+        ops.slice(i, i + chunkSize).forEach((op) => {
+          if (op.type === 'delete') batch.delete(op.ref);
+          else batch.set(op.ref, op.data);
+        });
+        await batch.commit();
+      }
+    }
+
+    async function batchCreateSlots(teamId, scheduleId, slotDefs) {
+      const slotsRef = db.collection('servingTeams').doc(teamId).collection('slots');
+      const ops = slotDefs.map((slot) => ({
+        type: 'set',
+        ref: slotsRef.doc(),
+        data: {
+          ...slot,
+          scheduleId,
+          trainingEnabled: false,
+          assignedUid: null,
+          assignedName: null,
+          traineeUid: null,
+          traineeName: null,
+          status: 'open',
+          notes: null,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          createdBy: currentUser ? currentUser.uid : null,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        },
+      }));
+      await chunkedCommit(ops);
+    }
+
+    async function growFunctionsList(teamId, activeRows) {
+      const team = teamsCache[teamId] || {};
+      const existingFns = team.functions || [];
+      const newFns = activeRows.flatMap((r) => r.functions).filter((f) => !existingFns.includes(f));
+      if (newFns.length) {
+        await db.collection('servingTeams').doc(teamId).update({
+          functions: firebase.firestore.FieldValue.arrayUnion(...newFns),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    async function saveAndGenerateSchedule() {
       const msg = document.getElementById('generate-form-msg');
       msg.classList.add('hidden');
 
+      const name = document.getElementById('generate-schedule-name').value.trim();
       const startDate = document.getElementById('generate-start-date').value;
       const endDate = document.getElementById('generate-end-date').value;
+
+      if (!name) {
+        msg.textContent = 'Schedule name is required.';
+        msg.classList.remove('hidden');
+        return;
+      }
       if (!startDate || !endDate) {
         msg.textContent = 'Start and end date are required.';
         msg.classList.remove('hidden');
@@ -934,71 +1067,108 @@
         return;
       }
 
-      const newSlots = [];
-      activeRows.forEach((row) => {
-        const dates = getDatesForDayOfWeek(startDate, endDate, row.dayOfWeek);
-        dates.forEach((date) => {
-          row.functions.forEach((fn) => {
-            newSlots.push({ date, label: row.label || null, functions: [fn] });
-          });
-        });
-      });
-
-      if (!newSlots.length) {
+      const newSlotDefs = buildSlotDefsFromPatterns(activeRows, startDate, endDate);
+      if (!newSlotDefs.length) {
         msg.textContent = 'No dates in that range match the services you defined.';
         msg.classList.remove('hidden');
         return;
       }
 
-      if (!confirm(`This will create ${newSlots.length} open slot${newSlots.length !== 1 ? 's' : ''} between ${startDate} and ${endDate}. Continue?`)) {
-        return;
-      }
-
       const teamId = generateModalTeamId;
-      const teamRef = db.collection('servingTeams').doc(teamId);
-      const slotsRef = teamRef.collection('slots');
+      const scheduleId = generateModalScheduleId;
+      const patternsToSave = activeRows.map((r) => ({ id: r.id, dayOfWeek: r.dayOfWeek, label: r.label || null, functions: r.functions }));
+      const scheduleData = { name, patterns: patternsToSave, startDate, endDate };
 
       try {
-        // Chunked under Firestore's 500-write-per-batch limit.
-        const chunkSize = 450;
-        for (let i = 0; i < newSlots.length; i += chunkSize) {
-          const batch = db.batch();
-          newSlots.slice(i, i + chunkSize).forEach((slot) => {
-            batch.set(slotsRef.doc(), {
-              ...slot,
-              trainingEnabled: false,
-              assignedUid: null,
-              assignedName: null,
-              traineeUid: null,
-              traineeName: null,
-              status: 'open',
-              notes: null,
-              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-              createdBy: currentUser ? currentUser.uid : null,
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            });
+        if (!scheduleId) {
+          // New schedule — simple confirm + create, nothing destructive.
+          if (!confirm(`Create '${name}' with ${newSlotDefs.length} slot${newSlotDefs.length !== 1 ? 's' : ''}?`)) return;
+          const schedRef = await db.collection('servingTeams').doc(teamId).collection('schedules').add({
+            ...scheduleData,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdBy: currentUser ? currentUser.uid : null,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
           });
-          await batch.commit();
+          await batchCreateSlots(teamId, schedRef.id, newSlotDefs);
+        } else {
+          // Editing an existing schedule — the edited pattern/dates might not match
+          // what's already there, so saving always regenerates.
+          const proceeded = await regenerateSchedule(teamId, scheduleId, scheduleData, newSlotDefs);
+          if (!proceeded) return;
         }
-
-        // Persist the patterns for reuse next time, and grow the team's function list.
-        const team = teamsCache[teamId] || {};
-        const existingFns = team.functions || [];
-        const allPatternFns = activeRows.flatMap((r) => r.functions);
-        const newFns = allPatternFns.filter((f) => !existingFns.includes(f));
-        const patternsToSave = activeRows.map((r) => ({ id: r.id, dayOfWeek: r.dayOfWeek, label: r.label || null, functions: r.functions }));
-
-        const teamUpdate = { rosterPatterns: patternsToSave, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-        if (newFns.length) teamUpdate.functions = firebase.firestore.FieldValue.arrayUnion(...newFns);
-        await teamRef.update(teamUpdate);
-
+        await growFunctionsList(teamId, activeRows);
         closeGenerateModal();
-        alert(`Created ${newSlots.length} slot${newSlots.length !== 1 ? 's' : ''}.`);
         reloadTeamCard(teamId);
       } catch (err) {
-        console.error('Generate roster failed:', err);
-        msg.textContent = 'Failed to generate roster: ' + err.message;
+        console.error('Save schedule failed:', err);
+        msg.textContent = 'Failed to save schedule: ' + err.message;
         msg.classList.remove('hidden');
+      }
+    }
+
+    // Deletes every slot tagged with this schedule and recreates fresh ones from
+    // scheduleData/newSlotDefs. Warns with a count before doing anything destructive
+    // — including how many of the slots-to-be-deleted already have a volunteer
+    // assigned, since that's the one case where this could silently discard real
+    // work. Returns true if it actually ran (false if the user cancelled).
+    async function regenerateSchedule(teamId, scheduleId, scheduleData, newSlotDefs) {
+      const slotsRef = db.collection('servingTeams').doc(teamId).collection('slots');
+      const existingSnap = await slotsRef.where('scheduleId', '==', scheduleId).get();
+      const existing = existingSnap.docs;
+      const assignedCount = existing.filter((d) => d.data().assignedUid || d.data().traineeUid).length;
+
+      let warnText = `This will delete ${existing.length} existing slot${existing.length !== 1 ? 's' : ''} for '${scheduleData.name}'`;
+      if (assignedCount > 0) {
+        warnText += ` (${assignedCount} of which already ${assignedCount === 1 ? 'has' : 'have'} a volunteer assigned)`;
+      }
+      warnText += ` and recreate ${newSlotDefs.length} fresh slot${newSlotDefs.length !== 1 ? 's' : ''}. Continue?`;
+      if (!confirm(warnText)) return false;
+
+      await chunkedCommit(existing.map((d) => ({ type: 'delete', ref: d.ref })));
+      await batchCreateSlots(teamId, scheduleId, newSlotDefs);
+      await db.collection('servingTeams').doc(teamId).collection('schedules').doc(scheduleId).set({
+        ...scheduleData,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return true;
+    }
+
+    // Standalone "Regenerate" button on a schedule row — re-rolls from whatever
+    // is already saved, without reopening the modal.
+    async function regenerateScheduleAsIs(teamId, scheduleId) {
+      const schedule = (teamSchedulesCache[teamId] || []).find((s) => s.id === scheduleId);
+      if (!schedule) return;
+      const newSlotDefs = buildSlotDefsFromPatterns(schedule.patterns, schedule.startDate, schedule.endDate);
+      try {
+        const proceeded = await regenerateSchedule(teamId, scheduleId, {
+          name: schedule.name, patterns: schedule.patterns, startDate: schedule.startDate, endDate: schedule.endDate,
+        }, newSlotDefs);
+        if (proceeded) reloadTeamCard(teamId);
+      } catch (err) {
+        console.error('Regenerate failed:', err);
+        alert('Failed to regenerate schedule.');
+      }
+    }
+
+    async function deleteSchedule(teamId, scheduleId) {
+      const schedule = (teamSchedulesCache[teamId] || []).find((s) => s.id === scheduleId);
+      const slotsRef = db.collection('servingTeams').doc(teamId).collection('slots');
+      try {
+        const snap = await slotsRef.where('scheduleId', '==', scheduleId).get();
+        const assignedCount = snap.docs.filter((d) => d.data().assignedUid || d.data().traineeUid).length;
+
+        let warnText = `Delete '${schedule?.name || 'this schedule'}' and its ${snap.size} slot${snap.size !== 1 ? 's' : ''}?`;
+        if (assignedCount > 0) {
+          warnText += ` ${assignedCount} of those already ${assignedCount === 1 ? 'has' : 'have'} a volunteer assigned.`;
+        }
+        if (!confirm(warnText)) return;
+
+        await chunkedCommit(snap.docs.map((d) => ({ type: 'delete', ref: d.ref })));
+        await db.collection('servingTeams').doc(teamId).collection('schedules').doc(scheduleId).delete();
+        reloadTeamCard(teamId);
+      } catch (err) {
+        console.error('Delete schedule failed:', err);
+        alert('Failed to delete schedule.');
       }
     }
 

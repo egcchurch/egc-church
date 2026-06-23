@@ -73,23 +73,38 @@ no dynamic spawning/despawning of a second slot based on the assignee's tier, si
 just moves the same validation problem around (what happens to an orphaned mentor slot if
 the trainee cancels?) without saving any complexity.
 
-### Roster Patterns + Generate Roster
+### Schedules (named, persistent recurrence definitions)
 A team that meets on a recurring weekly schedule (e.g. Sunday Morning, Sunday Evening,
 Wednesday) doesn't want to hand-create every slot for a 6-month run (3 services/week ×
-~26 weeks × several functions each = hundreds of slots). A **roster pattern** is a saved
-recurrence rule on the team doc: day of week + an optional free-text **label** (e.g.
-"Morning"/"Evening" or "AM"/"PM" — only needed when more than one service lands on the
-same calendar date) + the list of functions that service needs. The **Generate Roster**
-modal lets a leader define/edit these patterns, pick a start/end date, and bulk-creates
-one open slot per function per matching date across the range in a single action.
-Patterns are saved back onto the team doc on every generate, so reopening the modal next
-time (e.g. the next 6-month block) shows them already filled in — just pick a new date
-range. Generated slots carry the pattern's `label` so the roster view can show same-date
+~26 weeks × several functions each = hundreds of slots). A **Schedule** (e.g. "EGC
+Elands") is a named, persistent doc holding: one or more pattern rows (day of week + an
+optional free-text **label**, e.g. "Morning"/"Evening" — only needed when more than one
+service lands on the same calendar date + the functions that service needs) and a
+start/end date range. Creating a schedule bulk-creates one open slot per function per
+matching date across the range in a single action, and every slot it creates is tagged
+with that schedule's id.
+
+Schedules can be **edited and regenerated**: a leader fixes a mistake (e.g. picked
+Saturday instead of Sunday) and saves — this deletes every slot tagged with that schedule
+and recreates them fresh from the corrected definition, in one action, instead of
+manually hunting down every wrongly-dated slot. A standalone **Regenerate** action re-rolls
+from whatever's already saved without reopening the editor. Both regenerate and **delete
+schedule** (which cascades to delete its slots too) warn with a count before doing
+anything destructive — and specifically flag how many of the affected slots already have
+a volunteer assigned, since that's the one case where this could silently discard real
+work. This is a backstop for the rare case a mistake is caught late, not the common path
+(it's normally caught immediately, before anyone's claimed anything), so it informs
+rather than blocks.
+
+Generated slots carry the pattern's `label` so the roster view can show same-date
 services (e.g. two Sundays) as distinguishable sub-groups instead of one merged list.
 
-This replaced an earlier, narrower "save a template, apply it to one date" idea — the
-date-range generator covers that case too (a 1-day range), so a separate single-date
-template concept wasn't needed.
+This superseded an earlier, anonymous "single list of patterns on the team doc" design —
+patterns had no name, couldn't be told apart from each other, and slots had no
+back-reference to whatever generated them, which is exactly what made fixing a mistake
+require a manual hunt-and-delete. It also replaced an even earlier, narrower "save a
+template, apply it to one date" idea — the date-range generator covers that case too
+(a 1-day range), so a separate single-date template concept wasn't needed either.
 
 ### Visibility
 - **Team existence** (name, description, join policy) — visible to all members, same as
@@ -122,16 +137,23 @@ it's the kind of thing checked from a phone mid-move.
   functions: [string]                 ← this team's own grown autocomplete list
   joinPolicy: "open" | "approval" | "invite-only"
   pendingMembers: [uid]                ← for "approval" joinPolicy, mirrors /groups
-  rosterPatterns: [{ id, dayOfWeek: 0-6, label: string|null, functions: [string] }]
-                                        ← saved recurrence rules for Generate Roster, reused
-                                          across runs; dayOfWeek matches Date#getDay() (0=Sunday)
+  createdAt, updatedAt, createdBy
+
+/servingTeams/{teamId}/schedules/{scheduleId}
+  name: string                         ← e.g. "EGC Elands"
+  patterns: [{ id, dayOfWeek: 0-6, label: string|null, functions: [string] }]
+                                        ← dayOfWeek matches Date#getDay() (0=Sunday)
+  startDate, endDate: string (YYYY-MM-DD)   ← persisted so Edit/Regenerate know what to recreate
   createdAt, updatedAt, createdBy
 
 /servingTeams/{teamId}/slots/{slotId}
   date: string (YYYY-MM-DD)
   label: string|null                   ← optional service-time label (e.g. "Morning"), copied
-                                          from the roster pattern that generated this slot, or
+                                          from the schedule pattern that generated this slot, or
                                           set manually for a one-off slot on a multi-service day
+  scheduleId: string|null              ← which /schedules doc generated this slot; null for a
+                                          manually-added slot (via "Add Slot") — untouched by any
+                                          schedule's regenerate/delete
   functions: [string]                  ← 1+ function names bundled onto this slot
   assignedUid, assignedName: uid|null, string|null     ← lead/primary position
   trainingEnabled: boolean             ← opt-in, set at creation, static
@@ -173,12 +195,17 @@ Group leaders manage their own group today.
   view, self-claim + "can't make it" release. Plus: add a member by UID (covers
   invite-only teams), and a "Member ID" copy field on `/profile.html` so members can
   self-serve their own UID.
-- **Phase 1.5 (delivered):** Roster Patterns + Generate Roster — recurring day-of-week
-  patterns with an optional service-time label, bulk-created across a date range in one
-  action, saved on the team for reuse next time.
+- **Phase 1.5 (delivered):** Schedules — named, persistent recurrence definitions
+  (day-of-week patterns + optional service-time label + date range) that bulk-create
+  slots in one action and tag every slot they create, so a mistake can be fixed by
+  editing the schedule and regenerating — delete + recreate exactly its own slots —
+  instead of a manual hunt-and-delete. Delete-schedule cascades to its slots. Both
+  regenerate and delete warn with a count, flagging how many affected slots already
+  have a volunteer assigned.
 - **Phase 1.6 (planned next):** Member availability (which pattern+function combos a
-  member is able/willing to do) and an auto-assign rotation option in Generate Roster
-  that fills slots from the available pool instead of leaving everything open.
+  member is able/willing to do) and an auto-assign rotation option on a schedule's
+  generate/regenerate that fills slots from the available pool instead of leaving
+  everything open.
 - **Phase 2 (future):** Equipment Register + Moves, scoped to the Equipment Team.
 - **Explicitly deferred / not in scope yet:** push notifications when a slot opens up
   (claiming is currently "check the roster," not pushed); a personal "my upcoming slots

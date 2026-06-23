@@ -544,18 +544,29 @@ Functions are organised by trigger type:
   pendingMembers: [uid array]                ← for "approval" joinPolicy
   memberTiers: { [uid]: "trainee" | "qualified" }  ← per-member training tier, leader-managed
   functions: [string array]                  ← growing free-text list of skills/roles used by this team's slots (e.g. "Sound", "Piano", "Food Helper")
-  rosterPatterns: [{ id, dayOfWeek: 0-6, label: string|null, functions: [string] }]
-                                              ← saved recurrence rules for the Generate Roster bulk-create
-                                                tool, reused across runs; dayOfWeek matches Date#getDay()
   isPublic: true | false
   joinPolicy: "open" | "approval" | "invite-only"
   createdAt, updatedAt
+
+/servingTeams/{teamId}/schedules/{scheduleId}  ← named, persistent recurrence definition (e.g. "EGC Elands")
+  name (string)
+  patterns: [{ id, dayOfWeek: 0-6, label: string|null, functions: [string] }]
+                                              ← dayOfWeek matches Date#getDay() (0=Sunday)
+  startDate, endDate (YYYY-MM-DD)            ← persisted so Edit/Regenerate know what to recreate
+  createdAt, updatedAt, createdBy (uid)
+  ← leader/admin only — bulk-creates slots tagged with this schedule's id; editing and saving
+    regenerates (deletes its slots, recreates from the corrected definition); deleting cascades
+    to its slots too. Both warn with a count, flagging how many affected slots already have a
+    volunteer assigned, before doing anything destructive
 
 /servingTeams/{teamId}/slots/{slotId}        ← one roster slot for one date
   date (YYYY-MM-DD)
   label (nullable string)                    ← optional service-time label (e.g. "Morning"/"Evening")
                                                 for dates with more than one service; copied from the
-                                                roster pattern that generated this slot, or set manually
+                                                schedule pattern that generated this slot, or set manually
+  scheduleId (nullable string)               ← which /schedules doc generated this slot; null for a
+                                                manually-added slot ("Add Slot") — untouched by any
+                                                schedule's regenerate/delete
   functions: [string array]                  ← 1+ function names bundled onto this slot
   assignedUid, assignedName (nullable — open until claimed)
   trainingEnabled: true | false              ← opt-in at creation; when true, slot also carries a trainee position
@@ -564,8 +575,8 @@ Functions are organised by trigger type:
   notes (nullable)
   createdAt, updatedAt, createdBy (uid)
   ← claim/release done client-side via db.runTransaction() for race-safety — no Cloud Function needed
-  ← bulk-created across a date range by Generate Roster (members/serving-teams.html), chunked
-    into Firestore batches of <=450 writes (limit is 500) to handle a 6-month, 3-services/week roster
+  ← bulk-created by a /schedules doc (members/serving-teams.html), chunked into Firestore batches
+    of <=450 writes (limit is 500) to handle a 6-month, 3-services/week roster
 ```
 
 ---

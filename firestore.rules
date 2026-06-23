@@ -181,10 +181,11 @@ service cloud.firestore {
       allow read: if isMember();
       allow create: if hasPermission('servingTeams.manage');
       allow update: if hasPermission('servingTeams.manage') ||
-        // Leaders manage their own team's membership, tiers, function list, and roster patterns
+        // Leaders manage their own team's membership, tiers, and function list
+        // (roster patterns now live on named /schedules docs, not this field)
         (isSignedIn() && request.auth.uid in resource.data.leaders &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['members', 'pendingMembers', 'memberTiers', 'functions', 'rosterPatterns', 'updatedAt'])) ||
+            .hasOnly(['members', 'pendingMembers', 'memberTiers', 'functions', 'updatedAt'])) ||
         // Members can join/leave (add/remove their own UID) — same pattern as /groups
         (isMember() &&
           request.resource.data.diff(resource.data).affectedKeys()
@@ -220,6 +221,14 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['traineeUid', 'traineeName', 'updatedAt']) &&
           request.resource.data.traineeUid == null);
+    }
+
+    // Named, reusable recurrence definitions (e.g. "EGC Elands") that bulk-create
+    // slots across a date range and can be edited + regenerated as one action.
+    // No member-self-service branch — only leaders/admins ever touch these.
+    match /servingTeams/{teamId}/schedules/{scheduleId} {
+      allow read: if hasPermission('servingTeams.manage') || isServingTeamMember(teamId);
+      allow create, update, delete: if hasPermission('servingTeams.manage') || isServingTeamLeader(teamId);
     }
 
     // ── Devotionals ───────────────────────────────────────────────────────────

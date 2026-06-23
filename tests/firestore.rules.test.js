@@ -294,7 +294,7 @@ describe('Firestore Security Rules', () => {
       await assertFails(updateDoc(doc(leaderDb, 'servingTeams', 'team1'), { name: 'Hacked' }));
     });
 
-    it('team leader can save rosterPatterns (Generate Roster feature)', async () => {
+    it('team leader cannot write rosterPatterns (superseded by /schedules)', async () => {
       await seedUser('leader-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
@@ -302,7 +302,7 @@ describe('Firestore Security Rules', () => {
         });
       });
       const leaderDb = testEnv.authenticatedContext('leader-uid', {}).firestore();
-      await assertSucceeds(updateDoc(doc(leaderDb, 'servingTeams', 'team1'), {
+      await assertFails(updateDoc(doc(leaderDb, 'servingTeams', 'team1'), {
         rosterPatterns: [{ id: 'pat1', dayOfWeek: 0, label: 'Morning', functions: ['Sound'] }],
       }));
     });
@@ -458,6 +458,101 @@ describe('Firestore Security Rules', () => {
       await seedTeamAndSlot({ leaders: ['leader-uid'] });
       const db = testEnv.authenticatedContext('leader-uid', {}).firestore();
       await assertSucceeds(deleteDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1')));
+    });
+  });
+
+  describe('Serving Teams schedules subcollection', () => {
+    async function seedTeamAndSchedule({ leaders = [], members = [] } = {}) {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders, members, pendingMembers: [], memberTiers: {}, functions: ['Sound'],
+        });
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1', 'schedules', 'sched1'), {
+          name: 'EGC Elands',
+          patterns: [{ id: 'pat1', dayOfWeek: 0, label: 'Morning', functions: ['Sound'] }],
+          startDate: '2026-01-04', endDate: '2026-06-28',
+        });
+      });
+    }
+
+    it('team member can read schedules; an outsider cannot', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedUser('outsider-uid', { membership: 'member' });
+      await seedTeamAndSchedule({ members: ['member-uid'] });
+      const memberDb = testEnv.authenticatedContext('member-uid', {}).firestore();
+      const outsiderDb = testEnv.authenticatedContext('outsider-uid', {}).firestore();
+      await assertSucceeds(getDoc(doc(memberDb, 'servingTeams', 'team1', 'schedules', 'sched1')));
+      await assertFails(getDoc(doc(outsiderDb, 'servingTeams', 'team1', 'schedules', 'sched1')));
+    });
+
+    it('servingTeams.manage holder can read schedules without being a team member', async () => {
+      await seedTeamAndSchedule({});
+      const db = servingTeamsManagerUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'servingTeams', 'team1', 'schedules', 'sched1')));
+    });
+
+    it('leader can create a schedule', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: ['leader-uid'], members: [], pendingMembers: [], memberTiers: {}, functions: [],
+        });
+      });
+      const db = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      await assertSucceeds(setDoc(doc(db, 'servingTeams', 'team1', 'schedules', 'sched1'), {
+        name: 'EGC Elands',
+        patterns: [{ id: 'pat1', dayOfWeek: 0, label: 'Morning', functions: ['Sound'] }],
+        startDate: '2026-01-04', endDate: '2026-06-28',
+      }));
+    });
+
+    it('non-leader member cannot create a schedule', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: [], members: ['member-uid'], pendingMembers: [], memberTiers: {}, functions: [],
+        });
+      });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertFails(setDoc(doc(db, 'servingTeams', 'team1', 'schedules', 'sched1'), {
+        name: 'Hack Schedule', patterns: [], startDate: '2026-01-04', endDate: '2026-06-28',
+      }));
+    });
+
+    it('leader can update (edit) a schedule', async () => {
+      await seedTeamAndSchedule({ leaders: ['leader-uid'] });
+      const db = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1', 'schedules', 'sched1'), {
+        patterns: [{ id: 'pat1', dayOfWeek: 0, label: 'Morning', functions: ['Sound', 'Video'] }],
+      }));
+    });
+
+    it('non-leader member cannot update a schedule', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndSchedule({ members: ['member-uid'] });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertFails(updateDoc(doc(db, 'servingTeams', 'team1', 'schedules', 'sched1'), {
+        name: 'Hacked',
+      }));
+    });
+
+    it('leader can delete a schedule', async () => {
+      await seedTeamAndSchedule({ leaders: ['leader-uid'] });
+      const db = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      await assertSucceeds(deleteDoc(doc(db, 'servingTeams', 'team1', 'schedules', 'sched1')));
+    });
+
+    it('non-leader member cannot delete a schedule', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndSchedule({ members: ['member-uid'] });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertFails(deleteDoc(doc(db, 'servingTeams', 'team1', 'schedules', 'sched1')));
+    });
+
+    it('servingTeams.manage holder can create/update/delete schedules without being a leader', async () => {
+      await seedTeamAndSchedule({});
+      const db = servingTeamsManagerUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1', 'schedules', 'sched1'), { name: 'Renamed' }));
+      await assertSucceeds(deleteDoc(doc(db, 'servingTeams', 'team1', 'schedules', 'sched1')));
     });
   });
 
