@@ -10,7 +10,96 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-23
-**Current milestone:** Serving Teams module live in production: foundation (rostering, claim/release, training pairing), add-member-by-UID, and Generate Roster (recurring patterns + bulk date-range slot creation) all shipped. Next up: member availability + auto-assign rotation (Phase 1.6), then Equipment Register (Phase 2). Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Serving Teams module live in production: foundation (rostering, claim/release, training pairing), add-member-by-UID, Generate Roster (recurring patterns + bulk date-range slot creation), and a tile-grid roster view all shipped and user-tested. Next up: member availability + auto-assign rotation (Phase 1.6), then Equipment Register (Phase 2). Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — show the roster as a tile grid instead of a stacked list (Session 117)
+
+**Date:** 2026-06-23
+**Branch:** `feat/serving-teams-tile-roster` (PR #174, merged)
+**Status:** Merged, deployed (hosting-only — no rules change)
+
+### Context
+After testing Generate Roster, feedback was that a long roster (e.g. 6 months) took up
+too much vertical space as a single-column stacked list. Discussed two options before
+coding — tiles vs. a full calendar month-view — and chose tiles: same information,
+much smaller lift (no calendar library in this project, and a real month-grid with
+navigation would have been a much bigger build).
+
+### What was built
+- **`members/serving-teams.html`** — each (date, label) combo is now one compact tile
+  in a responsive grid (1 col mobile, 2 cols sm, 3 cols lg) instead of a full-width
+  block in a vertical list. Same claim/release and leader edit/delete actions as before,
+  just denser.
+
+### Verification
+Playwright-verified against the real source file: tile count and grouping correct (a
+Sunday with Morning + Evening renders as two separate tiles), multiple functions on the
+same date+label stack correctly within one tile, responsive grid classes present.
+
+### Deploy
+Hosting-only — no rules/functions change, auto-deployed on merge.
+
+---
+
+## Session: feat — Generate Roster (recurring patterns + bulk slot creation) (Session 116)
+
+**Date:** 2026-06-23
+**Branch:** `feat/serving-teams-generate-roster` (PR #173, merged)
+**Status:** Merged, deployed (hosting + firestore:rules)
+
+### Context
+User flagged a real adoption blocker for the Equipment Team: their roster runs ~6
+months at a time across 3 weekly services (Wednesday + 2 Sunday services), and creating
+every slot by hand through the Add Slot modal was "a lot of work." Discussed scope before
+coding (per repo rule): confirmed the two Sunday services need to be distinguishable on
+the same calendar date (free-text label, e.g. "Morning"/"Evening"), and that full
+availability-based auto-assignment is wanted but large enough to ship as a separate
+follow-up — this PR is deliberately scoped to bulk slot *creation* only, leaving every
+generated slot open for manual assignment or self-claim via the existing flow.
+
+### What was built
+- **`label` field on slots** — optional free-text service-time label (e.g. "Morning"),
+  settable on the existing Add/Edit Slot modal. The roster view now groups upcoming
+  slots by date, then by label within date, so two services on the same date render as
+  distinguishable sub-groups instead of one merged list.
+- **`rosterPatterns` array on the team doc** — saved recurrence rules:
+  `{ id, dayOfWeek, label, functions }`. Added to the leader's allowed-update field list
+  in `firestore.rules` (leaders manage this for their own team, same as `functions`).
+- **Generate Roster modal** (`members/serving-teams.html`) — leader defines/edits pattern
+  rows (day of week, label, function chips) right in the modal, pre-filled from whatever
+  patterns the team already has saved; picks a start/end date; "Generate" computes every
+  matching date per pattern and bulk-creates one open slot per function per occurrence,
+  batched in chunks of 450 writes (under Firestore's 500-per-batch limit) to comfortably
+  cover a 6-month/3-services-a-week roster in one action. Patterns are re-saved to the
+  team doc on every generate, so reopening the modal next time shows them already
+  filled in — just pick a new date range.
+- **`tests/firestore.rules.test.js`** — added a test confirming a team leader can write
+  `rosterPatterns`. Full suite: **108 passing** (was 107).
+
+### Verification
+- Playwright-verified against the real source file: the date-math helper
+  (`getDatesForDayOfWeek`) returns the correct Wednesdays/Sundays for a real month;
+  generating across Jan 2026 with a Sunday-Morning pattern (Sound+Video) and a Wednesday
+  pattern (Sound) produced exactly 12 slots (8 + 4), each chunked-batch-written with the
+  right `label`/`functions`/`date`; the modal closes and the team doc gets
+  `rosterPatterns` + grown `functions` afterward.
+- Playwright-verified: reopening Generate Roster on a team that already has
+  `rosterPatterns` saved pre-fills the day-of-week selects, label inputs, and function
+  chips exactly as saved — confirming the "reuse next time" behavior actually works, not
+  just the generation math.
+
+### Deploy
+Adds a Firestore rules change (`rosterPatterns` in the leader-allowed key list) — **not
+auto-deployed by CI.** After this PR merges, run `firebase deploy --only firestore:rules`.
+
+### Still open / next session
+- **Phase 1.6:** Member availability (which pattern+function combos a member can do) and
+  an auto-assign rotation option in Generate Roster, so slots aren't all left open. User
+  specifically wants people who can only do certain days/times to opt in per pattern+
+  function (e.g. "John: Sunday Morning Words/Video, Wednesday Words/Video").
+- Phase 2: Equipment Register — still not started.
 
 ---
 
@@ -70,66 +159,6 @@ doesn't break rendering.
 
 ### Deploy
 Hosting-only — no rules/functions change, auto-deployed on merge.
-
----
-
-## Session: feat — Generate Roster (recurring patterns + bulk slot creation) (Session 116)
-
-**Date:** 2026-06-23
-**Branch:** `feat/serving-teams-generate-roster` (PR pending)
-**Status:** Open
-
-### Context
-User flagged a real adoption blocker for the Equipment Team: their roster runs ~6
-months at a time across 3 weekly services (Wednesday + 2 Sunday services), and creating
-every slot by hand through the Add Slot modal was "a lot of work." Discussed scope before
-coding (per repo rule): confirmed the two Sunday services need to be distinguishable on
-the same calendar date (free-text label, e.g. "Morning"/"Evening"), and that full
-availability-based auto-assignment is wanted but large enough to ship as a separate
-follow-up — this PR is deliberately scoped to bulk slot *creation* only, leaving every
-generated slot open for manual assignment or self-claim via the existing flow.
-
-### What was built
-- **`label` field on slots** — optional free-text service-time label (e.g. "Morning"),
-  settable on the existing Add/Edit Slot modal. The roster view now groups upcoming
-  slots by date, then by label within date, so two services on the same date render as
-  distinguishable sub-groups instead of one merged list.
-- **`rosterPatterns` array on the team doc** — saved recurrence rules:
-  `{ id, dayOfWeek, label, functions }`. Added to the leader's allowed-update field list
-  in `firestore.rules` (leaders manage this for their own team, same as `functions`).
-- **Generate Roster modal** (`members/serving-teams.html`) — leader defines/edits pattern
-  rows (day of week, label, function chips) right in the modal, pre-filled from whatever
-  patterns the team already has saved; picks a start/end date; "Generate" computes every
-  matching date per pattern and bulk-creates one open slot per function per occurrence,
-  batched in chunks of 450 writes (under Firestore's 500-per-batch limit) to comfortably
-  cover a 6-month/3-services-a-week roster in one action. Patterns are re-saved to the
-  team doc on every generate, so reopening the modal next time shows them already
-  filled in — just pick a new date range.
-- **`tests/firestore.rules.test.js`** — added a test confirming a team leader can write
-  `rosterPatterns`. Full suite: **108 passing** (was 107).
-
-### Verification
-- Playwright-verified against the real source file: the date-math helper
-  (`getDatesForDayOfWeek`) returns the correct Wednesdays/Sundays for a real month;
-  generating across Jan 2026 with a Sunday-Morning pattern (Sound+Video) and a Wednesday
-  pattern (Sound) produced exactly 12 slots (8 + 4), each chunked-batch-written with the
-  right `label`/`functions`/`date`; the modal closes and the team doc gets
-  `rosterPatterns` + grown `functions` afterward.
-- Playwright-verified: reopening Generate Roster on a team that already has
-  `rosterPatterns` saved pre-fills the day-of-week selects, label inputs, and function
-  chips exactly as saved — confirming the "reuse next time" behavior actually works, not
-  just the generation math.
-
-### Deploy
-Adds a Firestore rules change (`rosterPatterns` in the leader-allowed key list) — **not
-auto-deployed by CI.** After this PR merges, run `firebase deploy --only firestore:rules`.
-
-### Still open / next session
-- **Phase 1.6:** Member availability (which pattern+function combos a member can do) and
-  an auto-assign rotation option in Generate Roster, so slots aren't all left open. User
-  specifically wants people who can only do certain days/times to opt in per pattern+
-  function (e.g. "John: Sunday Morning Words/Video, Wednesday Words/Video").
-- Phase 2: Equipment Register — still not started.
 
 ---
 
