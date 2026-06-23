@@ -840,10 +840,15 @@
         return;
       }
 
+      // Capture before closeSlotModal() resets the global modal state, or
+      // reloadTeamCard below would run with a null teamId.
+      const teamId = slotModalTeamId;
+      const slotId = editingSlotId;
+
       const trainingEnabled = document.getElementById('slot-training').checked;
       const assigneeUid = document.getElementById('slot-assignee').value || null;
       const traineeUid = trainingEnabled ? (document.getElementById('slot-trainee').value || null) : null;
-      const members = teamMembersCache[slotModalTeamId] || [];
+      const members = teamMembersCache[teamId] || [];
       const assigneeName = assigneeUid ? (members.find((m) => m.uid === assigneeUid) || {}).name || null : null;
       const traineeName = traineeUid ? (members.find((m) => m.uid === traineeUid) || {}).name || null : null;
 
@@ -862,10 +867,10 @@
       };
 
       try {
-        const teamRef = db.collection('servingTeams').doc(slotModalTeamId);
+        const teamRef = db.collection('servingTeams').doc(teamId);
         const slotsRef = teamRef.collection('slots');
-        if (editingSlotId) {
-          await slotsRef.doc(editingSlotId).update(data);
+        if (slotId) {
+          await slotsRef.doc(slotId).update(data);
         } else {
           await slotsRef.add({
             ...data,
@@ -882,7 +887,7 @@
         }
 
         closeSlotModal();
-        reloadTeamCard(slotModalTeamId);
+        reloadTeamCard(teamId);
       } catch (err) {
         console.error('Save slot failed:', err);
         msg.textContent = 'Failed to save slot: ' + err.message;
