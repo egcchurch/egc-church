@@ -10,7 +10,36 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-23
-**Current milestone:** Serving Teams module live in production: foundation, add-member-by-UID, Generate Roster, tile-grid roster view, named/persistent Schedules, a timezone date-shift fix, per-member function eligibility, and a manual-assignment crash fix all shipped and user-tested. Next up: day/time availability + auto-assign rotation (Phase 1.7), then Equipment Register (Phase 2). Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Serving Teams module live in production: foundation, add-member-by-UID, Generate Roster, tile-grid roster view, named/persistent Schedules, a timezone date-shift fix, per-member function eligibility, a manual-assignment crash fix, and consistent in-tile function ordering all shipped and user-tested. Next up: day/time availability + auto-assign rotation (Phase 1.7), then Equipment Register (Phase 2). Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — function order within a roster tile was random, not consistent (Session 122)
+
+**Date:** 2026-06-23
+**Branch:** `fix/serving-teams-slot-order-within-tile` (PR #182, merged)
+**Status:** Merged, deployed (hosting-only — no rules change)
+
+### Bug reported
+A tile with multiple functions on the same date (e.g. Sound + Words) sometimes showed
+Sound first, sometimes Words first.
+
+### Root cause
+Slots on the same date/label have no defined order from Firestore — their doc IDs are
+random auto-generated strings, and the roster tile rendering looped over them in
+whatever order the query happened to return, with no explicit sort.
+
+### Fix
+Sort a tile's slots alphabetically by function label before rendering, so the order is
+identical every time regardless of Firestore's return order.
+
+### Verification
+Playwright-verified against the real source file: rendered the same 3-function group
+with two different insertion orders (Words/Sound/Camera vs Camera/Words/Sound) —
+confirmed both produce the identical final rendered order (Camera, Sound, Words).
+
+### Deploy
+Hosting-only — no rules/functions change, auto-deployed on merge.
 
 ---
 
