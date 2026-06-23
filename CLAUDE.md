@@ -78,7 +78,11 @@ church-website-pwa/
 │   ├── prayer.html             ← Moderate prayer requests
 │   ├── homepage.html           ← Manage homepage content
 │   ├── notifications.html      ← Send broadcasts and notifications
-│   └── roles.html              ← Define and manage permission roles (Phase 6)
+│   ├── roles.html              ← Define and manage permission roles (Phase 6)
+│   ├── settings.html           ← superadmin only — church info, branding, notification routing,
+│   │                              feature flags (Phase 8, see docs/PHASE8.md)
+│   └── pages.html              ← superadmin only — toggle/reorder sections on homepage, about,
+│                                  members dashboard (Phase 9, see docs/PHASE9.md)
 │
 ├── functions/                  ← Firebase Cloud Functions
 │   ├── index.js                ← Function entry — auth, Firestore, scheduled, callable triggers
@@ -88,6 +92,8 @@ church-website-pwa/
 │   ├── package.json            ← Node dependencies (firebase-admin, firebase-functions)
 │   └── .gitignore              ← Excludes node_modules
 │
+├── church-config.js           ← Deploy-time constants (name, shortName, timezone, domain) for
+│                                  the multi-church template — edited once per fork (Phase 8)
 ├── firebase-config.js          ← Firebase init (committed, public)
 ├── firebase.json               ← Firebase Hosting multi-site config (manifest.json and
 │                                  service-worker.js get an explicit no-cache header —
@@ -194,6 +200,8 @@ church-website-pwa/
 | Send notifications       | /admin/notifications | `notifications.send`       |
 | User management          | /admin/users         | `users.approve`            |
 | Manage roles             | /admin/roles         | `users.assign_roles`; superadmin for create/edit/delete |
+| Site settings            | /admin/settings      | superadmin only (Phase 8 — church info, branding, notification routing, feature flags) |
+| Page layout              | /admin/pages         | superadmin only (Phase 9 — toggle/reorder sections on homepage, about, members dashboard) |
 
 ---
 
@@ -353,6 +361,7 @@ Functions are organised by trigger type:
 ### Phase 5
 
 - `deleteUserAccount` — callable from `/profile.html` — performs GDPR-compliant account deletion (see Account Deletion section)
+- `podcastFeed` — HTTP function, served at `/feed.xml` via a Firebase Hosting rewrite (both staging and production) — queries published sermons with a non-empty `audioUrl`, sorts by date desc client-side (single equality filter, no composite index needed), returns an RSS 2.0 + iTunes-tagged XML feed (up to 100 items, 1-hour cache)
 
 ### Phase 6
 
@@ -362,6 +371,7 @@ Functions are organised by trigger type:
 ### Phase 7
 
 - `requestMemberAccess` — callable from `/profile.html` — allows `public` users to request membership; writes `membershipRequestedAt: serverTimestamp()` to their user doc and sends in-app notification to all users with `users.approve` permission. 24h idempotency guard prevents repeat notifications.
+- `welcomeNewMember` — trigger: `/users/{uid}` write — when `membership` changes to `"member"`, writes a welcome in-app notification pointing the user to the members area.
 - `syncUserNotificationEligibility` — trigger: `/users/{uid}` write — if `membership` drops from `member` to anything else, deletes all docs in `/users/{uid}/fcmTokens` subcollection so the user stops receiving push notifications.
 - `cleanupNonMemberTokens` — callable (superadmin only) — one-time migration: deletes FCM token subcollections for all users where `membership !== 'member'`. Already run on production.
 
@@ -369,6 +379,11 @@ Functions are organised by trigger type:
 
 - `registerForCottageMeeting` — callable from `/members/cottage.html` — transactionally reserves seats (no overselling), enforces one active registration per member, writes `/cottageRegistrations/{uid}` (incl. the member's phone, captured at registration), increments the meeting's `seatsTaken`, and sends an in-app + push confirmation with the venue/date/time. **Phase 2:** also sends an **SMS via SMSPortal** (`POST rest.smsportal.com/v3/BulkMessages`, Basic auth) when the member **opts in** (a checkbox on the register form, default off) and a number is available, and the `SMSPORTAL_CLIENT_ID` / `SMSPORTAL_API_SECRET` secrets are set — best-effort, never blocks registration. The member's profile number is authoritative (edited on `/profile.html`); a number is only typed at registration when the profile has none, and that number **back-fills the profile** (only when empty). WhatsApp + per-member channel preferences are a planned later phase. **Deploy note:** both SMSPORTAL secrets must exist in Secret Manager before deploying this function (listed in its `runWith`).
 - `cancelCottageRegistration` — callable from `/members/cottage.html` — transactionally frees the seats and deletes the member's registration.
+
+### YouTube Integration (Sermon Tools)
+
+- `checkYoutubeLiveStatus` — scheduled, every 30 minutes — reads `/homepage/content.serviceTimes` and skips entirely outside a service window (~30 min before to 3 hours after a scheduled service) to conserve API quota; when inside a window, polls the YouTube Data API v3 (`search.list`, `eventType=live`) for an active broadcast on the configured channel and updates `/homepage/content.liveStream` automatically. Requires the `youtubeApiKey` / `youtubeChannelId` secrets — silently no-ops if unset, leaving the manual "Set Live / End Stream" toggle on `/admin/homepage.html` as the fallback.
+- `fetchYouTubeVideos` — callable, requires `sermons.manage` — pages through the configured channel's uploads playlist via the YouTube Data API v3 (`playlistItems.list`) without exposing the API key to the browser; used by the bulk-import panel on `/admin/sermons.html`. Requires the same `youtubeApiKey` / `youtubeChannelId` secrets as `checkYoutubeLiveStatus`.
 
 ---
 
@@ -407,7 +422,16 @@ Functions are organised by trigger type:
   notesUrl: null                 ← legacy single-file field, retired — always null on new saves;
                                     a non-null value only exists on sermons saved before multi-file
                                     support and is read as a 1-item materials[] fallback for display
+  seriesId (nullable)            ← references /series/{seriesId}; set via the Series autocomplete
+                                    on admin/sermons.html, which creates the series doc on the fly
+                                    if the typed name doesn't match an existing one
+  seriesOrder (nullable int)     ← this sermon's position within its series
   published: true | false
+  createdAt, updatedAt
+
+/series/{seriesId}
+  title, description (nullable), imageUrl (nullable — Firebase Storage)
+  order (int — display order in the series list/admin panel)
   createdAt, updatedAt
 
 /ignoredYoutubeVideos/{youtubeId}             ← admin tool, sermons.manage gated, no public read
@@ -514,6 +538,32 @@ Functions are organised by trigger type:
     updatedAt: timestamp,
     updatedBy: uid
   }
+
+/config/church                              ← singleton doc (Phase 8 — Multi-Church Template)
+  displayName, tagline, address, phone (nullable), email (nullable)
+  socialLinks: { facebook, youtube, instagram }  ← any may be null if not set
+  ← managed from admin/settings.html (superadmin only); see docs/PHASE8.md
+
+/config/branding                            ← singleton doc (Phase 8)
+  primaryColor (hex, default "#0A3D62"), accentColor (hex, default "#F59E0B")
+  logoUrl (nullable — Firebase Storage)
+  ← applied client-side via applyBranding() in js/main.js
+
+/config/notifications                       ← singleton doc (Phase 8)
+  connectAlertEmail (nullable)               ← destination for connect form email alerts
+
+/config/features                            ← singleton doc (Phase 8)
+  music, gallery, liveStream, messaging, groups, devotional, youthGallery: true | false
+                                              ← default true; a false flag hides the nav item and
+                                                redirects the admin page, but leaves underlying
+                                                Firestore data untouched (re-enabling restores it)
+  ← applied client-side via applyFeatures() in js/main.js
+
+/config/pages/{pageId}                      ← one doc per managed page (Phase 9 — Page Composition)
+  sections: [{ id, enabled: true | false, order: int }]
+  ← pageId is "homepage" | "about" | "members"; toggles/reorders fixed page sections from
+    admin/pages.html (superadmin only). No doc for a page = all its sections shown in natural
+    HTML order (safe default, no doc needed until a superadmin customises it). See docs/PHASE9.md
 
 /config/cottageRegions                      ← singleton doc (Cottage Meetings)
   regions: [{ id, name }]                   ← superadmin-managed area list
@@ -738,11 +788,18 @@ Firestore rules for `/groups/{groupId}` updates:
 - Firestore database: `(default)` in nam5 region (production mode)
 - Firebase Storage: in use (audio, sermon notes/materials, images, music, cover art)
 - Cloud Messaging (FCM): deployed — VAPID key configured, token registration in js/notifications.js
-- Cloud Functions: `onUserCreate`, `sendBroadcast`, `onNewMessage`, `onNewPrayerRequest`, `onNewConnectForm`, `weeklyDigest` deployed; account deletion (Phase 5)
+- Cloud Functions: 18 functions deployed — see "Cloud Functions Architecture" below for the full, current list
 - Authorised domains: localhost, 127.0.0.1, egcchurch.github.io, egc-church.firebaseapp.com, egc-church.web.app, staging.egc.church, app.egc.church
 - Billing plan: **Blaze (pay-as-you-go)** — required for Cloud Functions; usage stays within free tier at church scale
-- Required composite indexes:
-  - `users` collection: `membership ASC, createdAt DESC` (for admin user listing)
+- Required composite indexes (defined in `firestore.indexes.json`):
+  - `users`: `membership ASC, createdAt DESC` (admin user listing)
+  - `users`: `membership ASC, directoryVisible ASC` (member directory)
+  - `sermons`: `published ASC, date DESC` (public sermons list)
+  - `events`: `published ASC, startDate ASC` (public events list)
+  - `blog`: `published ASC, publishedAt DESC` (public blog list)
+  - `blog`: `published ASC, kind ASC, publishedAt DESC` (homepage announcements vs articles split)
+  - `conversations`: `participants CONTAINS, lastMessageAt DESC` (messages inbox)
+  - `conversations`: `groupId ASC, type ASC` (group chat lookup)
 
 ---
 
