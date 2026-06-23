@@ -10,7 +10,65 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-23
-**Current milestone:** Serving Teams module live in production: foundation, add-member-by-UID, Generate Roster, tile-grid roster view, named/persistent Schedules, a timezone date-shift fix, per-member function eligibility, a manual-assignment crash fix, and consistent in-tile function ordering all shipped and user-tested. Next up: day/time availability + auto-assign rotation (Phase 1.7), then Equipment Register (Phase 2). Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Serving Teams module complete (foundation through per-member function eligibility — see history below). Just started a new thread: visual redesign of the site, kicked off with a CLAUDE.md doc audit (fixed several stale/missing facts that were causing bad AI-generated design suggestions) and the first design PR (homepage hero/explore/footer). Next up: more homepage/site design passes, informed by user feedback on the first pass. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: design — homepage hero/explore/footer + CLAUDE.md design-accuracy pass (Session 123)
+
+**Date:** 2026-06-23
+**Branches:** `design/homepage-and-footer` (PR #185, merged); doc updates direct to `main` this session
+**Status:** Merged, deployed
+
+### Context
+User wants to start visual redesign work and had another Claude instance ("cowork") compare this site
+against the old one it's replacing, producing a design-change prompt. Before acting on it, verified every
+claim against the actual current code rather than applying it blindly — several didn't hold up: no
+scripture-quote section exists on this site's homepage (describes the old site), the cache-version bump
+target (v25→v26) was based on a stale number, the "iOS emoji" quick-link icons are already Font Awesome,
+and a "5th service-time card" request was actually a Firestore content change disguised as styling. User
+confirmed: apply what's valid, flag/skip what isn't — then, after approving the result, asked specifically
+that the doc updates help that other Claude instance avoid the same mistakes on future design prompts.
+
+### What shipped (PR #185)
+- Hero: bottom gradient fade, bouncing scroll-down chevron, larger tagline.
+- Moved `#adaptive-section` to right after the hero — a logged-in member's greeting/quick-links are now
+  the first thing reached on scroll, ahead of public visitor content.
+- Service times grid: responsive up to 5 columns + amber accent border (styling only — did not fabricate
+  a new service-time entry, since that's Firestore data, not markup).
+- Quick-links (Messages/Prayer/Directory/Groups) and homepage Explore-grid icons restyled from multi-
+  coloured tints to the on-brand navy/amber palette.
+- Notice Board now hides entirely when there are no announcements, instead of an empty-state message.
+- New `footer.html` + `js/footer.js`: shared public-pages footer reading `/config/church` +
+  `/homepage/content.serviceTimes` (`Promise.all`, graceful per-field fallback to `church-config.js`).
+  `js/nav.js` now also injects it, public pages only. `service-worker.js` precache bumped v59 → v60.
+- Verified in a real browser via Playwright against the actual served files (not a mock) — confirmed the
+  hero gradient/chevron computed styles, the Explore-grid colour pairing, and that the footer correctly
+  pulls real service times from the live Firestore project with graceful fallback.
+
+### Doc-accuracy fixes (direct to CLAUDE.md, per the user's explicit ask)
+Root-caused exactly where the bad design suggestions came from and fixed the source, not just the
+symptom:
+- Found the literal line in CLAUDE.md that caused the wrong cache-version suggestion
+  (`current: egc-cache-v25`, long stale — actual was v59 at the time). Replaced with an explicit
+  instruction never to hardcode the current version in prose; always read `CACHE_NAME` in
+  `service-worker.js`.
+- Added a **Design System** section to CLAUDE.md: colour/icon/shape conventions, the Tailwind CDN setup,
+  and — most importantly — an explicit, permanent note on the shared-partial script-execution limitation
+  (`<script>` tags inside an `innerHTML`'d partial never run; any partial's dynamic JS must be a separate
+  file appended after injection, per the established `js/nav.js` pattern) so this doesn't get
+  rediscovered/broken by a future change.
+- Documented how to add the footer to a new public page (one `<div id="footer-placeholder">`, nav.js
+  does the rest).
+- Documented which homepage sections are fixed-order HTML vs. superadmin-configurable via
+  `/admin/pages.html` (Phase 9) — relevant for any future "reorder this section" request.
+- Filled in a long-standing gap unrelated to this session's symptom but caught while in this section: the
+  Project Structure file tree was missing `nav.html`, `admin-nav.html`, `members-nav.html`, `footer.html`,
+  `story.html`, `404.html`, and roughly half of the actual `js/*.js` files. All added with accurate
+  one-line descriptions verified against the real files.
+
+### Deploy
+Hosting-only — no rules/functions change, auto-deployed on merge. Doc-only changes need no deploy.
 
 ---
 
