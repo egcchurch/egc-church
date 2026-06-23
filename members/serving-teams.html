@@ -350,6 +350,15 @@
                 </div>
               `).join('') : '<span class="text-xs text-zinc-400">No members yet</span>'}
             </div>
+            <div class="flex items-center gap-2 mt-3">
+              <input id="add-member-uid-${team.id}" type="text" placeholder="Member UID"
+                     class="flex-1 max-w-xs border border-zinc-200 rounded-full px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400">
+              <button onclick="addMemberByUid('${team.id}')"
+                      class="text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all">
+                <i class="fas fa-user-plus mr-1"></i>Add Member
+              </button>
+            </div>
+            <p class="text-xs text-zinc-400 mt-1.5">Ask the member for their Member ID — they can copy it from their <a href="/profile.html" class="text-blue-600 hover:underline">Profile page</a>.</p>
           </div>
         `;
       }
@@ -444,6 +453,28 @@
       } catch (err) {
         console.error('Remove failed:', err);
         alert('Failed to remove member.');
+      }
+    }
+
+    async function addMemberByUid(teamId) {
+      const input = document.getElementById(`add-member-uid-${teamId}`);
+      const uid = input.value.trim();
+      if (!uid) return;
+
+      const userDoc = await db.collection('users').doc(uid).get().catch(() => null);
+      if (!userDoc || !userDoc.exists) {
+        alert("Couldn't find a member with that ID. Ask them to copy it from their Profile page and double-check it.");
+        return;
+      }
+
+      try {
+        await db.collection('servingTeams').doc(teamId).update({
+          members: firebase.firestore.FieldValue.arrayUnion(uid),
+        });
+        input.value = '';
+      } catch (err) {
+        console.error('Add member failed:', err);
+        alert('Failed to add member.');
       }
     }
 
