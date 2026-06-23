@@ -10,7 +10,51 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-23
-**Current milestone:** Serving Teams module live in production: foundation, add-member-by-UID, Generate Roster, tile-grid roster view, and now named/persistent Schedules (edit+regenerate, cascade delete) all shipped and user-tested. Next up: member availability + auto-assign rotation (Phase 1.6), then Equipment Register (Phase 2). Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Serving Teams module live in production: foundation, add-member-by-UID, Generate Roster, tile-grid roster view, named/persistent Schedules, and a timezone date-shift fix all shipped and user-tested. Next up: member availability + auto-assign rotation (Phase 1.6), then Equipment Register (Phase 2). Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — roster generator picked the wrong day; Evening sorted before Morning (Session 119)
+
+**Date:** 2026-06-23
+**Branch:** `fix/serving-teams-timezone-and-label-order` (PR #177, merged)
+**Status:** Merged, deployed (hosting-only — no rules change)
+
+### Bugs reported (testing Session 118's Schedules feature)
+1. Picking "Sunday" in the schedule editor kept producing Saturday-dated slots.
+2. A schedule with both a "Morning" and an "Evening" service on the same date showed
+   Evening's tile before Morning's.
+
+### Root causes
+1. `getDatesForDayOfWeek()` built each date string via
+   `cursor.toISOString().slice(0, 10)`. `toISOString()` always converts to UTC — for any
+   timezone ahead of UTC (South Africa is SAST, UTC+2), local midnight Sunday is 22:00
+   UTC **Saturday**, so every generated date silently shifted back one calendar day.
+   This affected every date this feature has ever generated, including the previous
+   session's "fix" for the original Saturday/Sunday mistake (which landed on the wrong
+   day again, for the same reason). The "upcoming slots" today-cutoff check had the
+   identical bug (`new Date().toISOString().slice(0, 10)`).
+2. Roster tiles for the same date were sorted alphabetically by label, and "Evening" <
+   "Morning" alphabetically.
+
+### Fix
+- Added `formatDateLocal(d)` — formats a Date's local calendar day as YYYY-MM-DD without
+  ever round-tripping through UTC. Used by both `getDatesForDayOfWeek()` and the
+  "upcoming slots" today-cutoff.
+- Added a small chronological ranking (`LABEL_ORDER` / `labelRank()`) for common
+  time-of-day labels (morning/am/midday/noon/afternoon/evening/pm/night); tiles now sort
+  by date, then by that rank. Anything unrecognized falls back to alphabetical, same as
+  before.
+
+### Verification
+Playwright-verified with the browser context's timezone explicitly set to
+`Africa/Johannesburg` (matching the church's real timezone) — confirmed
+`getDatesForDayOfWeek(..., 0)` now returns genuine Sundays (previously would have
+returned the Saturdays one day earlier, exactly reproducing the report), and that a
+same-date Evening+Morning tile pair now sorts Morning first.
+
+### Deploy
+Hosting-only — no rules/functions change, auto-deployed on merge.
 
 ---
 
