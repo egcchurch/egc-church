@@ -10,7 +10,52 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-23
-**Current milestone:** Serving Teams module complete (foundation through per-member function eligibility — see history below). Just started a new thread: visual redesign of the site, kicked off with a CLAUDE.md doc audit (fixed several stale/missing facts that were causing bad AI-generated design suggestions) and the first design PR (homepage hero/explore/footer). Next up: more homepage/site design passes, informed by user feedback on the first pass. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Serving Teams module complete (foundation through per-member function eligibility — see history below). Visual redesign thread in progress: CLAUDE.md doc audit, homepage hero/explore/footer redesign, and a hero-height mobile fix all shipped. Next up: more homepage/site design passes, informed by user feedback. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — hero was 65px taller than the viewport on mobile (Session 124)
+
+**Date:** 2026-06-23
+**Branch:** `fix/hero-height-nav-offset` (PR #187, merged)
+**Status:** Merged, deployed (hosting-only — no rules change)
+
+### Context
+Asked to check the staging preview on mobile after the homepage redesign (PR #185). Found two things
+worth separating clearly:
+1. The PR #185 preview channel was already gone (Firebase cleans up old `pr-N` channels when a newer PR
+   opens its own preview), and the persistent `staging.egc.church` site is stale — it 404s on
+   `/footer.html`, meaning it hasn't been redeployed since before PR #185 landed.
+2. The user relayed a bug report from "cowork" (their other Claude instance) claiming
+   `#footer-placeholder` was missing from `index.html`, causing a missing footer and a blank gap at the
+   bottom of the page, plus a separate claim that the scroll chevron wasn't visible on a full-height
+   browser window.
+
+Verified each claim against **production** (not staging) before acting: the footer-placeholder claim was
+false — `curl` confirmed the div is present, and Playwright confirmed the footer renders correctly with
+real Firestore data on both desktop and mobile. The footer/blank-space reports were almost certainly
+from checking the stale staging site, not production — nothing to fix there. The chevron claim, however,
+held up under direct measurement and turned out to be a real, separate, pre-existing bug.
+
+### Root cause (the one real bug)
+The nav bar sits in normal document flow above the hero `<header>` (not overlapping it) at a fixed
+`h-16` + 1px border = 65px. The header used a plain `h-screen` (100vh), so nav + header together were
+65px taller than the actual viewport on every page load. This predates PR #185 entirely — it just had
+nothing living at the very bottom edge of the header before, so the 65px overflow was invisible. Adding
+the scroll chevron there in PR #185 exposed it directly: the chevron rendered almost entirely below the
+fold on first load, on both mobile and desktop.
+
+### Fix
+`h-screen` → `h-[calc(100vh-65px)]` on the hero `<header>` in `index.html`, with a comment explaining
+the 65px constant.
+
+### Verification
+Playwright-verified on a 390×664 mobile viewport and a 1440×900 desktop viewport: `header`'s bottom edge
+now lands exactly on `window.innerHeight` in both cases (previously 65px past it), and the chevron's full
+bounding box is within the visible viewport on first load — confirmed via screenshot.
+
+### Deploy
+Hosting-only — no rules/functions change, auto-deployed on merge.
 
 ---
 
