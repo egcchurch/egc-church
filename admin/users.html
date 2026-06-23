@@ -46,6 +46,13 @@
       </button>
     </div>
 
+    <!-- Search -->
+    <div class="mb-6 relative max-w-sm">
+      <i class="fas fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+      <input type="text" id="user-search" oninput="filterUsers()" placeholder="Search by name or email…"
+             class="w-full border border-zinc-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+    </div>
+
     <!-- User List -->
     <div id="user-list" class="space-y-4">
       <div class="text-center py-12 text-gray-400">
@@ -67,6 +74,7 @@
     let isSuperadmin = false;
     let currentUid = null;
     let rolesCache = [];
+    let allUsers = [];
 
     const ALL_PERMS = [
       'sermons.manage',
@@ -154,24 +162,42 @@
       }
 
       query.get().then((snapshot) => {
-        if (snapshot.empty) {
-          list.innerHTML = `<div class="text-center py-12 text-gray-400">
-            <i class="fas fa-users text-3xl mb-3"></i>
-            <p>No users found</p>
-          </div>`;
-          return;
-        }
-
-        list.innerHTML = '';
-        snapshot.forEach(doc => {
-          list.innerHTML += renderUserCard(doc.id, doc.data());
-        });
+        allUsers = snapshot.docs.map(doc => ({ uid: doc.id, data: doc.data() }));
+        document.getElementById('user-search').value = '';
+        renderUserList(allUsers);
       }).catch(err => {
         console.error(err);
         list.innerHTML = `<div class="text-center py-12 text-red-400">
           <p>Error loading users. Are you an admin?</p>
         </div>`;
       });
+    }
+
+    // ── Client-side search by name/email (no extra Firestore read — filters the loaded tab) ──
+
+    function filterUsers() {
+      const term = document.getElementById('user-search').value.trim().toLowerCase();
+      if (!term) {
+        renderUserList(allUsers);
+        return;
+      }
+      const filtered = allUsers.filter(({ data }) =>
+        (data.displayName || '').toLowerCase().includes(term) ||
+        (data.email || '').toLowerCase().includes(term)
+      );
+      renderUserList(filtered);
+    }
+
+    function renderUserList(users) {
+      const list = document.getElementById('user-list');
+      if (!users.length) {
+        list.innerHTML = `<div class="text-center py-12 text-gray-400">
+          <i class="fas fa-users text-3xl mb-3"></i>
+          <p>No users found</p>
+        </div>`;
+        return;
+      }
+      list.innerHTML = users.map(({ uid, data }) => renderUserCard(uid, data)).join('');
     }
 
     function renderUserCard(uid, u) {
@@ -278,6 +304,10 @@
                 <p class="font-semibold text-gray-900">${escHtml(u.displayName || '(no name)')}</p>
                 <p class="text-sm text-gray-500">${escHtml(u.email || '')}</p>
                 <p class="text-xs text-gray-400 mt-1">Joined ${joined}</p>
+                <button onclick="copyUid('${uid}', this)" title="Copy UID"
+                        class="mt-1 inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-amber-600 font-mono transition-colors">
+                  <i class="fas fa-copy"></i><span>${uid}</span>
+                </button>
               </div>
             </div>
 
@@ -418,6 +448,20 @@
     }
 
     // ── Utility ───────────────────────────────────────────────────────────────
+
+    function copyUid(uid, btn) {
+      navigator.clipboard.writeText(uid).then(() => {
+        const icon = btn.querySelector('i');
+        const label = btn.querySelector('span');
+        const originalIconClass = icon.className;
+        icon.className = 'fas fa-check';
+        label.textContent = 'Copied!';
+        setTimeout(() => {
+          icon.className = originalIconClass;
+          label.textContent = uid;
+        }, 1500);
+      });
+    }
 
     function escHtml(str) {
       return String(str || '')
