@@ -181,10 +181,10 @@ service cloud.firestore {
       allow read: if isMember();
       allow create: if hasPermission('servingTeams.manage');
       allow update: if hasPermission('servingTeams.manage') ||
-        // Leaders manage their own team's membership, tiers, and function list
+        // Leaders manage their own team's membership, tiers, function list, and roster patterns
         (isSignedIn() && request.auth.uid in resource.data.leaders &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['members', 'pendingMembers', 'memberTiers', 'functions', 'updatedAt'])) ||
+            .hasOnly(['members', 'pendingMembers', 'memberTiers', 'functions', 'rosterPatterns', 'updatedAt'])) ||
         // Members can join/leave (add/remove their own UID) — same pattern as /groups
         (isMember() &&
           request.resource.data.diff(resource.data).affectedKeys()

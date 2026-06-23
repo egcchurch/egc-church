@@ -73,14 +73,23 @@ no dynamic spawning/despawning of a second slot based on the assignee's tier, si
 just moves the same validation problem around (what happens to an orphaned mentor slot if
 the trainee cancels?) without saving any complexity.
 
-### Templates
-A named, reusable slot **shape** (e.g. "Full Band", "Youth Band", "Equipment — Split
-Camera") — a saved list of `{ functions, trainingEnabled, defaultAssigneeUid? }` entries.
-Applying a template to a date creates that exact set of slots. A template slot can
-optionally pin a **default assignee** for positions that are essentially always the same
-person (e.g. Violin 1 = Sister Jane, since there are only a few people who can play it),
-while leaving genuinely-rotating positions (Piano, Drums, Bass, Organ, Keys) blank for the
-leader to fill each time.
+### Roster Patterns + Generate Roster
+A team that meets on a recurring weekly schedule (e.g. Sunday Morning, Sunday Evening,
+Wednesday) doesn't want to hand-create every slot for a 6-month run (3 services/week ×
+~26 weeks × several functions each = hundreds of slots). A **roster pattern** is a saved
+recurrence rule on the team doc: day of week + an optional free-text **label** (e.g.
+"Morning"/"Evening" or "AM"/"PM" — only needed when more than one service lands on the
+same calendar date) + the list of functions that service needs. The **Generate Roster**
+modal lets a leader define/edit these patterns, pick a start/end date, and bulk-creates
+one open slot per function per matching date across the range in a single action.
+Patterns are saved back onto the team doc on every generate, so reopening the modal next
+time (e.g. the next 6-month block) shows them already filled in — just pick a new date
+range. Generated slots carry the pattern's `label` so the roster view can show same-date
+services (e.g. two Sundays) as distinguishable sub-groups instead of one merged list.
+
+This replaced an earlier, narrower "save a template, apply it to one date" idea — the
+date-range generator covers that case too (a 1-day range), so a separate single-date
+template concept wasn't needed.
 
 ### Visibility
 - **Team existence** (name, description, join policy) — visible to all members, same as
@@ -113,10 +122,16 @@ it's the kind of thing checked from a phone mid-move.
   functions: [string]                 ← this team's own grown autocomplete list
   joinPolicy: "open" | "approval" | "invite-only"
   pendingMembers: [uid]                ← for "approval" joinPolicy, mirrors /groups
+  rosterPatterns: [{ id, dayOfWeek: 0-6, label: string|null, functions: [string] }]
+                                        ← saved recurrence rules for Generate Roster, reused
+                                          across runs; dayOfWeek matches Date#getDay() (0=Sunday)
   createdAt, updatedAt, createdBy
 
 /servingTeams/{teamId}/slots/{slotId}
   date: string (YYYY-MM-DD)
+  label: string|null                   ← optional service-time label (e.g. "Morning"), copied
+                                          from the roster pattern that generated this slot, or
+                                          set manually for a one-off slot on a multi-service day
   functions: [string]                  ← 1+ function names bundled onto this slot
   assignedUid, assignedName: uid|null, string|null     ← lead/primary position
   trainingEnabled: boolean             ← opt-in, set at creation, static
@@ -124,11 +139,6 @@ it's the kind of thing checked from a phone mid-move.
   status: "open" | "filled"            ← derived from assignedUid, stored for query convenience
   notes
   createdBy, createdAt, updatedAt
-
-/servingTeams/{teamId}/templates/{templateId}
-  name: string                         ← e.g. "Full Band"
-  slots: [{ functions: [string], trainingEnabled: bool, defaultAssigneeUid?, defaultAssigneeName? }]
-  createdAt, updatedAt, createdBy
 
 (Phase 2 — not yet built)
 /servingTeams/{teamId}/equipment/{itemId}
@@ -158,12 +168,18 @@ Group leaders manage their own group today.
 
 ## Phasing
 
-- **Phase 1 (this work):** Teams (CRUD, join/leave/approve), members + tier, functions,
+- **Phase 1 (delivered):** Teams (CRUD, join/leave/approve), members + tier, functions,
   roster slots (leader-create, leader-assign, training-pairing flag), member-facing roster
-  view, self-claim + "can't make it" release.
-- **Phase 1.5:** Templates (save current slot shape, apply to a new date).
+  view, self-claim + "can't make it" release. Plus: add a member by UID (covers
+  invite-only teams), and a "Member ID" copy field on `/profile.html` so members can
+  self-serve their own UID.
+- **Phase 1.5 (delivered):** Roster Patterns + Generate Roster — recurring day-of-week
+  patterns with an optional service-time label, bulk-created across a date range in one
+  action, saved on the team for reuse next time.
+- **Phase 1.6 (planned next):** Member availability (which pattern+function combos a
+  member is able/willing to do) and an auto-assign rotation option in Generate Roster
+  that fills slots from the available pool instead of leaving everything open.
 - **Phase 2 (future):** Equipment Register + Moves, scoped to the Equipment Team.
 - **Explicitly deferred / not in scope yet:** push notifications when a slot opens up
   (claiming is currently "check the roster," not pushed); a personal "my upcoming slots
-  across all teams I'm on" combined view; recurring slot auto-generation (vs. one-off
-  manual/template-based creation).
+  across all teams I'm on" combined view.

@@ -542,20 +542,30 @@ Functions are organised by trigger type:
   leaders: [uid array]
   members: [uid array]
   pendingMembers: [uid array]                ← for "approval" joinPolicy
-  memberTiers: { [uid]: "trainee" | "seasoned" }  ← per-member training tier, leader-managed
+  memberTiers: { [uid]: "trainee" | "qualified" }  ← per-member training tier, leader-managed
   functions: [string array]                  ← growing free-text list of skills/roles used by this team's slots (e.g. "Sound", "Piano", "Food Helper")
+  rosterPatterns: [{ id, dayOfWeek: 0-6, label: string|null, functions: [string] }]
+                                              ← saved recurrence rules for the Generate Roster bulk-create
+                                                tool, reused across runs; dayOfWeek matches Date#getDay()
   isPublic: true | false
   joinPolicy: "open" | "approval" | "invite-only"
   createdAt, updatedAt
 
 /servingTeams/{teamId}/slots/{slotId}        ← one roster slot for one date
-  date (YYYY-MM-DD), function (string — one of the team's functions)
+  date (YYYY-MM-DD)
+  label (nullable string)                    ← optional service-time label (e.g. "Morning"/"Evening")
+                                                for dates with more than one service; copied from the
+                                                roster pattern that generated this slot, or set manually
+  functions: [string array]                  ← 1+ function names bundled onto this slot
   assignedUid, assignedName (nullable — open until claimed)
-  isTrainingPair: true | false               ← opt-in at creation; when true, slot also carries a trainee position
+  trainingEnabled: true | false              ← opt-in at creation; when true, slot also carries a trainee position
   traineeUid, traineeName (nullable — independent claim/release from the lead position)
+  status: "open" | "filled"                  ← derived from assignedUid, stored for query convenience
   notes (nullable)
   createdAt, updatedAt, createdBy (uid)
   ← claim/release done client-side via db.runTransaction() for race-safety — no Cloud Function needed
+  ← bulk-created across a date range by Generate Roster (members/serving-teams.html), chunked
+    into Firestore batches of <=450 writes (limit is 500) to handle a 6-month, 3-services/week roster
 ```
 
 ---
