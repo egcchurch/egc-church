@@ -20,6 +20,7 @@ const ALL_PERMISSIONS = [
   'users.assign_roles',
   'youtube.update',
   'cottage.manage',
+  'servingTeams.manage',
 ];
 
 const DEFAULT_ROLES = [
