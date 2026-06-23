@@ -45,6 +45,9 @@ church-website-pwa/
 ├── events.html                 ← Church calendar (public, Firestore-driven)
 ├── blog.html                   ← Announcements / news (public)
 ├── about.html                  ← Leadership team, about EGC (public)
+├── william-branham.html        ← Pillar of Fire, Life & Ministry, Deep Calleth to the Deep (public,
+│                                  static content adapted from www.egc.church — core doctrinal page)
+├── fulfillment-of-prophecy.html ← Five Comings of the Spirit of Elijah (public, static content)
 ├── connect.html                ← Visitor connect form (public)
 ├── gallery.html                ← Public gallery (public)
 ├── music.html                  ← Music library (public)
@@ -129,7 +132,10 @@ church-website-pwa/
 │   ├── css/                    ← Custom stylesheets
 │   ├── images/
 │   │   ├── icons/              ← PWA icons (8 sizes, 72-512px)
-│   │   └── logo.png            ← EGC logo source
+│   │   ├── logo.png            ← EGC logo source
+│   │   ├── welcome/            ← Homepage "Warm Welcome" carousel photos (3), sourced from
+│   │   │                          www.egc.church when that section was added
+│   │   └── william-branham/    ← Pillar of Fire + preaching photos for william-branham.html
 │   └── videos/
 │       └── CloudVideo.mp4      ← Hero background video (not cached — too large)
 │
@@ -146,6 +152,9 @@ church-website-pwa/
 │   │                              (public pages only) — see "Shared partials" note below
 │   ├── footer.js               ← Populates footer.html's placeholder ids from /config/church +
 │   │                              /homepage/content.serviceTimes; loaded dynamically by nav.js
+│   ├── welcome-carousel.js     ← Auto-rotating photo carousel for index.html's "Warm Welcome"
+│   │                              section — plain CSS opacity crossfade, no library, no-ops if
+│   │                              #welcome-carousel isn't on the page
 │   ├── homepage.js             ← Adaptive homepage renderer (Phase 7) — auth-state templates,
 │   │                              service times, quick links, notice board; see docs/HOMEPAGE.md
 │   ├── sermons.js              ← Sermons page (Firestore)
@@ -182,6 +191,8 @@ church-website-pwa/
 | Events / calendar    | /events  |
 | Blog / announcements | /blog    |
 | About / leadership   | /about   |
+| William Branham      | /william-branham |
+| Fulfillment of Prophecy | /fulfillment-of-prophecy |
 | Visitor connect form | /connect |
 | Photo gallery        | /gallery |
 | Music library        | /music   |

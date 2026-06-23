@@ -58,6 +58,37 @@
        the first thing reached on scroll, ahead of public visitor content. -->
   <div id="adaptive-section"></div>
 
+  <!-- A Warm Welcome — fixed brand section, not composable/admin-configurable.
+       Text + a small auto-rotating photo carousel (js/welcome-carousel.js). -->
+  <section class="py-16 px-6 bg-white">
+    <div class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+      <div>
+        <p class="text-amber-600 uppercase tracking-widest text-xs font-semibold mb-3">A Warm Welcome</p>
+        <h2 class="text-3xl font-bold text-[#0A3D62] mb-4 tracking-tight">May the Lord richly bless you.</h2>
+        <p class="text-gray-600 leading-relaxed mb-6">
+          We are a Bible-believing fellowship in South Africa, gathering around the revealed Word of
+          Jesus Christ. Our services are filled with heartfelt worship, prayer, and the preaching of
+          the Gospel — calling men and women to the New Birth and a living, daily walk with the Lord.
+          Whether you're new to church or already a Message believer, you are welcome to worship with us.
+        </p>
+        <a href="/connect.html"
+           class="inline-block bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-full text-sm font-medium transition-all">
+          Contact Us
+        </a>
+      </div>
+
+      <div id="welcome-carousel" class="relative rounded-2xl overflow-hidden shadow-lg aspect-[4/3]">
+        <img src="/assets/images/welcome/church-building.jpg" alt="Emmanuel Gospel Centre church building"
+             class="welcome-carousel-slide absolute inset-0 w-full h-full object-cover opacity-100 transition-opacity duration-1000">
+        <img src="/assets/images/welcome/congregation-1.jpg" alt="Congregation gathered in worship"
+             class="welcome-carousel-slide absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-1000">
+        <img src="/assets/images/welcome/congregation-2.jpg" alt="Congregation gathered in worship"
+             class="welcome-carousel-slide absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-1000">
+        <div id="welcome-carousel-dots" class="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- Announcement — not composable, conditional on Firestore content -->
   <div id="announcement-section" class="hidden">
     <div class="bg-amber-500 text-white py-4 px-6">
@@ -160,5 +191,6 @@
   <script src="js/main.js"></script>
   <script src="/js/permissions.js"></script>
   <script src="/js/homepage.js"></script>
+  <script src="/js/welcome-carousel.js"></script>
 </body>
 </html>

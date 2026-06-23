@@ -9,8 +9,72 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-06-23
-**Current milestone:** Serving Teams module complete (foundation through per-member function eligibility — see history below). Visual redesign thread in progress: CLAUDE.md doc audit, homepage hero/explore/footer redesign, and a hero-height mobile fix all shipped. Next up: more homepage/site design passes, informed by user feedback. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Last worked on:** 2026-06-24
+**Current milestone:** Serving Teams module complete (foundation through per-member function eligibility — see history below). Visual redesign thread in progress: CLAUDE.md doc audit, homepage hero/explore/footer redesign, a hero-height mobile fix, and new William Branham content + welcome carousel all shipped. Next up: decide on the sermon PDF/audio library from the old site (deliberately deferred this session), then more homepage/site design passes. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — William Branham content + homepage welcome carousel (Session 125)
+
+**Date:** 2026-06-24
+**Branch:** `feat/william-branham-and-welcome-carousel` (PR pending)
+**Status:** Open
+
+### Context
+User asked me to confirm I could browse `www.egc.church` (the old site this one replaces), then asked
+for two things based on what's there: (1) feature William Branham content, since it's core to the
+church's belief and currently has no home on the new site; (2) bring back "the welcome look with the
+image carousel" they remembered from the old site.
+
+Verified both carefully before building anything:
+- `WebFetch` (which passes content through a summarizing model) twice reported "no carousel, just a
+  static image" — and **fabricated** an unrelated contact block ("Scarborough Spoken Word Christian
+  Fellowship... Ontario") that doesn't exist anywhere on the actual page. A real-browser check (Playwright,
+  with JS executing) found the carousel immediately: a 4-slide rotating photo panel
+  (`d-ext-mediaSlider`) in a separate "A Warm Welcome" section below the top hero banner, not a hero
+  replacement. Re-extracted the William Branham page text the same way (`page.evaluate(() =>
+  document.body.innerText)`) instead of trusting WebFetch's summary, specifically because doctrinal
+  quotes need to be exact, not paraphrased — and that re-check is what caught the fabricated contact
+  block.
+- Confirmed via the old site directly that "Sunday School 9:15 AM" (flagged a few sessions ago) is a
+  real, current service time there — not an invented suggestion.
+
+Asked 4 clarifying questions before writing any code (new pages vs. folding into About; adapt the old
+text vs. user-provided wording; carousel placement — replace the hero or add a new section; photo
+sourcing). User chose the recommended option on all four.
+
+### What was built
+- **`william-branham.html`** (new public page) — The Pillar of Fire account (with the Library of
+  Congress authentication note), Life & Ministry biographical section with a YouTube embed, Fulfillment
+  of Malachi 4:5,6 section, and a Deep Calleth to the Deep sermon excerpt (`#deep-calleth-to-the-deep`
+  anchor) with two more YouTube embeds under "More Recordings." Content adapted from the old site,
+  extracted via direct DOM text rather than an AI summary, to keep scripture/quotes exact.
+- **`fulfillment-of-prophecy.html`** (new public page) — the "Five Comings of the Spirit of Elijah"
+  table and supporting doctrinal explanation. **Deliberately did not** replicate the old site's sermon
+  PDF/audio download library on this page — that's a separate, larger scope (re-hosting many files) and
+  needs its own decision, not something to fold into this PR.
+- **Homepage "A Warm Welcome" section** — new section right after `#adaptive-section` (text + "Contact
+  Us" button + a 3-photo auto-rotating carousel). New `js/welcome-carousel.js`: plain CSS opacity
+  crossfade, pagination dots, no animation library, no-ops if the carousel isn't on the page.
+- Downloaded and re-hosted the actual photos from the old site (`assets/images/welcome/`,
+  `assets/images/william-branham/`) — the church's own existing brand photography, not third-party content.
+- Added "William Branham" to `nav.html` (desktop + mobile) and `footer.html`'s Explore column.
+- `service-worker.js`: added both new pages + `js/welcome-carousel.js` to the precache list, bumped
+  v60 → v61.
+
+### Verification
+Playwright-verified against the real source files (local static server): zero console/page errors on
+all three pages; the carousel renders with 3 pagination dots; both YouTube embeds load real thumbnails;
+the Five Comings table renders cleanly; confirmed the `sw-cache-check` CI logic passes locally.
+
+### Deploy
+Hosting-only — no rules/functions change. Will auto-deploy on merge.
+
+### Still open / next session
+- Sermon PDF/audio download library from `/fulfillment-of-prophecy` on the old site — not built. Needs
+  a decision on hosting (re-host every file vs. link out) before it's worth doing.
+- Photos are large (400-590KB each, no resizing/compression pass) — fine for now, worth optimizing if
+  this becomes a pattern.
 
 ---
 
