@@ -416,7 +416,7 @@
       }
 
       html += `<h4 class="text-xs font-semibold text-zinc-500 uppercase mb-2">${isLeader ? 'Upcoming Slots' : 'My Team’s Upcoming Roster'}</h4>`;
-      html += `<div id="roster-slots-${team.id}" class="space-y-3"></div>`;
+      html += `<div id="roster-slots-${team.id}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>`;
 
       container.innerHTML = html;
 
@@ -426,39 +426,48 @@
         return;
       }
 
-      // Group by date, then by label within date — so a date with multiple
-      // services (e.g. Sunday Morning + Evening) shows them as distinct
-      // sub-groups instead of one merged list of functions.
-      const grouped = {};
+      // One tile per (date, label) combo — so a date with multiple services
+      // (e.g. Sunday Morning + Evening) renders as two separate tiles instead
+      // of one merged list of functions. Tiles lay out in a grid so a long
+      // roster (e.g. 6 months) takes far less vertical space than a stacked list.
+      const groups = {};
       upcoming.forEach((s) => {
-        const byLabel = (grouped[s.date] = grouped[s.date] || {});
         const labelKey = s.label || '';
-        (byLabel[labelKey] = byLabel[labelKey] || []).push(s);
+        const key = `${s.date}|${labelKey}`;
+        (groups[key] = groups[key] || { date: s.date, label: labelKey, slots: [] }).slots.push(s);
       });
-      Object.keys(grouped).sort().forEach((date) => {
-        const dateHeader = document.createElement('div');
-        dateHeader.className = 'text-xs font-semibold text-[#0A3D62] mt-3';
-        dateHeader.textContent = new Date(date + 'T00:00:00').toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-        slotsContainer.appendChild(dateHeader);
+      Object.keys(groups).sort().forEach((key) => {
+        slotsContainer.appendChild(renderRosterTile(team.id, groups[key], isLeader));
+      });
+    }
 
-        const byLabel = grouped[date];
-        Object.keys(byLabel).sort().forEach((labelKey) => {
-          if (labelKey) {
-            const labelHeader = document.createElement('div');
-            labelHeader.className = 'text-xs font-medium text-zinc-400 mt-1.5 ml-1';
-            labelHeader.textContent = labelKey;
-            slotsContainer.appendChild(labelHeader);
-          }
-          byLabel[labelKey].forEach((slot) => slotsContainer.appendChild(renderSlotRow(team.id, slot, isLeader)));
-        });
-      });
+    function renderRosterTile(teamId, group, isLeader) {
+      const tile = document.createElement('div');
+      tile.className = 'bg-zinc-50 border border-zinc-100 rounded-xl p-3';
+
+      const dateLabel = new Date(group.date + 'T00:00:00').toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+      const header = document.createElement('div');
+      header.className = 'flex items-center justify-between gap-2 mb-2';
+      header.innerHTML = `
+        <p class="text-xs font-semibold text-[#0A3D62]">${escapeHtml(dateLabel)}</p>
+        ${group.label ? `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-zinc-200 text-zinc-600 flex-shrink-0">${escapeHtml(group.label)}</span>` : ''}
+      `;
+      tile.appendChild(header);
+
+      const body = document.createElement('div');
+      body.className = 'space-y-2';
+      group.slots.forEach((slot) => body.appendChild(renderSlotRow(teamId, slot, isLeader)));
+      tile.appendChild(body);
+
+      return tile;
     }
 
     function renderSlotRow(teamId, slot, isLeader) {
       const uid = currentUser?.uid;
       const label = (slot.functions || []).join(' + ') || '(no function set)';
       const row = document.createElement('div');
-      row.className = 'bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3';
+      row.className = 'border-t border-zinc-200 pt-2 first:border-t-0 first:pt-0';
 
       const leadIsSelf = slot.assignedUid === uid;
       const traineeIsSelf = slot.traineeUid === uid;
@@ -486,9 +495,9 @@
       }
 
       row.innerHTML = `
-        <div class="flex items-start justify-between gap-3">
+        <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
-            <p class="text-sm font-semibold text-zinc-800">${escapeHtml(label)}</p>
+            <p class="text-xs font-semibold text-zinc-800">${escapeHtml(label)}</p>
             <p class="text-xs text-zinc-500 mt-0.5">${leadHtml}</p>
             ${slot.trainingEnabled ? `<p class="text-xs text-zinc-400 mt-0.5">Trainee: ${traineeHtml}</p>` : ''}
             ${slot.notes ? `<p class="text-xs text-zinc-400 mt-1">${escapeHtml(slot.notes)}</p>` : ''}
