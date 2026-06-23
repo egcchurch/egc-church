@@ -384,7 +384,7 @@
       const schedules = schedulesSnap ? schedulesSnap.docs.map((d) => ({ id: d.id, ...d.data() })) : [];
       teamSchedulesCache[team.id] = schedules;
 
-      const today = new Date().toISOString().slice(0, 10);
+      const today = formatDateLocal(new Date());
       const upcoming = slots.filter((s) => !s.date || s.date >= today);
 
       let html = '';
@@ -454,9 +454,22 @@
         const key = `${s.date}|${labelKey}`;
         (groups[key] = groups[key] || { date: s.date, label: labelKey, slots: [] }).slots.push(s);
       });
-      Object.keys(groups).sort().forEach((key) => {
-        slotsContainer.appendChild(renderRosterTile(team.id, groups[key], isLeader));
-      });
+      // Sort tiles chronologically by date, then by time-of-day within a date —
+      // a plain alphabetical label sort would put "Evening" before "Morning".
+      Object.values(groups)
+        .sort((a, b) => (a.date === b.date ? labelRank(a.label) - labelRank(b.label) || a.label.localeCompare(b.label) : (a.date < b.date ? -1 : 1)))
+        .forEach((group) => {
+          slotsContainer.appendChild(renderRosterTile(team.id, group, isLeader));
+        });
+    }
+
+    // Common time-of-day labels in chronological order, so "Morning" sorts
+    // before "Evening" regardless of alphabetical order. Anything unrecognized
+    // (a custom label) sorts after all of these, alphabetically among themselves.
+    const LABEL_ORDER = ['morning', 'am', 'midday', 'noon', 'afternoon', 'evening', 'pm', 'night'];
+    function labelRank(label) {
+      const idx = LABEL_ORDER.indexOf((label || '').toLowerCase());
+      return idx === -1 ? LABEL_ORDER.length : idx;
     }
 
     function renderRosterTile(teamId, group, isLeader) {
@@ -956,6 +969,18 @@
       `).join('');
     }
 
+    // Formats a Date's LOCAL calendar day as YYYY-MM-DD. Deliberately not
+    // toISOString() — that converts to UTC, which silently shifts the date back
+    // a day for any timezone ahead of UTC (e.g. SAST, UTC+2): local midnight
+    // Sunday is 22:00 UTC Saturday, so toISOString().slice(0,10) would store
+    // "Saturday" for a pattern the leader picked as "Sunday".
+    function formatDateLocal(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
     // All dates between start/end (inclusive, YYYY-MM-DD strings) that fall on
     // the given day of week (0=Sunday..6=Saturday, matching Date#getDay()).
     function getDatesForDayOfWeek(startStr, endStr, dayOfWeek) {
@@ -965,7 +990,7 @@
       const offset = (dayOfWeek - cursor.getDay() + 7) % 7;
       cursor.setDate(cursor.getDate() + offset);
       while (cursor <= end) {
-        dates.push(cursor.toISOString().slice(0, 10));
+        dates.push(formatDateLocal(cursor));
         cursor.setDate(cursor.getDate() + 7);
       }
       return dates;
