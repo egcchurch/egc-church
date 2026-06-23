@@ -543,6 +543,9 @@ Functions are organised by trigger type:
   members: [uid array]
   pendingMembers: [uid array]                ← for "approval" joinPolicy
   memberTiers: { [uid]: "trainee" | "qualified" }  ← per-member training tier, leader-managed
+  memberFunctions: { [uid]: [string array] }  ← leader-assigned function eligibility; absent/empty
+                                              for a uid = locked out of claiming/seeing slots until
+                                              a leader assigns at least one function (enforced in rules)
   functions: [string array]                  ← growing free-text list of skills/roles used by this team's slots (e.g. "Sound", "Piano", "Food Helper")
   isPublic: true | false
   joinPolicy: "open" | "approval" | "invite-only"

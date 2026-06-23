@@ -294,6 +294,33 @@ describe('Firestore Security Rules', () => {
       await assertFails(updateDoc(doc(leaderDb, 'servingTeams', 'team1'), { name: 'Hacked' }));
     });
 
+    it('team leader can assign a member\'s functions', async () => {
+      await seedUser('leader-uid', { membership: 'member' });
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: ['leader-uid'], members: ['member-uid'], pendingMembers: [], memberTiers: {}, functions: ['Sound', 'Video'],
+        });
+      });
+      const leaderDb = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      await assertSucceeds(updateDoc(doc(leaderDb, 'servingTeams', 'team1'), {
+        memberFunctions: { 'member-uid': ['Sound', 'Video'] },
+      }));
+    });
+
+    it('non-leader member cannot assign functions (their own or anyone else\'s)', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: [], members: ['member-uid'], pendingMembers: [], memberTiers: {}, functions: ['Sound'],
+        });
+      });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertFails(updateDoc(doc(db, 'servingTeams', 'team1'), {
+        memberFunctions: { 'member-uid': ['Sound'] },
+      }));
+    });
+
     it('team leader cannot write rosterPatterns (superseded by /schedules)', async () => {
       await seedUser('leader-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
@@ -341,10 +368,10 @@ describe('Firestore Security Rules', () => {
   });
 
   describe('Serving Teams slots subcollection', () => {
-    async function seedTeamAndSlot({ leaders = [], members = [] } = {}) {
+    async function seedTeamAndSlot({ leaders = [], members = [], memberFunctions = {} } = {}) {
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
-          name: 'Equipment Team', leaders, members, pendingMembers: [], memberTiers: {}, functions: ['Sound'],
+          name: 'Equipment Team', leaders, members, pendingMembers: [], memberTiers: {}, functions: ['Sound'], memberFunctions,
         });
         await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1', 'slots', 'slot1'), {
           date: '2026-07-05', functions: ['Sound'], assignedUid: null, assignedName: null,
@@ -381,11 +408,29 @@ describe('Firestore Security Rules', () => {
       }));
     });
 
-    it('a member can claim an open slot for themselves', async () => {
+    it('a member assigned the matching function can claim an open slot for themselves', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndSlot({ members: ['member-uid'], memberFunctions: { 'member-uid': ['Sound'] } });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1'), {
+        assignedUid: 'member-uid', assignedName: 'Member', status: 'filled',
+      }));
+    });
+
+    it('a member with no functions assigned is locked out of claiming (default until a leader assigns one)', async () => {
       await seedUser('member-uid', { membership: 'member' });
       await seedTeamAndSlot({ members: ['member-uid'] });
       const db = testEnv.authenticatedContext('member-uid', {}).firestore();
-      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1'), {
+      await assertFails(updateDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1'), {
+        assignedUid: 'member-uid', assignedName: 'Member', status: 'filled',
+      }));
+    });
+
+    it('a member assigned a non-matching function cannot claim a slot', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndSlot({ members: ['member-uid'], memberFunctions: { 'member-uid': ['Video'] } });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertFails(updateDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1'), {
         assignedUid: 'member-uid', assignedName: 'Member', status: 'filled',
       }));
     });
@@ -416,10 +461,12 @@ describe('Firestore Security Rules', () => {
       }));
     });
 
-    it('a member can release their own slot back to open, but not someone else\'s', async () => {
+    it('a member can release their own slot back to open even without a matching function assignment, but not someone else\'s', async () => {
       await seedUser('member-uid', { membership: 'member' });
       await seedUser('other-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        // Deliberately no memberFunctions entry — release must not be gated by
+        // qualification, only claiming a NEW slot is.
         await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
           name: 'Equipment Team', leaders: [], members: ['member-uid', 'other-uid'], pendingMembers: [], memberTiers: {}, functions: ['Sound'],
         });
@@ -440,9 +487,18 @@ describe('Firestore Security Rules', () => {
 
     it('a member can claim the trainee position independently of the lead position', async () => {
       await seedUser('member-uid', { membership: 'member' });
-      await seedTeamAndSlot({ members: ['member-uid'] });
+      await seedTeamAndSlot({ members: ['member-uid'], memberFunctions: { 'member-uid': ['Sound'] } });
       const db = testEnv.authenticatedContext('member-uid', {}).firestore();
       await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1'), {
+        traineeUid: 'member-uid', traineeName: 'Member',
+      }));
+    });
+
+    it('a member with no functions assigned cannot claim the trainee position either', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndSlot({ members: ['member-uid'] });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertFails(updateDoc(doc(db, 'servingTeams', 'team1', 'slots', 'slot1'), {
         traineeUid: 'member-uid', traineeName: 'Member',
       }));
     });
