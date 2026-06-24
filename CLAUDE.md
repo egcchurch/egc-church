@@ -97,8 +97,12 @@ church-website-pwa/
 │   │                              feature flags (Phase 8, see docs/PHASE8.md)
 │   ├── pages.html              ← superadmin only — toggle/reorder sections on homepage, about,
 │   │                              members dashboard (Phase 9, see docs/PHASE9.md)
-│   └── media.html              ← superadmin only — general-purpose file upload to Storage with
-│                                  a copyable URL, for use anywhere on the site
+│   └── media.html              ← superadmin only — Media Library: upload general files (with a
+│                                  copyable URL) plus a browsable, searchable aggregate of every
+│                                  media file across the site (gallery, music, sermons, events,
+│                                  blog, team, branding), tagged by source; an on-demand orphan
+│                                  scan flags Storage files referenced nowhere — see "Media
+│                                  Library" under Architecture / Design Decisions
 │
 ├── functions/                  ← Firebase Cloud Functions
 │   ├── index.js                ← Function entry — auth, Firestore, scheduled, callable triggers
@@ -248,7 +252,7 @@ church-website-pwa/
 | Manage roles             | /admin/roles         | `users.assign_roles`; superadmin for create/edit/delete |
 | Site settings            | /admin/settings      | superadmin only (Phase 8 — church info, branding, notification routing, feature flags) |
 | Page layout              | /admin/pages         | superadmin only (Phase 9 — toggle/reorder sections on homepage, about, members dashboard) |
-| Site media               | /admin/media         | superadmin only — general file upload to Storage, copyable URL for use anywhere on the site |
+| Media Library            | /admin/media         | superadmin only — upload + site-wide browsable/searchable media aggregate + orphan scan |
 
 ---
 
@@ -432,6 +436,10 @@ Functions are organised by trigger type:
 - `checkYoutubeLiveStatus` — scheduled, every 30 minutes — reads `/homepage/content.serviceTimes` and skips entirely outside a service window (~30 min before to 3 hours after a scheduled service) to conserve API quota; when inside a window, polls the YouTube Data API v3 (`search.list`, `eventType=live`) for an active broadcast on the configured channel and updates `/homepage/content.liveStream` automatically. Requires the `youtubeApiKey` / `youtubeChannelId` secrets — silently no-ops if unset, leaving the manual "Set Live / End Stream" toggle on `/admin/homepage.html` as the fallback.
 - `fetchYouTubeVideos` — callable, requires `sermons.manage` — pages through the configured channel's uploads playlist via the YouTube Data API v3 (`playlistItems.list`) without exposing the API key to the browser; used by the bulk-import panel on `/admin/sermons.html`. Requires the same `youtubeApiKey` / `youtubeChannelId` secrets as `checkYoutubeLiveStatus`.
 
+### Media Library
+
+- `scanOrphanedMedia` — callable, superadmin only — used by the "Orphaned" tab on `/admin/media.html`. Lists every file actually in the Storage bucket (`bucket.getFiles()`) and cross-references each against every URL/URL-array field across `/siteMedia`, `/gallery`, `/music`, `/sermons` (incl. `materials[]`), `/series`, `/events`, `/blog` (incl. `galleryUrls[]`/`videos[]`), `/team`, and `/config/branding` — anything in Storage but referenced nowhere comes back as an "orphan" candidate. Always excludes `users/{uid}/photo` paths, even if genuinely orphaned (this tool is for site content, not personal data). Run on-demand from the UI, not scheduled — a full bucket listing on every page load isn't worth it at church scale.
+
 ---
 
 ## Firestore Data Structure
@@ -612,8 +620,12 @@ Functions are organised by trigger type:
     admin/pages.html (superadmin only). No doc for a page = all its sections shown in natural
     HTML order (safe default, no doc needed until a superadmin customises it). See docs/PHASE9.md
 
-/siteMedia/{id}                             ← admin/media.html file manifest, superadmin only
+/siteMedia/{id}                             ← admin/media.html "General Uploads" — file manifest, superadmin only
   name, url (Storage HTTPS URL), sizeBytes, contentType
+  category (nullable string)                ← free-text tag, admin-assignable from the Media
+                                                Library's General Uploads tab; the only collection
+                                                with a category field — gallery/music/sermons/etc.
+                                                are already organised by their own admin pages
   uploadedAt, uploadedBy (uid)
   ← general-purpose upload-and-copy-the-URL tool, not tied to one content type; not read by
     any public page directly — a superadmin uploads here, copies the URL, and pastes it
@@ -950,6 +962,8 @@ Storage rules enforce file size and type per path (see `storage.rules`):
 - Direct messaging is 1-on-1 initially but `participants` is an array so group chat is possible later without schema change
 - `/team` entries are independent of `/users` — team members are content records, not user accounts
 - Auth guards (`admin-auth.js`, `member-auth.js`) must wait for both `firebase` AND `firebase.firestore` to be ready before running — otherwise they redirect before Firestore is initialised
+- **Media Library** (`/admin/media.html`) aggregates files from every content collection into one browsable/searchable view, but **only lets you delete a file from the "General Uploads" (siteMedia) and "Orphaned" tabs** — never a file actively referenced by a gallery, sermon, music track, etc. Deleting those stays on that feature's own admin page, where the Storage delete and the Firestore reference removal happen together; deleting straight from the aggregator would leave a dangling reference (e.g. a gallery doc whose `imageUrls[]` still points at a file that no longer exists). The "Manage" link on every non-general row goes to the right admin page instead.
+- **Category tagging is scoped to `/siteMedia` only**, not a site-wide folder system — gallery/music/sermons/events/blog/team are already organised by their own titles, dates, and admin pages; `/siteMedia` is the one collection that's an unstructured dropbox by design (general one-off uploads), so it's the one place tagging actually solves a real "this is getting messy" problem.
 - Development uses local Claude Code (not the GitHub Claude agent) — uses subscription instead of API costs
 
 ---

@@ -1347,3 +1347,97 @@ exports.cancelCottageRegistration = functions.https.onCall(async (data, context)
   }
   return { success: true, cancelled: !!removed };
 });
+
+// ── scanOrphanedMedia ───────────────────────────────────────────────────────────
+// Callable, superadmin only — used by the Media Library tab on /admin/media.html.
+// Walks every file in the Storage bucket and cross-references it against every
+// Firestore collection that stores a media URL. Files that exist in Storage but
+// aren't referenced anywhere are returned as "orphaned" candidates for cleanup.
+// Profile photos (users/{uid}/photo) are always excluded, even if genuinely
+// orphaned — this tool is for site content, not personal data.
+function storagePathFromUrl(url) {
+  if (typeof url !== 'string') return null;
+  const match = url.match(/\/o\/([^?]+)/);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+exports.scanOrphanedMedia = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
+  }
+  if (context.auth.token.superadmin !== true) {
+    throw new functions.https.HttpsError('permission-denied', 'Superadmin required.');
+  }
+
+  const inUse = new Set();
+  const addUrl = (url) => {
+    const path = storagePathFromUrl(url);
+    if (path) inUse.add(path);
+  };
+
+  const [siteMediaSnap, gallerySnap, musicSnap, sermonsSnap, seriesSnap,
+         eventsSnap, blogSnap, teamSnap, brandingDoc, usersSnap] = await Promise.all([
+    db.collection('siteMedia').get(),
+    db.collection('gallery').get(),
+    db.collection('music').get(),
+    db.collection('sermons').get(),
+    db.collection('series').get(),
+    db.collection('events').get(),
+    db.collection('blog').get(),
+    db.collection('team').get(),
+    db.collection('config').doc('branding').get(),
+    db.collection('users').get(),
+  ]);
+
+  siteMediaSnap.forEach(doc => addUrl(doc.data().url));
+  gallerySnap.forEach(doc => {
+    const d = doc.data();
+    (d.imageUrls || []).forEach(addUrl);
+    addUrl(d.thumbnailUrl);
+  });
+  musicSnap.forEach(doc => {
+    const d = doc.data();
+    addUrl(d.audioUrl);
+    addUrl(d.coverArtUrl);
+  });
+  sermonsSnap.forEach(doc => {
+    const d = doc.data();
+    addUrl(d.audioUrl);
+    (d.materials || []).forEach(m => addUrl(m.url));
+  });
+  seriesSnap.forEach(doc => addUrl(doc.data().imageUrl));
+  eventsSnap.forEach(doc => addUrl(doc.data().imageUrl));
+  blogSnap.forEach(doc => {
+    const d = doc.data();
+    addUrl(d.imageUrl);
+    (d.galleryUrls || []).forEach(addUrl);
+    (d.videos || []).forEach(v => { addUrl(v.url); addUrl(v.thumbnail); });
+  });
+  teamSnap.forEach(doc => addUrl(doc.data().photoUrl));
+  if (brandingDoc.exists) addUrl(brandingDoc.data().logoUrl);
+  usersSnap.forEach(doc => addUrl(doc.data().photoURL));
+
+  const bucket = admin.storage().bucket();
+  const [files] = await bucket.getFiles();
+
+  const orphans = [];
+  for (const file of files) {
+    if (file.name.startsWith('users/')) continue; // never surface personal photos here
+    if (inUse.has(file.name)) continue;
+    orphans.push({
+      path: file.name,
+      url: `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(file.name)}?alt=media`,
+      sizeBytes: Number(file.metadata.size) || 0,
+      contentType: file.metadata.contentType || null,
+      updatedAt: file.metadata.updated || null,
+    });
+  }
+
+  console.log(`scanOrphanedMedia: ${orphans.length} orphaned files out of ${files.length} scanned`);
+  return { orphans, totalScanned: files.length };
+});
