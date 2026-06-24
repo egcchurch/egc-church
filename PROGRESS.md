@@ -10,7 +10,103 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-24
-**Current milestone:** Serving Teams module complete (foundation through per-member function eligibility — see history below). Visual redesign thread: CLAUDE.md doc audit, homepage hero/explore/footer redesign, a hero-height mobile fix, William Branham content + welcome carousel, a general site-media upload tool, and the full William Branham sermon library (10 sermons, PDF + audio) all shipped — sermon grid layout redesigned to mimic the old site's look, grouped into a fixed "core six" (revelation progression) and a rotating "More Recordings" set. Open item: church to confirm "The Rapture"'s true date (old site says 1965-06-26, uploaded file is named 65-1204 i.e. Dec 1965). Next up: the admin/media.html upload tool works but has no way to browse/organize files as the library grows — user flagged this as a future topic, not yet scoped. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Serving Teams module complete (see history below). Visual redesign thread complete: CLAUDE.md doc audit, homepage hero/explore/footer redesign, a hero-height mobile fix, William Branham content + welcome carousel, and the full 10-sermon William Branham library (PDF + audio, "The Rapture" confirmed 4 Dec 1965 by the church) all shipped, with the sermon grid redesigned to mimic the old site's look. `/admin/media.html` grew from a single upload tool into a full **Media Library**: site-wide browsable/searchable aggregate across every content collection, category tagging for general uploads, and an orphan-detection scan with select-all/bulk-delete (which surfaced 125 genuinely orphaned files — see Session 128 for why). Two real bugs found and fixed along the way: Storage deletes silently never worked for the project's entire history (rules bug), and `.js` file edits could get stuck cached on mobile devices for up to an hour after deploy (now `no-cache`). All work as of this update is merged to `main`, deployed to production, and verified live — see Session 128 for full detail before resuming. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix + feat — Storage delete bug, PWA caching bugs, full Media Library (Session 128)
+
+**Date:** 2026-06-24
+**PRs:** #197 (Rapture date), #198 (SW cache bump), #199 (JS no-cache header), #200 (Storage delete rules fix), #201 (Media Library), #202 (bulk orphan select)
+**Status:** Merged, deployed, verified live
+
+### Rapture date resolved (PR #197)
+Church confirmed the uploaded file's `65-1204` naming is correct — updated the date from 1965-06-26
+(what the old site showed) to 1965-12-04. The William Branham sermon library is now fully accurate.
+
+### Two PWA caching bugs, found via real user reports
+
+User reported sermons not showing on `/fulfillment-of-prophecy.html` on their installed Android PWA,
+then on a second mobile browser, even after uninstalling/reinstalling the PWA. Two separate, stacked
+caching layers were responsible — fixing the first wasn't enough on its own:
+
+1. **PR #198** — `service-worker.js` uses cache-first for `.js` files. Several PRs had edited
+   `js/branham-sermons.js` without bumping `CACHE_NAME`, so installed PWAs kept serving an old cached
+   copy. Bumped v62 → v63.
+2. **PR #199** — bumping the SW cache version still wasn't enough: Firebase Hosting's default
+   `Cache-Control: max-age=3600` on static files means a phone's plain **HTTP cache** (a layer below
+   the Service Worker entirely) can hold a stale `.js` file for up to an hour — independent of the SW,
+   and not cleared by reinstalling the PWA or switching browsers (on Android, the PWA and "normal
+   browser" share the same underlying Chrome storage). Added an explicit `no-cache` header for
+   `/js/**` in `firebase.json`, mirroring the existing `manifest.json`/`service-worker.js` precedent.
+
+Root cause of the user's "still nothing" after both fixes turned out to be a third, unrelated thing:
+Chrome's own per-site cache on that specific device hadn't picked up either fix yet. Walked the user
+through Settings → Site settings → All sites → egc.church → **Delete & reset**, which resolved it.
+Both fixes are still correct and necessary going forward — they prevent this from recurring, the
+manual clear was just to unstick that one already-stale device.
+
+Both gotchas are now documented in CLAUDE.md's Architecture / Design Decisions so they don't get
+rediscovered the hard way again.
+
+### Storage delete rules silently denied every delete, forever (PR #200)
+
+User asked for a site-wide media library "browsable... to maintain it in one place." While building
+the planned orphan-cleanup feature, discovered every path in `storage.rules` combined a
+content-validator helper (`isValidImage()`/`isValidAudio()`/`isValidDocument()`) into a single
+`allow write` rule. `request.resource` doesn't exist on a `delete` request, so those helpers throw
+when reading `request.resource.contentType`, and the whole rule silently denies — confirmed against
+the Storage emulator (upload succeeded, delete on the identical file failed with
+`storage/unauthorized`). This means **every "deleted" gallery photo, music track, sermon file, team
+photo, branding logo, etc. has likely left its actual file behind in Storage for the project's entire
+history**, with zero error ever surfaced to the admin (the client-side `deleteMedia()` helper swallows
+errors by design).
+
+Fixed by splitting every combined rule into `allow create, update: if ... && validator();` plus a
+separate `allow delete: if ...;` (no validator needed for removal). Added
+`tests/storage.rules.test.js` (27 tests: one full pattern check per distinct rule shape, plus a delete
+regression sweep across every remaining path) and wired the Storage emulator into the existing
+`security-rules` CI job alongside Firestore (168 tests total now). Deployed manually
+(`firebase deploy --only storage`) since CI never auto-deploys rules.
+
+### Media Library (PR #201) + bulk orphan select (PR #202)
+
+Turned `/admin/media.html` into a real Media Library:
+- **Browse/search**: aggregates files from `/siteMedia`, `/gallery`, `/music`, `/sermons` (incl.
+  `materials[]`), `/series`, `/events`, `/blog` (incl. `galleryUrls[]`/`videos[]`), `/team`, and
+  `/config/branding` into one list, tabbed by source (All / General Uploads / Gallery / Music /
+  Sermons / Events & Blog / Team / Orphaned), searchable by name/category/source.
+- **Category tagging**: free-text tag, **General Uploads only** — everything else is already
+  organised by its own admin page, so no redundant tagging was added there.
+- **Safety guardrail**: files actively referenced elsewhere can only be deleted from that feature's
+  own admin page (a "Manage" link points there) — never from the aggregator, so a deletion can't
+  leave a dangling Firestore reference behind. Only General Uploads and confirmed orphans are
+  deletable here.
+- **`scanOrphanedMedia`** — new callable Cloud Function (superadmin only), deployed after several
+  retries due to a transient Google Cloud `cloudbilling.googleapis.com` rate limit (~25 min of
+  retries, unrelated to our code). Walks the actual Storage bucket via `bucket.getFiles()` and
+  cross-references every file against every URL field across all the collections above; anything
+  referenced nowhere comes back as an orphan. Always excludes `users/{uid}/photo` regardless of
+  orphan status (personal data, not site content).
+- **First real run found 125 orphaned files out of 619 scanned** — concrete confirmation of the
+  Storage-delete-bug's impact; per the user, mostly leftovers from removing images during blog-post
+  editing that never actually got cleaned up. Deleting 125 files one at a time wasn't practical, so
+  PR #202 added a "Select all" checkbox + per-row checkboxes + "Delete selected", so the workflow is
+  select-all → uncheck anything you want to keep/reuse → delete the rest in one batch.
+
+Verified via mocked-Firebase Playwright passes throughout (tab switching, search, category editing,
+orphan scan, select-all/uncheck/bulk-delete semantics, and resilience when one collection's query
+fails) rather than against live Firebase, since the full aggregation logic across 9 collections + a
+Cloud Function was impractical to hand-test exhaustively.
+
+### Deploy notes for next session
+Everything above is merged, deployed, and confirmed live in production as of this entry — Storage
+rules, the `scanOrphanedMedia` function, and all static site changes. No outstanding manual deploy
+steps.
+
+### Still open / next session
+- No outstanding bugs or deferred items from this session. The "browse/organize as it grows" need
+  raised last session is now fully addressed by the Media Library.
 
 ---
 
