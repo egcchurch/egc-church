@@ -905,6 +905,15 @@ Storage rules enforce file size and type per path (see `storage.rules`):
   in prose anywhere** (including this file) — it drifts immediately and silently every time someone bumps
   it without updating the doc. Always read `CACHE_NAME` at the top of `service-worker.js` for the actual
   current value.
+- **Bump the cache version on ANY content edit to an already-precached `.js`/`.css`/image file, not just
+  when adding a new page.** Static assets matching `\.(png|jpg|jpeg|svg|ico|js|json|css|webp)$` use
+  cache-first in `service-worker.js` — once a path is cached under a `CACHE_NAME`, that strategy serves
+  the cached copy forever and never re-checks the network for that path, no matter how many times the
+  underlying file is redeployed. Surfaced for real when edits to `js/branham-sermons.js` across several
+  PRs didn't bump the version: an installed PWA kept serving an old cached copy (targeting a DOM id that
+  no longer existed) and silently rendered nothing, while a browser tab without a primed cache showed the
+  new content fine. HTML pages are unaffected (network-first), so this only bites already-precached
+  static assets.
 - Service worker cache list must be updated whenever a new page is added — CI check enforces this
 - Role checks in JS are UX only — Firestore Security Rules are the real enforcement layer
 - Firestore security rules are tested in CI via `@firebase/rules-unit-testing` against the Firebase emulator
