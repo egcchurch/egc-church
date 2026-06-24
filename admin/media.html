@@ -189,6 +189,7 @@
           <div class="flex-1 min-w-0">
             <p class="font-medium text-gray-800 truncate">${escHtml(m.name)}</p>
             <p class="text-xs text-gray-400">${formatBytes(m.sizeBytes)}</p>
+            <p class="text-[11px] text-gray-400 truncate font-mono" title="${escHtml(m.url)}">${escHtml(m.url)}</p>
           </div>
           <button onclick="copyUrl('${id}', this)" title="Copy URL"
                   class="text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all flex-shrink-0">
