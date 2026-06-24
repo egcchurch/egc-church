@@ -111,9 +111,10 @@ church-website-pwa/
 ├── church-config.js           ← Deploy-time constants (name, shortName, timezone, domain) for
 │                                  the multi-church template — edited once per fork (Phase 8)
 ├── firebase-config.js          ← Firebase init (committed, public)
-├── firebase.json               ← Firebase Hosting multi-site config (manifest.json and
-│                                  service-worker.js get an explicit no-cache header —
-│                                  see Sermon Media Strategy / orientation note for why)
+├── firebase.json               ← Firebase Hosting multi-site config (manifest.json,
+│                                  service-worker.js, and everything under /js/ get an explicit
+│                                  no-cache header — see the cache-version note under
+│                                  Architecture / Design Decisions for why)
 ├── .firebaserc                 ← Firebase project + site target aliases
 ├── firestore.rules             ← Firestore security rules
 ├── firestore.indexes.json      ← Firestore composite indexes
@@ -909,11 +910,18 @@ Storage rules enforce file size and type per path (see `storage.rules`):
   when adding a new page.** Static assets matching `\.(png|jpg|jpeg|svg|ico|js|json|css|webp)$` use
   cache-first in `service-worker.js` — once a path is cached under a `CACHE_NAME`, that strategy serves
   the cached copy forever and never re-checks the network for that path, no matter how many times the
-  underlying file is redeployed. Surfaced for real when edits to `js/branham-sermons.js` across several
-  PRs didn't bump the version: an installed PWA kept serving an old cached copy (targeting a DOM id that
-  no longer existed) and silently rendered nothing, while a browser tab without a primed cache showed the
-  new content fine. HTML pages are unaffected (network-first), so this only bites already-precached
-  static assets.
+  underlying file is redeployed.
+- **`/js/**` gets an explicit `no-cache` header in `firebase.json`** (same as `manifest.json` and
+  `service-worker.js`) for the same underlying reason: Firebase Hosting's default
+  `Cache-Control: max-age=3600` on static files means a phone's plain HTTP cache can keep serving an
+  old `.js` file for up to an hour regardless of the Service Worker layer above — uninstalling and
+  reinstalling the PWA, or even using a different browser entirely on the same device, doesn't help if
+  that browser's HTTP cache already holds the stale file. This is what actually bit a real user: edits
+  to `js/branham-sermons.js` across several PRs (targeting a DOM id that no longer existed after a
+  redesign) kept rendering nothing on mobile — reinstalling the PWA and trying a second mobile browser
+  both failed to fix it, while desktop happened to hit a fresh CDN edge — until this header was added.
+  `no-cache` still allows caching, it just forces a revalidation round-trip (cheap `304` on a cache hit)
+  instead of trusting a local copy blindly.
 - Service worker cache list must be updated whenever a new page is added — CI check enforces this
 - Role checks in JS are UX only — Firestore Security Rules are the real enforcement layer
 - Firestore security rules are tested in CI via `@firebase/rules-unit-testing` against the Firebase emulator
