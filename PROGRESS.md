@@ -17,8 +17,8 @@
 ## Session: feat — general site media upload tool + William Branham sermon list (Session 126)
 
 **Date:** 2026-06-24
-**Branch:** `feat/william-branham-and-welcome-carousel` (PR #189, extended)
-**Status:** Merging
+**Branch:** `feat/william-branham-and-welcome-carousel` (PR #189, extended) + `fix/william-branham-prophecy-nav-link` (PR #190)
+**Status:** Merged
 
 ### Context
 User reviewed PR #189 and asked for two fixes plus a scope addition: (1) some content was missing
@@ -64,21 +64,27 @@ use anywhere on the site.
   reproduced). New `js/branham-sermons.js` renders the list with PDF/Audio buttons that show as
   "Coming soon" until a URL is filled in — once the user uploads each file via `/admin/media.html` and
   shares the resulting URL, those buttons get wired up in a follow-up edit.
-- **Navigation fix**: added a "Site Media" card to `/admin/index.html` (superadmin-only, matching the
-  existing Settings/Page Layout card pattern — confirmed via the earlier CLAUDE.md audit that
-  superadmin-only tools live as dashboard cards, not nav dropdown entries, so no nav.html change
-  needed for this one; `william-branham.html`'s top-nav link from the previous session already covers
-  discoverability for the public-facing pages).
+- **Admin dashboard card**: added a "Site Media" card to `/admin/index.html` (superadmin-only,
+  matching the existing Settings/Page Layout card pattern — confirmed via the earlier CLAUDE.md audit
+  that superadmin-only tools live as dashboard cards, not nav dropdown entries).
 - `service-worker.js`: added `admin/media.html` and `js/branham-sermons.js` to the precache list,
   bumped v61 → v62.
+- **Navigation fix (PR #190, follow-up)**: the user's original complaint — "I wasn't sure how to
+  navigate to /fulfillment-of-prophecy.html I ended up just adding that to the base url" — was still
+  unresolved after PR #189 merged; the only path there was a link buried mid-paragraph on
+  `william-branham.html`. No reusable hover-dropdown nav component exists anywhere in the codebase
+  (the only "dropdown" pattern is the click-triggered account menu), so rather than build new nav
+  infrastructure for one case, added a one-click pill-style quick-link bar right under
+  `william-branham.html`'s header (Deep Calleth to the Deep / Fulfillment of Prophecy / Sermons).
 
 ### Verification
 Firestore rules test suite: 125 passing (was 122, +3 for the new `/siteMedia` rules). Confirmed the
 `sw-cache-check` CI logic passes locally. Syntax-checked all new/modified JS and inline scripts.
 
 ### Deploy
-Adds a Firestore + Storage rules change — **not auto-deployed by CI.** After merge, run
-`firebase deploy --only firestore:rules,storage`.
+PR #189 added a Firestore + Storage rules change — **not auto-deployed by CI.** Ran
+`firebase deploy --only firestore:rules,storage` manually after merge; confirmed live. PR #190
+(static-only) deployed automatically via the normal merge-to-main pipeline.
 
 ### Still open / next session
 - User to upload the 10 sermon files (6 PDFs + up to 9 working audio recordings — "The Rapture" has no
