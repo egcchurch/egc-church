@@ -34,7 +34,31 @@
     </div>
   </header>
 
-  <main class="max-w-3xl mx-auto px-6 py-14 space-y-10">
+  <main class="py-14 space-y-16">
+
+    <!-- William Branham Sermons — foundational six, deliberately grouped and ordered to trace
+         the growth of Brother Branham's revelation. Not meant to be swapped out casually. -->
+    <section class="max-w-6xl mx-auto px-6">
+      <div class="max-w-2xl mx-auto text-center mb-10">
+        <p class="text-amber-600 text-xs font-semibold uppercase tracking-widest mb-2">William Branham</p>
+        <h2 class="text-3xl font-bold text-[#0A3D62] mb-4">Sermons</h2>
+        <p class="text-gray-500 italic leading-relaxed">
+          "But in the days of the voice of the seventh angel, when he shall begin to sound, the mystery
+          of God should be finished, as he hath declared to his servants the prophets."
+        </p>
+        <p class="text-gray-400 text-sm mt-2">— Revelation 10:7</p>
+      </div>
+      <p class="max-w-2xl mx-auto text-gray-600 leading-relaxed text-center mb-10">
+        These six sermons, preached in 1962 and 1963, trace the unfolding of Brother Branham's
+        revelation — from the Spoken Word as the original seed through to the opening of the
+        Seven Seals.
+      </p>
+      <div id="core-sermon-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <!-- Populated by js/branham-sermons.js -->
+      </div>
+    </section>
+
+    <div class="max-w-3xl mx-auto px-6 space-y-10">
 
     <section>
       <h2 class="text-2xl font-bold text-[#0A3D62] mb-6">The Five Comings of the "Spirit of Elijah"</h2>
@@ -113,17 +137,24 @@
       </p>
     </section>
 
-    <section>
-      <h2 class="text-2xl font-bold text-[#0A3D62] mb-6">William Branham Sermons</h2>
-      <p class="text-gray-600 leading-relaxed mb-6">
-        Recordings and transcripts of Rev. William Marrion Branham's preaching, courtesy of Voice of
-        God Recordings.
-      </p>
-      <div id="sermon-list" class="space-y-3">
+    </div>
+
+    <!-- More Recordings — supplementary set, expected to rotate over time. -->
+    <section class="max-w-6xl mx-auto px-6">
+      <div class="max-w-2xl mx-auto text-center mb-10">
+        <p class="text-amber-600 text-xs font-semibold uppercase tracking-widest mb-2">William Branham</p>
+        <h2 class="text-3xl font-bold text-[#0A3D62] mb-4">More Recordings</h2>
+        <p class="text-gray-500 leading-relaxed">
+          A rotating selection of additional sermons from Brother Branham's ministry, courtesy of
+          Voice of God Recordings.
+        </p>
+      </div>
+      <div id="more-sermon-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <!-- Populated by js/branham-sermons.js -->
       </div>
     </section>
 
+    <div class="max-w-3xl mx-auto px-6">
     <section class="bg-amber-50 border border-amber-100 rounded-2xl p-6">
       <p class="text-gray-600 leading-relaxed mb-4">
         Want to go deeper? Read the full account of the Pillar of Fire and Brother Branham's life and
@@ -134,6 +165,7 @@
         <i class="fas fa-arrow-left text-sm"></i> Back to William Branham
       </a>
     </section>
+    </div>
 
   </main>
 
