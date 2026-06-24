@@ -42,16 +42,25 @@ service firebase.storage {
       ] && request.resource.size < 50 * 1024 * 1024; // 50MB max
     }
 
+    // NOTE: `allow write` covers create/update/delete, but `request.resource` does not
+    // exist on a delete request — any rule that calls isValidImage()/isValidAudio()/
+    // isValidDocument() (which read request.resource.contentType) errors out and is
+    // denied for deletes. Every block below splits "create, update" (validated) from
+    // "delete" (auth-only) so deletes actually succeed. Confirmed via the Storage
+    // emulator that the combined form silently failed every delete.
+
     // ── Profile photos ────────────────────────────────────────────────────
     match /users/{uid}/photo {
       allow read: if isSignedIn();
-      allow write: if isOwner(uid) && isValidImage();
+      allow create, update: if isOwner(uid) && isValidImage();
+      allow delete: if isOwner(uid);
     }
 
     // ── Sermon audio (single file at this level) ───────────────────────────
     match /sermons/{sermonId}/{fileName} {
       allow read: if true;
-      allow write: if isAdminUser() && (isValidAudio() || isValidDocument());
+      allow create, update: if isAdminUser() && (isValidAudio() || isValidDocument());
+      allow delete: if isAdminUser();
     }
 
     // ── Sermon notes/materials (multiple files, nested under materials/) ───
@@ -59,59 +68,69 @@ service firebase.storage {
     // level deeper (sermons/{id}/materials/{file}) need their own match block.
     match /sermons/{sermonId}/materials/{fileName} {
       allow read: if true;
-      allow write: if isAdminUser() && isValidDocument();
+      allow create, update: if isAdminUser() && isValidDocument();
+      allow delete: if isAdminUser();
     }
 
     // ── Gallery images ────────────────────────────────────────────────────
     match /gallery/{galleryId}/{fileName} {
       allow read: if true; // Audience check handled in Firestore
-      allow write: if isAdminUser() && isValidImage();
+      allow create, update: if isAdminUser() && isValidImage();
+      allow delete: if isAdminUser();
     }
 
     // ── Sermon series cover images ────────────────────────────────────────
     match /series/{seriesId}/{fileName} {
       allow read: if true;
-      allow write: if isAdminUser() && isValidImage();
+      allow create, update: if isAdminUser() && isValidImage();
+      allow delete: if isAdminUser();
     }
 
     // ── Music ─────────────────────────────────────────────────────────────
     match /music/{fileName} {
       allow read: if true;
-      allow write: if isAdminUser() && isValidAudio();
+      allow create, update: if isAdminUser() && isValidAudio();
+      allow delete: if isAdminUser();
     }
 
     match /music/covers/{fileName} {
       allow read: if true;
-      allow write: if isAdminUser() && isValidImage();
+      allow create, update: if isAdminUser() && isValidImage();
+      allow delete: if isAdminUser();
     }
 
     // ── Blog & Events images ──────────────────────────────────────────────
     match /blog/{fileName} {
       allow read: if true;
-      allow write: if isAdminUser() && isValidImage();
+      allow create, update: if isAdminUser() && isValidImage();
+      allow delete: if isAdminUser();
     }
 
     // Story cover and gallery images (nested under blog/{postId}/)
     match /blog/{postId}/{allPaths=**} {
       allow read: if true;
-      allow write: if isAdminUser() && isValidImage();
+      allow create, update: if isAdminUser() && isValidImage();
+      allow delete: if isAdminUser();
     }
 
     match /events/{fileName} {
       allow read: if true;
-      allow write: if isAdminUser() && isValidImage();
+      allow create, update: if isAdminUser() && isValidImage();
+      allow delete: if isAdminUser();
     }
 
     // ── Team photos ───────────────────────────────────────────────────────
     match /team/{fileName} {
       allow read: if true;
-      allow write: if isAdminUser() && isValidImage();
+      allow create, update: if isAdminUser() && isValidImage();
+      allow delete: if isAdminUser();
     }
 
     // ── Site branding (logo) ──────────────────────────────────────────────
     match /branding/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn() && request.auth.token.superadmin == true && isValidImage();
+      allow create, update: if isSignedIn() && request.auth.token.superadmin == true && isValidImage();
+      allow delete: if isSignedIn() && request.auth.token.superadmin == true;
     }
 
     // ── Site media (general-purpose uploads, /admin/media.html) ───────────
@@ -120,9 +139,10 @@ service firebase.storage {
     // size cap to comfortably cover a full sermon-length audio recording.
     match /site-media/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn() && request.auth.token.superadmin == true &&
+      allow create, update: if isSignedIn() && request.auth.token.superadmin == true &&
         (isValidImage() || isValidDocument() ||
          (request.resource.contentType.matches('audio/.*') && request.resource.size < 150 * 1024 * 1024));
+      allow delete: if isSignedIn() && request.auth.token.superadmin == true;
     }
   }
 }
