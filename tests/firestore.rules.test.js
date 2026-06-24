@@ -1178,6 +1178,29 @@ describe('Firestore Security Rules', () => {
     });
   });
 
+  describe('Site Media collection', () => {
+    it('member cannot read or write siteMedia', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      const db = memberUser().firestore();
+      await assertFails(getDoc(doc(db, 'siteMedia', 'file1')));
+      await assertFails(setDoc(doc(db, 'siteMedia', 'file1'), { name: 'hack.pdf', url: 'https://example.com/hack.pdf' }));
+    });
+
+    it('servingTeams.manage holder (a non-superadmin permission) cannot read or write siteMedia', async () => {
+      const db = servingTeamsManagerUser().firestore();
+      await assertFails(getDoc(doc(db, 'siteMedia', 'file1')));
+    });
+
+    it('superadmin can read and write siteMedia', async () => {
+      await seedUser('admin-uid', { membership: 'public', isSuperadmin: true, roles: [] });
+      const db = superAdmin().firestore();
+      await assertSucceeds(setDoc(doc(db, 'siteMedia', 'file1'), {
+        name: 'sermon.pdf', url: 'https://storage.example.com/sermon.pdf', sizeBytes: 12345,
+      }));
+      await assertSucceeds(getDoc(doc(db, 'siteMedia', 'file1')));
+    });
+  });
+
   describe('Cottage meetings', () => {
     async function seedMeeting(id, hostUid) {
       await testEnv.withSecurityRulesDisabled(async (ctx) => {

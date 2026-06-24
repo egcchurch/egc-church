@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="EGC">
+  <link rel="apple-touch-icon" href="assets/images/icons/icon-192.png">
+  <title>William Branham | Emmanuel Gospel Centre</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans">
+
+  <!-- Navigation (shared — see nav.html, injected by js/nav.js) -->
+  <div id="nav-placeholder"></div>
+
+  <!-- Header -->
+  <header class="bg-[#0A3D62] text-white py-16">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+      <h1 class="text-5xl font-bold mb-4">William Branham</h1>
+      <p class="text-amber-200 leading-relaxed">
+        "But in the days of the voice of the seventh angel, when he shall begin to sound, the mystery
+        of God should be finished, as he hath declared to his servants the prophets."
+      </p>
+      <p class="text-blue-300 text-sm mt-2">— Revelation 10:7</p>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-6 py-14 space-y-16">
+
+    <!-- The Pillar of Fire -->
+    <section>
+      <h2 class="text-2xl font-bold text-[#0A3D62] mb-1">The Pillar of Fire</h2>
+      <p class="text-amber-600 text-sm font-medium uppercase tracking-wide mb-6">
+        The presence of God among His people, leading another exodus
+      </p>
+
+      <img src="/assets/images/william-branham/pillar-of-fire.png"
+           alt="A man in a suit, photographed mid-conversation, with a bright pillar of light captured above him."
+           class="w-full max-w-sm mx-auto rounded-2xl shadow-sm mb-6">
+
+      <p class="text-gray-600 leading-relaxed mb-4">
+        On January 24th, 1950, a photographer named Ted Kipperman was sent by Douglas Studio to cover
+        a debate on the controversial topic of Divine Healing (specifically relating to Bro. Branham's
+        ministry) held between Mr. Bosworth and Mr. Best at the Sam Houston Coliseum in Houston, Texas.
+        At the end of the debate, Mr. Best demanded that Bro. Branham present himself in person on the
+        stage, and posed for several aggressive photos before challenging Bro. Branham as a divine healer.
+      </p>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Bro. Branham denied ever referring to himself as a divine healer, and stated, "Anyone knows
+        that God will have nothing to do with error, and if I tell the truth, then God will speak of
+        me." (51-0718, <em>The Angel of the Lord</em>) The Pillar of Fire, as described in scripture and
+        seen at many of Bro. Branham's meetings, descended at that moment, and Mr. Kipperman stepped
+        forward and took the photograph featured here. The photograph was verified as being an authentic
+        capture of a supernatural phenomenon by Mr. George J. Lacy of the American Society of Questioned
+        Document Examiners.
+      </p>
+      <p class="text-gray-500 text-sm leading-relaxed bg-amber-50 border border-amber-100 rounded-xl p-4">
+        <strong class="text-gray-700">USA Library of Congress (authenticity statement):</strong>
+        This photograph is verified and preserved by the Library of Congress, Prints and Photographs
+        Division. The authenticated original can be viewed directly through their public archive at
+        <a href="https://www.loc.gov/pictures/item/95512174/" target="_blank" rel="noopener" class="text-amber-700 hover:underline">loc.gov/pictures/item/95512174</a>.
+      </p>
+    </section>
+
+    <!-- Life & Ministry -->
+    <section>
+      <h2 class="text-2xl font-bold text-[#0A3D62] mb-6">Life &amp; Ministry</h2>
+      <img src="/assets/images/william-branham/preaching.jpg"
+           alt="A man speaking at a podium, gesturing, with an audience seated before him in a dim setting."
+           class="w-full max-w-xs mx-auto rounded-2xl shadow-sm mb-6">
+      <p class="text-gray-600 leading-relaxed mb-4">
+        In his own words, here is Brother William Branham being interviewed in the mid-1950s. He gives
+        a biographical testimony about his birth and early life as the eldest son in a poor family.
+      </p>
+      <p class="text-gray-600 leading-relaxed mb-6">
+        He also shares details of the angelic visitation in which he was commissioned to take a Healing
+        Ministry around the earth, his burden for souls, and his faithfulness to the call of God on his life.
+      </p>
+      <div class="aspect-video w-full rounded-2xl overflow-hidden shadow-sm">
+        <iframe class="w-full h-full" src="https://www.youtube.com/embed/aw4tHTgQVt8"
+                title="William Branham interview" frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen></iframe>
+      </div>
+    </section>
+
+    <!-- Fulfillment of Malachi 4:5,6 -->
+    <section>
+      <h2 class="text-2xl font-bold text-[#0A3D62] mb-1">Fulfillment of Malachi 4:5,6</h2>
+      <p class="text-amber-600 text-sm font-medium uppercase tracking-wide mb-6">
+        A prophetic ministry among the Gentiles for the last days
+      </p>
+      <blockquote class="border-l-4 border-amber-400 pl-4 text-gray-600 italic leading-relaxed mb-6">
+        "Behold, I will send you Elijah the prophet before the coming of the great and dreadful day of
+        the LORD: and he shall turn the heart of the fathers to the children, and the heart of the
+        children to their fathers, lest I come and smite the earth with a curse."
+        <footer class="text-gray-400 text-sm mt-1 not-italic">— Malachi 4:5-6</footer>
+      </blockquote>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        William Marrion Branham was one of the most influential Bible ministers of our time. He was
+        considered by many to be the initiator of the healing and charismatic revival that began in
+        1947, and from his ministry there sprang a myriad of other ministers who became internationally
+        known.
+      </p>
+      <p class="text-gray-600 leading-relaxed mb-6">
+        From 1946, when he first encountered the Angel of the Lord, until the time of his passing in
+        1965, the powerful ministry of William Branham was well known and considered unparalleled in
+        the history of gospel meetings. The impact of the supernatural ministry of this one man was felt
+        not only in North America, but also around the world — from King George of England, US
+        Congressmen, and military personnel, to unknown men, women, and children.
+      </p>
+      <a href="/fulfillment-of-prophecy.html"
+         class="inline-flex items-center gap-2 text-amber-600 hover:text-amber-700 font-medium">
+        Read more about the fulfillment of prophecy <i class="fas fa-arrow-right text-sm"></i>
+      </a>
+    </section>
+
+    <!-- Deep Calleth to the Deep -->
+    <section id="deep-calleth-to-the-deep">
+      <h2 class="text-2xl font-bold text-[#0A3D62] mb-6">Deep Calleth to the Deep</h2>
+      <p class="text-gray-600 leading-relaxed mb-6">
+        <em>Deep Calleth to the Deep</em> is a sermon preached June 24, 1954, during the Full Gospel
+        Business Men's Fellowship International Convention at Constitution Hall in Washington, DC.
+        The convention spanned two days — Wednesday, June 23rd, and Thursday, June 24th. Bro. Branham
+        teaches on Divine Healing and then ministers to the people in a prayer line with his gift of
+        discernment. The following is an excerpt from the sermon:
+      </p>
+      <blockquote class="border-l-4 border-amber-400 pl-4 text-gray-600 italic leading-relaxed mb-2">
+        "Deep calling to the deep: if the deep's calling, there's a deep to respond. In other words,
+        before there was a tree to grow on the earth, there had to be an earth to grow in first. God
+        never made the tree for the earth, He made the earth for the tree. He made the earth and
+        commanded the earth to bring forth a tree. And the earth was calling, till the tree come forth.
+        Before there was a fin on a fish's back, there was no water for him to swim in. The reason he's
+        got a fin, is because there was water for him to swim in to use it. Everything that we have is
+        for a purpose, and for a cause&hellip; And then the very reason that you're here tonight, you
+        believe in Divine healing. And if there wasn't even taught in the Bible, if you group of people
+        believed in Divine healing, there has to be a fountain open somewhere, or you'd never have the
+        desire for it. If you've got the desire to be healed by God, there's a God to heal you. That's
+        right. For the deep calls to the deep."
+      </blockquote>
+      <p class="text-gray-400 text-sm mb-8">54-0624 — The Deep Calleth to the Deep, Rev. William Marrion Branham</p>
+
+      <h3 class="text-lg font-bold text-[#0A3D62] mb-4">More Recordings</h3>
+      <p class="text-gray-600 leading-relaxed mb-6">
+        Would you like to see more about the revelation of Jesus Christ in this day?
+      </p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div class="aspect-video w-full rounded-2xl overflow-hidden shadow-sm">
+          <iframe class="w-full h-full" src="https://www.youtube.com/embed/IJIDcL3LuhM?rel=0"
+                  title="William Branham recording" frameborder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowfullscreen></iframe>
+        </div>
+        <div class="aspect-video w-full rounded-2xl overflow-hidden shadow-sm">
+          <iframe class="w-full h-full" src="https://www.youtube.com/embed/p2iQyTFfZbc?rel=0"
+                  title="William Branham recording" frameborder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowfullscreen></iframe>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div id="footer-placeholder"></div>
+
+  <script src="/church-config.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

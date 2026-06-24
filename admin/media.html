@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>Site Media | EGC Admin</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans overflow-x-hidden">
+
+  <div id="nav-placeholder"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-3xl mx-auto">
+      <h1 class="text-3xl font-bold tracking-tight">Site Media</h1>
+      <p class="text-blue-200 mt-1">Upload files for use elsewhere on the site — superadmin only</p>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast" class="hidden fixed bottom-6 right-6 z-50 px-6 py-3 rounded-2xl text-white text-sm font-medium shadow-lg transition-all"></div>
+
+  <!-- ACCESS DENIED (hidden by default, shown for non-superadmins) -->
+  <div id="access-denied" class="hidden max-w-3xl mx-auto px-6 py-20 text-center">
+    <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+      <i class="fas fa-lock text-amber-600 text-2xl"></i>
+    </div>
+    <h2 class="text-xl font-bold text-gray-900 mb-2">Superadmin only</h2>
+    <p class="text-gray-500 mb-6">Site media uploads can only be managed by a superadmin.</p>
+    <a href="/admin/" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+      Back to Dashboard
+    </a>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <main id="main-content" class="hidden max-w-3xl mx-auto px-6 py-10 space-y-8">
+
+    <!-- Upload -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+      <h2 class="text-lg font-bold text-[#0A3D62] mb-2">Upload a file</h2>
+      <p class="text-sm text-gray-500 mb-6">
+        Images, audio, and documents (PDF/Word/PowerPoint) up to 150MB. Once uploaded, copy its
+        URL below to use anywhere on the site — a page, a download link, an admin field that
+        takes a URL.
+      </p>
+      <input type="file" id="file-input" multiple
+             class="block w-full text-sm text-gray-600 border border-gray-200 rounded-xl px-4 py-3
+                    file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm
+                    file:font-medium file:bg-amber-500 file:text-white hover:file:bg-amber-600 file:cursor-pointer cursor-pointer">
+      <div id="upload-progress" class="mt-4 space-y-2"></div>
+    </div>
+
+    <!-- Uploaded files list -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+      <h2 class="text-lg font-bold text-[#0A3D62] mb-6">Uploaded files</h2>
+      <div id="media-list" class="space-y-3">
+        <p class="text-sm text-gray-400">Loading...</p>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="/firebase-config.js"></script>
+  <script src="/js/storage-upload.js"></script>
+  <script src="/js/permissions.js"></script>
+  <script src="/js/admin-auth.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    const db = firebase.firestore();
+    let currentUid = null;
+
+    function showToast(message, type) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = 'fixed bottom-6 right-6 z-50 px-6 py-3 rounded-2xl text-white text-sm font-medium shadow-lg transition-all '
+        + (type === 'error' ? 'bg-red-600' : 'bg-green-600');
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
+
+    function safeName(name) { return String(name).replace(/[^a-zA-Z0-9._-]/g, '_'); }
+
+    function formatBytes(bytes) {
+      if (!bytes) return '';
+      const mb = bytes / (1024 * 1024);
+      return mb >= 1 ? `${mb.toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
+    }
+
+    function escHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ── Auth + superadmin gate ────────────────────────────────────────────────
+
+    firebase.auth().onAuthStateChanged(function (user) {
+      if (!user) return; // admin-auth.js handles redirect
+      currentUid = user.uid;
+      user.getIdTokenResult().then(function (result) {
+        if (result.claims.superadmin !== true) {
+          document.getElementById('access-denied').classList.remove('hidden');
+          return;
+        }
+        document.getElementById('main-content').classList.remove('hidden');
+        loadMediaList();
+      });
+    });
+
+    // ── Upload ─────────────────────────────────────────────────────────────────
+
+    document.getElementById('file-input').addEventListener('change', async (e) => {
+      const files = [...e.target.files];
+      e.target.value = '';
+      for (const file of files) {
+        await uploadOne(file);
+      }
+    });
+
+    async function uploadOne(file) {
+      const progressEl = document.createElement('div');
+      progressEl.className = 'text-sm text-gray-500 flex items-center gap-2';
+      progressEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Uploading ${escHtml(file.name)}...`;
+      document.getElementById('upload-progress').appendChild(progressEl);
+
+      try {
+        const path = `site-media/${Date.now()}_${safeName(file.name)}`;
+        const url = await uploadMedia(path, file);
+        await db.collection('siteMedia').add({
+          name: file.name,
+          url,
+          sizeBytes: file.size,
+          contentType: file.type || null,
+          uploadedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          uploadedBy: currentUid,
+        });
+        progressEl.remove();
+        showToast(`Uploaded ${file.name}`);
+        loadMediaList();
+      } catch (err) {
+        console.error('Upload failed:', err);
+        progressEl.innerHTML = `<i class="fas fa-exclamation-circle text-red-500"></i> Failed: ${escHtml(file.name)} — ${escHtml(err.message)}`;
+      }
+    }
+
+    // ── List + copy + delete ──────────────────────────────────────────────────
+
+    function loadMediaList() {
+      db.collection('siteMedia').orderBy('uploadedAt', 'desc').get()
+        .then((snap) => {
+          const list = document.getElementById('media-list');
+          if (snap.empty) {
+            list.innerHTML = '<p class="text-sm text-gray-400">No files uploaded yet.</p>';
+            return;
+          }
+          list.innerHTML = snap.docs.map((doc) => renderMediaRow(doc.id, doc.data())).join('');
+        })
+        .catch((err) => {
+          console.error('Load failed:', err);
+          document.getElementById('media-list').innerHTML = '<p class="text-sm text-red-500">Failed to load files.</p>';
+        });
+    }
+
+    function iconFor(contentType) {
+      if (!contentType) return 'fa-file';
+      if (contentType.startsWith('image/')) return 'fa-image';
+      if (contentType.startsWith('audio/')) return 'fa-music';
+      if (contentType === 'application/pdf') return 'fa-file-pdf';
+      return 'fa-file';
+    }
+
+    function renderMediaRow(id, m) {
+      return `
+        <div class="flex items-center gap-4 border border-gray-100 rounded-xl p-4">
+          <div class="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center flex-shrink-0">
+            <i class="fas ${iconFor(m.contentType)} text-amber-600"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="font-medium text-gray-800 truncate">${escHtml(m.name)}</p>
+            <p class="text-xs text-gray-400">${formatBytes(m.sizeBytes)}</p>
+          </div>
+          <button onclick="copyUrl('${id}', this)" title="Copy URL"
+                  class="text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all flex-shrink-0">
+            <i class="fas fa-copy mr-1"></i>Copy URL
+          </button>
+          <button onclick="deleteOne('${id}')" title="Delete"
+                  class="text-gray-300 hover:text-red-500 flex-shrink-0">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>`;
+    }
+
+    function copyUrl(id, btn) {
+      db.collection('siteMedia').doc(id).get().then((doc) => {
+        if (!doc.exists) return;
+        navigator.clipboard.writeText(doc.data().url).then(() => {
+          const original = btn.innerHTML;
+          btn.innerHTML = '<i class="fas fa-check mr-1"></i>Copied!';
+          setTimeout(() => { btn.innerHTML = original; }, 1500);
+        });
+      });
+    }
+
+    async function deleteOne(id) {
+      if (!confirm('Delete this file? This cannot be undone.')) return;
+      try {
+        const doc = await db.collection('siteMedia').doc(id).get();
+        if (doc.exists) await deleteMedia(doc.data().url);
+        await db.collection('siteMedia').doc(id).delete();
+        loadMediaList();
+      } catch (err) {
+        console.error('Delete failed:', err);
+        showToast('Failed to delete file.', 'error');
+      }
+    }
+  </script>
+</body>
+</html>

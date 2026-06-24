@@ -40,7 +40,7 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-const CACHE_NAME = 'egc-cache-v60';
+const CACHE_NAME = 'egc-cache-v62';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -51,6 +51,8 @@ const PRECACHE_URLS = [
   '/blog.html',
   '/story.html',
   '/about.html',
+  '/william-branham.html',
+  '/fulfillment-of-prophecy.html',
   '/connect.html',
   '/gallery.html',
   '/music.html',
@@ -87,6 +89,7 @@ const PRECACHE_URLS = [
   '/admin/notifications.html',
   '/admin/settings.html',
   '/admin/pages.html',
+  '/admin/media.html',
   '/admin/gallery.html',
   '/admin/music.html',
   '/church-config.js',
@@ -110,6 +113,8 @@ const PRECACHE_URLS = [
   '/js/messaging.js',
   '/js/search.js',
   '/js/footer.js',
+  '/js/welcome-carousel.js',
+  '/js/branham-sermons.js',
   '/assets/css/custom.css',
   '/manifest.json',
   '/assets/images/icons/icon-192.png',

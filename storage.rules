@@ -113,5 +113,16 @@ service firebase.storage {
       allow read: if true;
       allow write: if isSignedIn() && request.auth.token.superadmin == true && isValidImage();
     }
+
+    // ── Site media (general-purpose uploads, /admin/media.html) ───────────
+    // Superadmin only — a general file dropbox, not scoped to one content
+    // type, so it's gated tighter than the per-area paths above. Generous
+    // size cap to comfortably cover a full sermon-length audio recording.
+    match /site-media/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.token.superadmin == true &&
+        (isValidImage() || isValidDocument() ||
+         (request.resource.contentType.matches('audio/.*') && request.resource.size < 150 * 1024 * 1024));
+    }
   }
 }

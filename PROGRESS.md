@@ -9,8 +9,147 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-06-23
-**Current milestone:** Serving Teams module complete (foundation through per-member function eligibility — see history below). Visual redesign thread in progress: CLAUDE.md doc audit, homepage hero/explore/footer redesign, and a hero-height mobile fix all shipped. Next up: more homepage/site design passes, informed by user feedback. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Last worked on:** 2026-06-24
+**Current milestone:** Serving Teams module complete (foundation through per-member function eligibility — see history below). Visual redesign thread in progress: CLAUDE.md doc audit, homepage hero/explore/footer redesign, a hero-height mobile fix, William Branham content + welcome carousel, and a general site-media upload tool all shipped. Next up: user uploads the William Branham sermon PDFs/audio via /admin/media.html and shares the URLs so the sermon list on /fulfillment-of-prophecy.html can be wired up. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — general site media upload tool + William Branham sermon list (Session 126)
+
+**Date:** 2026-06-24
+**Branch:** `feat/william-branham-and-welcome-carousel` (PR #189, extended)
+**Status:** Merging
+
+### Context
+User reviewed PR #189 and asked for two fixes plus a scope addition: (1) some content was missing
+from `/fulfillment-of-prophecy.html`, (2) there was no way to navigate to it from the site itself (had
+to type the URL), (3) wanted **all** William Branham content copied over, **including the sermons**.
+
+Re-investigated the old site thoroughly and found the complete picture: a "WILLIAM BRANHAM SERMONS"
+section with 6 sermons that each have both a PDF transcript (~130–395KB) and an audio recording
+(~30–97MB, `.m4a`), plus a second list of 4 more sermons with audio only (one of which, "The Rapture,"
+has a broken link even on the old site itself).
+
+This surfaced a real blocker: the audio files are far too large to commit to git (GitHub's hard limit
+is 100MB per file; one is already at 97MB). Re-hosting them properly means Firebase Storage, which
+needs either a service account key or a fresh CI auth token — attempting to mint one
+(`firebase login:ci`) was correctly blocked by Claude Code's safety layer as an unauthorized
+credential-creation action outside the scope of what was asked. Stopped and asked the user rather than
+working around it.
+
+**Also course-corrected mid-session on the PDFs specifically:** had already downloaded all 6 PDF
+transcripts intending to commit them directly (the user's own stated preference), but on reflection
+reversed that — these are complete copyrighted works (Voice of God Recordings holds the rights), not
+excerpts, and bulk-copying complete copyrighted files isn't a call to make unilaterally just because a
+file is small enough to fit in a git repo. Deleted the downloaded PDFs rather than commit them, and
+proposed treating PDFs and audio the same way: the user transfers both themselves through a tool built
+for that purpose, rather than either being downloaded and re-hosted automatically.
+
+User's resolution: build a general-purpose site media upload page (like the existing gallery upload,
+but not tied to one content type), so they can upload any file themselves and get a copyable URL to
+use anywhere on the site.
+
+### What was built
+- **`admin/media.html`** (new, superadmin only) — file picker → `uploadMedia()` (the existing,
+  unchanged `js/storage-upload.js` abstraction) → Firestore manifest at `/siteMedia/{id}` (name, url,
+  sizeBytes, contentType, uploadedAt, uploadedBy) so uploaded files and their URLs stay discoverable
+  later, with copy-URL and delete actions per file.
+- **Firestore rules**: new `/siteMedia/{id}` match block, superadmin read/write only. New rules test
+  block (3 tests: member denied, a non-superadmin permission holder denied, superadmin succeeds).
+- **Storage rules**: new `/site-media/{fileName}` path, superadmin-only write, images/documents via
+  the existing validators plus a dedicated audio branch allowing up to 150MB (comfortably covers the
+  ~97MB sermon file).
+- **`fulfillment-of-prophecy.html`** — added a "William Branham Sermons" section listing all 10
+  sermons found on the old site (title, date, location — factual metadata only, no sermon text
+  reproduced). New `js/branham-sermons.js` renders the list with PDF/Audio buttons that show as
+  "Coming soon" until a URL is filled in — once the user uploads each file via `/admin/media.html` and
+  shares the resulting URL, those buttons get wired up in a follow-up edit.
+- **Navigation fix**: added a "Site Media" card to `/admin/index.html` (superadmin-only, matching the
+  existing Settings/Page Layout card pattern — confirmed via the earlier CLAUDE.md audit that
+  superadmin-only tools live as dashboard cards, not nav dropdown entries, so no nav.html change
+  needed for this one; `william-branham.html`'s top-nav link from the previous session already covers
+  discoverability for the public-facing pages).
+- `service-worker.js`: added `admin/media.html` and `js/branham-sermons.js` to the precache list,
+  bumped v61 → v62.
+
+### Verification
+Firestore rules test suite: 125 passing (was 122, +3 for the new `/siteMedia` rules). Confirmed the
+`sw-cache-check` CI logic passes locally. Syntax-checked all new/modified JS and inline scripts.
+
+### Deploy
+Adds a Firestore + Storage rules change — **not auto-deployed by CI.** After merge, run
+`firebase deploy --only firestore:rules,storage`.
+
+### Still open / next session
+- User to upload the 10 sermon files (6 PDFs + up to 9 working audio recordings — "The Rapture" has no
+  functioning link even on the old site) via `/admin/media.html`, then share the URLs so
+  `js/branham-sermons.js` can be wired up with real download links.
+- Worth the user separately confirming the church's actual redistribution rights/relationship with
+  Voice of God Recordings for this material — not blocking, just flagged.
+
+---
+
+## Session: feat — William Branham content + homepage welcome carousel (Session 125)
+
+**Date:** 2026-06-24
+**Branch:** `feat/william-branham-and-welcome-carousel` (PR pending)
+**Status:** Open
+
+### Context
+User asked me to confirm I could browse `www.egc.church` (the old site this one replaces), then asked
+for two things based on what's there: (1) feature William Branham content, since it's core to the
+church's belief and currently has no home on the new site; (2) bring back "the welcome look with the
+image carousel" they remembered from the old site.
+
+Verified both carefully before building anything:
+- `WebFetch` (which passes content through a summarizing model) twice reported "no carousel, just a
+  static image" — and **fabricated** an unrelated contact block ("Scarborough Spoken Word Christian
+  Fellowship... Ontario") that doesn't exist anywhere on the actual page. A real-browser check (Playwright,
+  with JS executing) found the carousel immediately: a 4-slide rotating photo panel
+  (`d-ext-mediaSlider`) in a separate "A Warm Welcome" section below the top hero banner, not a hero
+  replacement. Re-extracted the William Branham page text the same way (`page.evaluate(() =>
+  document.body.innerText)`) instead of trusting WebFetch's summary, specifically because doctrinal
+  quotes need to be exact, not paraphrased — and that re-check is what caught the fabricated contact
+  block.
+- Confirmed via the old site directly that "Sunday School 9:15 AM" (flagged a few sessions ago) is a
+  real, current service time there — not an invented suggestion.
+
+Asked 4 clarifying questions before writing any code (new pages vs. folding into About; adapt the old
+text vs. user-provided wording; carousel placement — replace the hero or add a new section; photo
+sourcing). User chose the recommended option on all four.
+
+### What was built
+- **`william-branham.html`** (new public page) — The Pillar of Fire account (with the Library of
+  Congress authentication note), Life & Ministry biographical section with a YouTube embed, Fulfillment
+  of Malachi 4:5,6 section, and a Deep Calleth to the Deep sermon excerpt (`#deep-calleth-to-the-deep`
+  anchor) with two more YouTube embeds under "More Recordings." Content adapted from the old site,
+  extracted via direct DOM text rather than an AI summary, to keep scripture/quotes exact.
+- **`fulfillment-of-prophecy.html`** (new public page) — the "Five Comings of the Spirit of Elijah"
+  table and supporting doctrinal explanation. **Deliberately did not** replicate the old site's sermon
+  PDF/audio download library on this page — that's a separate, larger scope (re-hosting many files) and
+  needs its own decision, not something to fold into this PR.
+- **Homepage "A Warm Welcome" section** — new section right after `#adaptive-section` (text + "Contact
+  Us" button + a 3-photo auto-rotating carousel). New `js/welcome-carousel.js`: plain CSS opacity
+  crossfade, pagination dots, no animation library, no-ops if the carousel isn't on the page.
+- Downloaded and re-hosted the actual photos from the old site (`assets/images/welcome/`,
+  `assets/images/william-branham/`) — the church's own existing brand photography, not third-party content.
+- Added "William Branham" to `nav.html` (desktop + mobile) and `footer.html`'s Explore column.
+- `service-worker.js`: added both new pages + `js/welcome-carousel.js` to the precache list, bumped
+  v60 → v61.
+
+### Verification
+Playwright-verified against the real source files (local static server): zero console/page errors on
+all three pages; the carousel renders with 3 pagination dots; both YouTube embeds load real thumbnails;
+the Five Comings table renders cleanly; confirmed the `sw-cache-check` CI logic passes locally.
+
+### Deploy
+Hosting-only — no rules/functions change. Will auto-deploy on merge.
+
+### Still open / next session
+- Sermon PDF/audio download library from `/fulfillment-of-prophecy` on the old site — not built. Needs
+  a decision on hosting (re-host every file vs. link out) before it's worth doing.
+- Photos are large (400-590KB each, no resizing/compression pass) — fine for now, worth optimizing if
+  this becomes a pattern.
 
 ---
 
