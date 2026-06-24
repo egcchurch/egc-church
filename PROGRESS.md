@@ -10,7 +10,61 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-24
-**Current milestone:** Serving Teams module complete (foundation through per-member function eligibility — see history below). Visual redesign thread in progress: CLAUDE.md doc audit, homepage hero/explore/footer redesign, a hero-height mobile fix, William Branham content + welcome carousel, and a general site-media upload tool all shipped. Next up: user uploads the William Branham sermon PDFs/audio via /admin/media.html and shares the URLs so the sermon list on /fulfillment-of-prophecy.html can be wired up. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Serving Teams module complete (foundation through per-member function eligibility — see history below). Visual redesign thread: CLAUDE.md doc audit, homepage hero/explore/footer redesign, a hero-height mobile fix, William Branham content + welcome carousel, a general site-media upload tool, and the full William Branham sermon library (10 sermons, PDF + audio) all shipped — sermon grid layout redesigned to mimic the old site's look, grouped into a fixed "core six" (revelation progression) and a rotating "More Recordings" set. Open item: church to confirm "The Rapture"'s true date (old site says 1965-06-26, uploaded file is named 65-1204 i.e. Dec 1965). Next up: the admin/media.html upload tool works but has no way to browse/organize files as the library grows — user flagged this as a future topic, not yet scoped. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — William Branham sermon library wired up + page redesign (Session 127)
+
+**Date:** 2026-06-24
+**Branches:** PR #192 (show URL as text in admin/media.html), #193/#194 (wire up sermon URLs), #195 (redesign)
+**Status:** Merged
+
+### Context
+User uploaded all 10 William Branham sermon files (PDF + audio) via `/admin/media.html` built last
+session, and pasted the resulting list of Storage URLs. Matched each by filename's VGR date code to
+the sermon metadata already in `js/branham-sermons.js` and wired them in (PR #193, then #194 for the
+last one — "The Spoken Word Is The Original Seed" — which arrived in a follow-up message).
+
+Also made a small upload-tool improvement first (PR #192): the file list only had a "Copy URL" button
+per file, which is tedious for a ~19-file batch. Now the URL also renders as plain text so the whole
+list can be select-all + copied in one go.
+
+**Found a discrepancy**: the uploaded "The Rapture" file is named with VGR's standard `65-1204`
+code (4 Dec 1965), but our existing metadata had `1965-06-26` (scraped from the old site earlier).
+Initially "corrected" the date to match the filename — turned out to be the wrong call (see below).
+
+### Redesign (PR #195)
+User then compared our page to the old site's actual `/fulfillment-of-prophecy` page and asked to
+mimic its look closely, specifically calling out that 6 of the 10 sermons (Spoken Word → Present
+Stage → Is This The Sign → The Breach → The Seventh Seal → Christ Is The Mystery) are deliberately
+grouped together because they trace the growth of Brother Branham's revelation, and are not meant to
+be swapped — unlike the other 4, which the church plans to rotate over time.
+
+Investigated the live old site with Playwright (real browser, not WebFetch — this exact page already
+caused a WebFetch hallucination earlier in the project) to get ground truth on layout: a gold card per
+sermon with month/day/year stacked, an inline native `<audio controls>` player, and icon-above-label
+Audio/PDF download links. Rebuilt `js/branham-sermons.js` and `fulfillment-of-prophecy.html` to mirror
+this: split into `CORE_SERMONS` (six, fixed) and `MORE_SERMONS` (four, rotating) with separate
+section headings, and reordered the page flow to match the old site (sermons grid → Five Comings
+table → Elijah content → rotating recordings grid).
+
+**While inspecting, resolved the date discrepancy**: a zoomed screenshot of the live old site's actual
+card confirmed it reads "June 26 1965" for The Rapture (matching the original scrape, not the
+uploaded file's `65-1204` filename). Reverted the date back to `1965-06-26` to match what's being
+mimicked, and left a code comment + flagged it to the user that the uploaded file's name still
+disagrees — worth the church confirming which is actually correct.
+
+### Verification
+Visual check via Playwright screenshots (desktop core grid, desktop "more recordings" grid, full
+mobile viewport) against a local static server before shipping. `node -c` syntax checks on all JS.
+No Firestore/Storage rules touched in any of these four PRs, so no manual deploy step was needed —
+all four went out automatically via the normal merge-to-main pipeline.
+
+### Still open / next session
+- Confirm "The Rapture"'s correct date with the church (old site vs. uploaded filename).
+- User flagged a future need: `/admin/media.html` currently has no way to browse/organize files as
+  the library grows past a handful of items — explicitly deferred as "another topic," not yet scoped.
 
 ---
 
