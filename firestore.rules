@@ -298,6 +298,16 @@ service cloud.firestore {
       allow write: if isSuperadmin();
     }
 
+    // ── Site Media ───────────────────────────────────────────────────────────
+    // General-purpose file manifest for /admin/media.html — lets a superadmin
+    // upload arbitrary files (images/audio/documents) to Storage and find the
+    // resulting URL again later, for use anywhere on the site (a page, a
+    // download link, an admin field that takes a URL). Admin-only surface —
+    // not read by any public page directly.
+    match /siteMedia/{id} {
+      allow read, write: if isSuperadmin();
+    }
+
     // ── Homepage ──────────────────────────────────────────────────────────────
     match /homepage/{id} {
       allow read: if true;

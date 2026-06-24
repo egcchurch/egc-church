@@ -95,8 +95,10 @@ church-website-pwa/
 │   ├── roles.html              ← Define and manage permission roles (Phase 6)
 │   ├── settings.html           ← superadmin only — church info, branding, notification routing,
 │   │                              feature flags (Phase 8, see docs/PHASE8.md)
-│   └── pages.html              ← superadmin only — toggle/reorder sections on homepage, about,
-│                                  members dashboard (Phase 9, see docs/PHASE9.md)
+│   ├── pages.html              ← superadmin only — toggle/reorder sections on homepage, about,
+│   │                              members dashboard (Phase 9, see docs/PHASE9.md)
+│   └── media.html              ← superadmin only — general-purpose file upload to Storage with
+│                                  a copyable URL, for use anywhere on the site
 │
 ├── functions/                  ← Firebase Cloud Functions
 │   ├── index.js                ← Function entry — auth, Firestore, scheduled, callable triggers
@@ -242,6 +244,7 @@ church-website-pwa/
 | Manage roles             | /admin/roles         | `users.assign_roles`; superadmin for create/edit/delete |
 | Site settings            | /admin/settings      | superadmin only (Phase 8 — church info, branding, notification routing, feature flags) |
 | Page layout              | /admin/pages         | superadmin only (Phase 9 — toggle/reorder sections on homepage, about, members dashboard) |
+| Site media               | /admin/media         | superadmin only — general file upload to Storage, copyable URL for use anywhere on the site |
 
 ---
 
@@ -605,6 +608,13 @@ Functions are organised by trigger type:
     admin/pages.html (superadmin only). No doc for a page = all its sections shown in natural
     HTML order (safe default, no doc needed until a superadmin customises it). See docs/PHASE9.md
 
+/siteMedia/{id}                             ← admin/media.html file manifest, superadmin only
+  name, url (Storage HTTPS URL), sizeBytes, contentType
+  uploadedAt, uploadedBy (uid)
+  ← general-purpose upload-and-copy-the-URL tool, not tied to one content type; not read by
+    any public page directly — a superadmin uploads here, copies the URL, and pastes it
+    wherever it's needed (a page, a download link, an admin field that takes a URL)
+
 /config/cottageRegions                      ← singleton doc (Cottage Meetings)
   regions: [{ id, name }]                   ← superadmin-managed area list
 
@@ -855,6 +865,8 @@ Firestore rules for `/groups/{groupId}` updates:
 /gallery/{galleryId}/{imageId}.jpg
 /music/{trackId}/audio.mp3
 /music/{trackId}/cover.jpg       ← optional cover art
+/site-media/{timestamp}_{filename}  ← admin/media.html general uploads (superadmin only);
+                                       images/audio/documents, 150MB max for audio
 ```
 
 Storage rules enforce file size and type per path (see `storage.rules`):

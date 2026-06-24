@@ -10,7 +10,82 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-24
-**Current milestone:** Serving Teams module complete (foundation through per-member function eligibility — see history below). Visual redesign thread in progress: CLAUDE.md doc audit, homepage hero/explore/footer redesign, a hero-height mobile fix, and new William Branham content + welcome carousel all shipped. Next up: decide on the sermon PDF/audio library from the old site (deliberately deferred this session), then more homepage/site design passes. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Serving Teams module complete (foundation through per-member function eligibility — see history below). Visual redesign thread in progress: CLAUDE.md doc audit, homepage hero/explore/footer redesign, a hero-height mobile fix, William Branham content + welcome carousel, and a general site-media upload tool all shipped. Next up: user uploads the William Branham sermon PDFs/audio via /admin/media.html and shares the URLs so the sermon list on /fulfillment-of-prophecy.html can be wired up. Maintenance backlog: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — general site media upload tool + William Branham sermon list (Session 126)
+
+**Date:** 2026-06-24
+**Branch:** `feat/william-branham-and-welcome-carousel` (PR #189, extended)
+**Status:** Merging
+
+### Context
+User reviewed PR #189 and asked for two fixes plus a scope addition: (1) some content was missing
+from `/fulfillment-of-prophecy.html`, (2) there was no way to navigate to it from the site itself (had
+to type the URL), (3) wanted **all** William Branham content copied over, **including the sermons**.
+
+Re-investigated the old site thoroughly and found the complete picture: a "WILLIAM BRANHAM SERMONS"
+section with 6 sermons that each have both a PDF transcript (~130–395KB) and an audio recording
+(~30–97MB, `.m4a`), plus a second list of 4 more sermons with audio only (one of which, "The Rapture,"
+has a broken link even on the old site itself).
+
+This surfaced a real blocker: the audio files are far too large to commit to git (GitHub's hard limit
+is 100MB per file; one is already at 97MB). Re-hosting them properly means Firebase Storage, which
+needs either a service account key or a fresh CI auth token — attempting to mint one
+(`firebase login:ci`) was correctly blocked by Claude Code's safety layer as an unauthorized
+credential-creation action outside the scope of what was asked. Stopped and asked the user rather than
+working around it.
+
+**Also course-corrected mid-session on the PDFs specifically:** had already downloaded all 6 PDF
+transcripts intending to commit them directly (the user's own stated preference), but on reflection
+reversed that — these are complete copyrighted works (Voice of God Recordings holds the rights), not
+excerpts, and bulk-copying complete copyrighted files isn't a call to make unilaterally just because a
+file is small enough to fit in a git repo. Deleted the downloaded PDFs rather than commit them, and
+proposed treating PDFs and audio the same way: the user transfers both themselves through a tool built
+for that purpose, rather than either being downloaded and re-hosted automatically.
+
+User's resolution: build a general-purpose site media upload page (like the existing gallery upload,
+but not tied to one content type), so they can upload any file themselves and get a copyable URL to
+use anywhere on the site.
+
+### What was built
+- **`admin/media.html`** (new, superadmin only) — file picker → `uploadMedia()` (the existing,
+  unchanged `js/storage-upload.js` abstraction) → Firestore manifest at `/siteMedia/{id}` (name, url,
+  sizeBytes, contentType, uploadedAt, uploadedBy) so uploaded files and their URLs stay discoverable
+  later, with copy-URL and delete actions per file.
+- **Firestore rules**: new `/siteMedia/{id}` match block, superadmin read/write only. New rules test
+  block (3 tests: member denied, a non-superadmin permission holder denied, superadmin succeeds).
+- **Storage rules**: new `/site-media/{fileName}` path, superadmin-only write, images/documents via
+  the existing validators plus a dedicated audio branch allowing up to 150MB (comfortably covers the
+  ~97MB sermon file).
+- **`fulfillment-of-prophecy.html`** — added a "William Branham Sermons" section listing all 10
+  sermons found on the old site (title, date, location — factual metadata only, no sermon text
+  reproduced). New `js/branham-sermons.js` renders the list with PDF/Audio buttons that show as
+  "Coming soon" until a URL is filled in — once the user uploads each file via `/admin/media.html` and
+  shares the resulting URL, those buttons get wired up in a follow-up edit.
+- **Navigation fix**: added a "Site Media" card to `/admin/index.html` (superadmin-only, matching the
+  existing Settings/Page Layout card pattern — confirmed via the earlier CLAUDE.md audit that
+  superadmin-only tools live as dashboard cards, not nav dropdown entries, so no nav.html change
+  needed for this one; `william-branham.html`'s top-nav link from the previous session already covers
+  discoverability for the public-facing pages).
+- `service-worker.js`: added `admin/media.html` and `js/branham-sermons.js` to the precache list,
+  bumped v61 → v62.
+
+### Verification
+Firestore rules test suite: 125 passing (was 122, +3 for the new `/siteMedia` rules). Confirmed the
+`sw-cache-check` CI logic passes locally. Syntax-checked all new/modified JS and inline scripts.
+
+### Deploy
+Adds a Firestore + Storage rules change — **not auto-deployed by CI.** After merge, run
+`firebase deploy --only firestore:rules,storage`.
+
+### Still open / next session
+- User to upload the 10 sermon files (6 PDFs + up to 9 working audio recordings — "The Rapture" has no
+  functioning link even on the old site) via `/admin/media.html`, then share the URLs so
+  `js/branham-sermons.js` can be wired up with real download links.
+- Worth the user separately confirming the church's actual redistribution rights/relationship with
+  Voice of God Recordings for this material — not blocking, just flagged.
 
 ---
 
