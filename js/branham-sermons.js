@@ -46,9 +46,9 @@
     { date: '1963-06-27', title: 'Jesus Christ The Same Yesterday, Today And Forever', location: 'Jeffersonville',
       pdfUrl: 'https://firebasestorage.googleapis.com/v0/b/egc-church.firebasestorage.app/o/site-media%2F1782289922948_63-0627_Jesus_Christ_The_Same_Yesterday_Today_And_Forever.pdf?alt=media&token=5d61f439-1213-4011-b974-b687a1c57dd1',
       audioUrl: 'https://firebasestorage.googleapis.com/v0/b/egc-church.firebasestorage.app/o/site-media%2F1782289901794_63-0627_Jesus_Christ_The_Same_Yesterday_Today_And_Forever.m4a?alt=media&token=247e85da-3165-4f1d-b56b-fe494bb9c146' },
-    // Date as shown on the previous site (egc.church) — note this conflicts with the uploaded
-    // file's "65-1204" naming (4 Dec 1965); flagged to the church to confirm which is correct.
-    { date: '1965-06-26', title: 'The Rapture', location: 'Jeffersonville',
+    // The old site showed 26 June 1965, but the church confirmed 4 Dec 1965 is correct
+    // (matches the uploaded file's "65-1204" VGR numbering).
+    { date: '1965-12-04', title: 'The Rapture', location: 'Jeffersonville',
       pdfUrl: 'https://firebasestorage.googleapis.com/v0/b/egc-church.firebasestorage.app/o/site-media%2F1782290146546_65-1204_The_Rapture.pdf?alt=media&token=043b1e62-edf2-4ec1-ae43-f4d9367f252f',
       audioUrl: 'https://firebasestorage.googleapis.com/v0/b/egc-church.firebasestorage.app/o/site-media%2F1782290150089_65-1204_The_Rapture.m4a?alt=media&token=bbae960e-9877-4097-b2c6-84818ac58976' },
   ];
