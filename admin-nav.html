@@ -1,22 +1,18 @@
 <!-- Shared admin navigation. Injected by js/nav.js into #nav-placeholder on /admin/ pages. -->
 <!-- To add or rename an admin link, edit it here once. -->
-<nav class="bg-white border-b sticky top-0 z-50 shadow-sm">
+<nav class="bg-[#0A3D62] border-b border-white/10 sticky top-0 z-50">
   <div class="max-w-7xl mx-auto px-6">
     <div class="flex justify-between items-center h-16">
-      <div id="nav-logo-area" class="flex items-center gap-x-3">
-        <div class="w-9 h-9 bg-amber-500 rounded-full flex items-center justify-center text-white text-2xl">&#10013;</div>
-        <div class="leading-none">
-          <span class="font-bold text-xl tracking-tighter text-[#0A3D62]">EMMANUEL</span>
-          <span class="block text-[10px] text-amber-600 font-medium">GOSPEL CENTRE</span>
-        </div>
+      <div id="nav-logo-area" class="flex items-center">
+        <img src="/assets/images/logo.png" alt="Emmanuel Gospel Centre" class="h-10 w-auto">
       </div>
 
-      <div class="hidden md:flex items-center gap-x-8 text-sm font-medium">
-        <a href="/index.html" class="hover:text-amber-600 transition-colors"><i class="fas fa-arrow-left mr-1"></i>Back to Site</a>
+      <div class="hidden md:flex items-center gap-x-8 text-sm font-medium text-white/90">
+        <a href="/index.html" class="hover:text-amber-400 transition-colors"><i class="fas fa-arrow-left mr-1"></i>Back to Site</a>
 
         <div class="relative" id="admin-nav-wrapper">
           <button id="admin-nav-btn"
-                  class="flex items-center gap-1.5 hover:text-amber-600 transition-colors">
+                  class="flex items-center gap-1.5 hover:text-amber-400 transition-colors">
             ADMIN <i id="admin-nav-chevron" class="fas fa-chevron-down text-xs transition-transform duration-200"></i>
           </button>
           <div id="admin-nav-panel"
@@ -44,14 +40,14 @@
       <div class="flex items-center gap-1">
         <!-- Search trigger -->
         <button onclick="openSearch()" title="Search (/ or Ctrl+K)"
-                class="p-2 text-gray-500 hover:text-amber-600 transition-colors">
+                class="p-2 text-white/70 hover:text-amber-400 transition-colors">
           <i class="fas fa-magnifying-glass text-lg"></i>
         </button>
 
         <!-- Notification bell (shown when signed in by notifications.js) -->
         <div id="notif-bell-wrapper" class="hidden relative">
           <button id="notif-bell-btn"
-                  class="relative p-2 text-gray-500 hover:text-amber-600 transition-colors"
+                  class="relative p-2 text-white/70 hover:text-amber-400 transition-colors"
                   title="Notifications">
             <i class="fas fa-bell text-lg"></i>
             <span id="notif-badge"
@@ -79,32 +75,32 @@
           </div>
         </div>
 
-        <button id="mobile-btn" class="md:hidden text-3xl text-gray-700 p-1">
+        <button id="mobile-btn" class="md:hidden text-3xl text-white p-1">
           <i class="fas fa-bars"></i>
         </button>
       </div>
     </div>
   </div>
 
-  <div id="mobile-menu" class="hidden md:hidden bg-white border-t py-6">
-    <div class="flex flex-col px-6 space-y-6 text-base font-medium">
-      <a href="/index.html" class="hover:text-amber-600"><i class="fas fa-arrow-left mr-1"></i>Back to Site</a>
-      <a href="/admin/sermons.html" data-perm="sermons.manage" class="hover:text-amber-600">SERMONS</a>
-      <a href="/admin/events.html" data-perm="events.manage" class="hover:text-amber-600">EVENTS</a>
-      <a href="/admin/blog.html" data-perm="blog.manage" class="hover:text-amber-600">BLOG</a>
-      <a href="/admin/team.html" data-perm="team.manage" class="hover:text-amber-600">TEAM</a>
-      <a href="/admin/gallery.html" data-perm="gallery.manage" data-feature="gallery" class="hover:text-amber-600">GALLERY</a>
-      <a href="/admin/music.html" data-perm="music.manage" data-feature="music" class="hover:text-amber-600">MUSIC</a>
-      <a href="/admin/prayer.html" data-perm="prayer.moderate" class="hover:text-amber-600">PRAYER</a>
-      <a href="/admin/groups.html" data-perm="groups.manage" data-feature="groups" class="hover:text-amber-600">GROUPS</a>
-      <a href="/admin/cottage.html" data-perm="cottage.manage" class="hover:text-amber-600">COTTAGE MEETINGS</a>
-      <a href="/admin/serving-teams.html" data-perm="servingTeams.manage" class="hover:text-amber-600">SERVING TEAMS</a>
-      <a href="/admin/devotional.html" data-perm="devotional.manage" data-feature="devotional" class="hover:text-amber-600">DEVOTIONAL</a>
-      <a href="/admin/connect.html" data-perm="connect.view" class="hover:text-amber-600">CONNECT</a>
-      <a href="/admin/homepage.html" data-perm="homepage.manage" class="hover:text-amber-600">HOMEPAGE</a>
-      <a href="/admin/notifications.html" data-perm="notifications.send" class="hover:text-amber-600">NOTIFICATIONS</a>
-      <a href="/admin/users.html" data-perm="users.approve" class="hover:text-amber-600">USERS</a>
-      <a href="/admin/roles.html" data-perm="users.assign_roles" class="hover:text-amber-600">ROLES</a>
+  <div id="mobile-menu" class="hidden md:hidden bg-[#0A3D62] border-t border-white/10 py-6">
+    <div class="flex flex-col px-6 space-y-6 text-base font-medium text-white/90">
+      <a href="/index.html" class="hover:text-amber-400"><i class="fas fa-arrow-left mr-1"></i>Back to Site</a>
+      <a href="/admin/sermons.html" data-perm="sermons.manage" class="hover:text-amber-400">SERMONS</a>
+      <a href="/admin/events.html" data-perm="events.manage" class="hover:text-amber-400">EVENTS</a>
+      <a href="/admin/blog.html" data-perm="blog.manage" class="hover:text-amber-400">BLOG</a>
+      <a href="/admin/team.html" data-perm="team.manage" class="hover:text-amber-400">TEAM</a>
+      <a href="/admin/gallery.html" data-perm="gallery.manage" data-feature="gallery" class="hover:text-amber-400">GALLERY</a>
+      <a href="/admin/music.html" data-perm="music.manage" data-feature="music" class="hover:text-amber-400">MUSIC</a>
+      <a href="/admin/prayer.html" data-perm="prayer.moderate" class="hover:text-amber-400">PRAYER</a>
+      <a href="/admin/groups.html" data-perm="groups.manage" data-feature="groups" class="hover:text-amber-400">GROUPS</a>
+      <a href="/admin/cottage.html" data-perm="cottage.manage" class="hover:text-amber-400">COTTAGE MEETINGS</a>
+      <a href="/admin/serving-teams.html" data-perm="servingTeams.manage" class="hover:text-amber-400">SERVING TEAMS</a>
+      <a href="/admin/devotional.html" data-perm="devotional.manage" data-feature="devotional" class="hover:text-amber-400">DEVOTIONAL</a>
+      <a href="/admin/connect.html" data-perm="connect.view" class="hover:text-amber-400">CONNECT</a>
+      <a href="/admin/homepage.html" data-perm="homepage.manage" class="hover:text-amber-400">HOMEPAGE</a>
+      <a href="/admin/notifications.html" data-perm="notifications.send" class="hover:text-amber-400">NOTIFICATIONS</a>
+      <a href="/admin/users.html" data-perm="users.approve" class="hover:text-amber-400">USERS</a>
+      <a href="/admin/roles.html" data-perm="users.assign_roles" class="hover:text-amber-400">ROLES</a>
       <button id="mobile-login-btn"
               class="bg-amber-500 text-white py-4 rounded-full font-medium mt-4">
         Member Login

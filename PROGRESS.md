@@ -9,8 +9,29 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-06-24
-**Current milestone:** Nav/logo visual redesign (Session 129, PR #204) merged and deployed to production, verified live: the real church logo now appears in the nav (centered, transparent over the homepage video hero, solid navy elsewhere/on scroll) and in the footer (previously missing from both). Found and fixed a real, pre-existing, site-wide bug along the way — the nav's `position: sticky` has never actually worked on any page, because `#nav-placeholder`'s box was exactly as tall as the `<nav>` inside it, leaving no room for it to stick past its own height; fixed everywhere with `display: contents` on the placeholder. A second bug (logo overlapping the link list on real browsers/widths, missed by the agent's own sandboxed test) was caught by the user on the PR preview and fixed same-session by splitting the links either side of the logo in normal flex flow instead of absolute-centering it. Per-page custom hero images (admin-uploadable, navy fallback when unset) are scoped as a deferred follow-up, not built yet. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Last worked on:** 2026-06-25
+**Current milestone:** Session 130 extended the Session 129 nav/logo redesign to `admin-nav.html` and `members-nav.html` (real logo, navy background, same colour scheme) for full site-wide consistency, and fixed a real caching bug: `nav.html`/`footer.html`/`admin-nav.html`/`members-nav.html` had no explicit `Cache-Control` header, so Firebase Hosting's default 1-hour cache could serve a stale (pre-deploy) copy of these shared partials — same root-cause class as the `/js/**` caching bug fixed in Session 128, just on a different file type, and explains the "old logo still shows after load" report. Fixed with the same `no-cache` header pattern. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — Admin/members nav consistency + stale shared-partial caching bug (Session 130)
+
+**Date:** 2026-06-25
+**Status:** Committed locally, PR pending
+
+### Context
+User reported two issues on `/admin/connect.html`: the nav bar was light/white instead of navy (admin-nav.html and members-nav.html were never updated in Session 129 — only the public `nav.html` was), and the old fake-logo placeholder still showed briefly on page load before being replaced. Asked whether the real logo could just be the default everywhere, and gave a blanket go-ahead for the changes.
+
+### What was done
+- **`admin-nav.html` / `members-nav.html`** — same treatment as Session 129's `nav.html`: real `<img src="/assets/images/logo.png">` instead of the fake amber-circle + text placeholder, navy background (`bg-[#0A3D62]`) instead of white, white/amber text and icon colours throughout (nav links, search icon, notification bell, hamburger, mobile dropdown menu). The Admin/Members dropdown panels themselves stay white cards (same pattern as the notification panel and user dropdown on the public nav) — only the top-level bar changed colour. No transparent-over-hero behavior here — admin/member pages don't have a hero banner concept, so these two navs are just always solid navy, simpler than the public nav's scroll-driven transparency.
+- **`firebase.json`** — added explicit `Cache-Control: no-cache` headers for `/nav.html`, `/footer.html`, `/admin-nav.html`, `/members-nav.html` (both staging and production targets), mirroring the existing `/js/**`/`manifest.json`/`service-worker.js` rules. Root cause: these four files had no header rule at all, so Firebase Hosting's default `max-age=3600` could serve a browser a stale, pre-deploy copy of a shared nav/footer partial for up to an hour after every deploy — independent of the service worker, which already does the right thing (`networkFirst()` on any `Accept: text/html` request) but is itself subject to the browser's own HTTP cache when it calls `fetch()`. No service-worker cache version bump needed — confirmed by reading the actual fetch handler that HTML partials are already served network-first at the SW layer; this was purely an HTTP-cache-layer gap.
+
+### Verification
+Real Firebase auth isn't available in the local test harness, and the admin/member auth guards (`admin-auth.js`/`member-auth.js`) redirect unauthenticated visitors away almost immediately — too fast to screenshot normally. Verified by intercepting and neutralizing the guard script's network request (Playwright route mocking) so the page stays put long enough to render: confirmed `admin-nav.html` (on `/admin/connect.html`) and `members-nav.html` (on `/members/groups.html`, including opening the MEMBERS dropdown panel) both render with the real logo, navy background, and correct active-link highlighting, on both desktop and the mobile hamburger menu.
+
+### Notes / decisions
+- Deliberately did not extend the transparent-hero-overlay treatment to admin/members pages — there's no hero banner concept there, and it would have been scope creep beyond what was asked.
+- `js/nav.js`'s existing `highlightActiveLink()` (amber-400 vs amber-600 shade selection, added in Session 129) needed no changes — it already branches on which hover class is present, and now correctly picks amber-400 for these two navs too since they use the same convention as the public nav.
 
 ---
 
