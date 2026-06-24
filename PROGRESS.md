@@ -40,6 +40,13 @@ Per-page custom hero images (e.g. a photo banner per page like the old site's "N
 ### Notes / decisions
 - `assets/css/custom.css` is not linked from any HTML file currently (Phase 8c's branding CSS variables only ever get applied via direct inline `style` writes from `applyBranding()`/`applyFeatures()` in `js/main.js`, never from the stylesheet itself) — noticed in passing, not fixed, since it wasn't blocking anything in this session.
 
+### Follow-up fix (same session) — logo overlapping the link list
+User caught this live on the PR #204 preview (a real browser, not my sandboxed test): the absolutely-centered logo (`left-1/2 -translate-x-1/2`) overlapped the link list on their actual machine even though it looked fine in my own 1440px headless screenshot — the absolute-centering approach ignores sibling content width entirely, so it was always one font-metrics/viewport-width combination away from colliding, regardless of what I'd already screenshotted. Replaced it with a real fix: links are now split into two groups in normal flex flow either side of the logo (HOME/SERMONS/EVENTS/BLOG/ABOUT on the left, WILLIAM BRANHAM/GALLERY/MUSIC/CONNECT on the right) — no absolute positioning at all, so overlap is structurally impossible regardless of width or font rendering. Also moved the desktop-links breakpoint from `md:` (768px) to `lg:` (1024px) to keep enough room for both split groups plus the logo plus the icons/login button, and updated the hamburger button + mobile dropdown panel to match the new `lg:` breakpoint (they were still gated on `md:`, which would have left a gap between 768–1023px with neither the desktop links nor the hamburger menu visible). Verified by screenshotting the nav at 8 widths from 390px to 1600px — no overlap at any of them.
+
+---
+
+## Session: fix + feat — Storage delete bug, PWA caching bugs, full Media Library (Session 128)
+
 **Date:** 2026-06-24
 **PRs:** #197 (Rapture date), #198 (SW cache bump), #199 (JS no-cache header), #200 (Storage delete rules fix), #201 (Media Library), #202 (bulk orphan select)
 **Status:** Merged, deployed, verified live

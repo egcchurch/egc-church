@@ -6,31 +6,40 @@
      — see nav.js for the scroll logic. -->
 <nav class="bg-[#0A3D62] border-b border-white/10 sticky top-0 z-50 transition-colors duration-300">
   <div class="max-w-7xl mx-auto px-6">
-    <div class="relative flex justify-between items-center h-16">
-      <div class="hidden md:flex items-center gap-x-6 text-sm font-medium text-white/90">
-        <a href="/index.html" class="hover:text-amber-400 transition-colors">HOME</a>
-        <a href="/sermons.html" class="hover:text-amber-400 transition-colors">SERMONS</a>
-        <a href="/events.html" class="hover:text-amber-400 transition-colors">EVENTS</a>
-        <a href="/blog.html" class="hover:text-amber-400 transition-colors">BLOG</a>
-        <a href="/about.html" class="hover:text-amber-400 transition-colors">ABOUT</a>
-        <a href="/william-branham.html" class="hover:text-amber-400 transition-colors">WILLIAM BRANHAM</a>
-        <a href="/gallery.html" data-feature="gallery" class="hover:text-amber-400 transition-colors">GALLERY</a>
-        <a href="/music.html" data-feature="music" class="hover:text-amber-400 transition-colors">MUSIC</a>
-        <a href="/connect.html" class="hover:text-amber-400 transition-colors">CONNECT</a>
+    <div class="flex justify-between items-center h-16 gap-2">
+      <!-- Links are split either side of the logo and laid out in normal flex
+           flow (no absolute positioning) so the logo can never visually
+           overlap them, regardless of viewport width or font metrics — an
+           absolutely-centered logo over a single wide link group did exactly
+           that in practice. Hidden below lg: (1024px) — at narrower desktop
+           widths there isn't reliably enough room for both link groups plus
+           the logo plus the icons/login button without the same risk. -->
+      <div class="hidden lg:flex items-center gap-x-5 text-sm font-medium text-white/90 flex-1 justify-end min-w-0">
+        <a href="/index.html" class="hover:text-amber-400 transition-colors whitespace-nowrap">HOME</a>
+        <a href="/sermons.html" class="hover:text-amber-400 transition-colors whitespace-nowrap">SERMONS</a>
+        <a href="/events.html" class="hover:text-amber-400 transition-colors whitespace-nowrap">EVENTS</a>
+        <a href="/blog.html" class="hover:text-amber-400 transition-colors whitespace-nowrap">BLOG</a>
+        <a href="/about.html" class="hover:text-amber-400 transition-colors whitespace-nowrap">ABOUT</a>
       </div>
 
-      <!-- Logo — absolutely centered regardless of how wide the link list either
-           side is. logo.png already has the "EMMANUEL / GOSPEL CENTRE" wordmark
-           baked into the image, so no separate text is added here. #nav-logo-area
-           is also the hook applyBranding() (js/main.js) replaces with a
-           superadmin-uploaded custom logo, if one is set. -->
-      <a href="/index.html" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <div id="nav-logo-area" class="flex items-center shrink-0">
+      <!-- Logo — #nav-logo-area is also the hook applyBranding() (js/main.js)
+           replaces with a superadmin-uploaded custom logo, if one is set.
+           logo.png already has the "EMMANUEL / GOSPEL CENTRE" wordmark baked
+           into the image, so no separate text is added here. -->
+      <a href="/index.html" class="shrink-0 px-2">
+        <div id="nav-logo-area" class="flex items-center">
           <img src="/assets/images/logo.png" alt="Emmanuel Gospel Centre" class="h-12 w-auto">
         </div>
       </a>
 
-      <div class="flex items-center gap-1">
+      <div class="hidden lg:flex items-center gap-x-5 text-sm font-medium text-white/90 flex-1 min-w-0">
+        <a href="/william-branham.html" class="hover:text-amber-400 transition-colors whitespace-nowrap">WILLIAM BRANHAM</a>
+        <a href="/gallery.html" data-feature="gallery" class="hover:text-amber-400 transition-colors whitespace-nowrap">GALLERY</a>
+        <a href="/music.html" data-feature="music" class="hover:text-amber-400 transition-colors whitespace-nowrap">MUSIC</a>
+        <a href="/connect.html" class="hover:text-amber-400 transition-colors whitespace-nowrap">CONNECT</a>
+      </div>
+
+      <div class="flex items-center gap-1 shrink-0">
         <!-- Search trigger -->
         <button onclick="openSearch()" title="Search (/ or Ctrl+K)"
                 class="p-2 text-white/70 hover:text-amber-400 transition-colors">
@@ -68,14 +77,14 @@
           </div>
         </div>
 
-        <button id="mobile-btn" class="md:hidden text-3xl text-white p-1">
+        <button id="mobile-btn" class="lg:hidden text-3xl text-white p-1">
           <i class="fas fa-bars"></i>
         </button>
       </div>
     </div>
   </div>
 
-  <div id="mobile-menu" class="hidden md:hidden bg-[#0A3D62] border-t border-white/10 py-6">
+  <div id="mobile-menu" class="hidden lg:hidden bg-[#0A3D62] border-t border-white/10 py-6">
     <div class="flex flex-col px-6 space-y-6 text-base font-medium text-white/90">
       <a href="/index.html" class="hover:text-amber-400">HOME</a>
       <a href="/sermons.html" class="hover:text-amber-400">SERMONS</a>
