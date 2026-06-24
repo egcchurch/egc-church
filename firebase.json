@@ -36,6 +36,22 @@
         {
           "source": "/js/**",
           "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/nav.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/footer.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/admin-nav.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/members-nav.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
         }
       ]
     },
@@ -74,6 +90,22 @@
         },
         {
           "source": "/js/**",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/nav.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/footer.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/admin-nav.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/members-nav.html",
           "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
         }
       ]
