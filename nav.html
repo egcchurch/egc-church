@@ -1,41 +1,46 @@
 <!-- Shared public navigation. Injected by js/nav.js into #nav-placeholder. -->
 <!-- To add or rename a top-level link, edit it here once. -->
-<nav class="bg-white border-b sticky top-0 z-50 shadow-sm">
+<!-- Default is solid navy (always safe to render on its own). On pages with a
+     [data-hero-banner] element right below it, js/nav.js (initHeroOverlay) makes
+     this transparent while scrolled within that banner, then solid again past it
+     — see nav.js for the scroll logic. -->
+<nav class="bg-[#0A3D62] border-b border-white/10 sticky top-0 z-50 transition-colors duration-300">
   <div class="max-w-7xl mx-auto px-6">
-    <div class="flex justify-between items-center h-16">
-      <div id="nav-logo-area" class="flex items-center gap-x-3">
-        <div class="w-9 h-9 bg-amber-500 rounded-full flex items-center justify-center text-white text-2xl">&#10013;</div>
-        <div class="leading-none">
-          <span class="font-bold text-xl tracking-tighter text-[#0A3D62]">EMMANUEL</span>
-          <span class="block text-[10px] text-amber-600 font-medium">GOSPEL CENTRE</span>
-        </div>
+    <div class="relative flex justify-between items-center h-16">
+      <div class="hidden md:flex items-center gap-x-6 text-sm font-medium text-white/90">
+        <a href="/index.html" class="hover:text-amber-400 transition-colors">HOME</a>
+        <a href="/sermons.html" class="hover:text-amber-400 transition-colors">SERMONS</a>
+        <a href="/events.html" class="hover:text-amber-400 transition-colors">EVENTS</a>
+        <a href="/blog.html" class="hover:text-amber-400 transition-colors">BLOG</a>
+        <a href="/about.html" class="hover:text-amber-400 transition-colors">ABOUT</a>
+        <a href="/william-branham.html" class="hover:text-amber-400 transition-colors">WILLIAM BRANHAM</a>
+        <a href="/gallery.html" data-feature="gallery" class="hover:text-amber-400 transition-colors">GALLERY</a>
+        <a href="/music.html" data-feature="music" class="hover:text-amber-400 transition-colors">MUSIC</a>
+        <a href="/connect.html" class="hover:text-amber-400 transition-colors">CONNECT</a>
       </div>
 
-      <div class="hidden md:flex items-center gap-x-8 text-sm font-medium">
-        <a href="/index.html" class="hover:text-amber-600 transition-colors">HOME</a>
-        <a href="/sermons.html" class="hover:text-amber-600 transition-colors">SERMONS</a>
-        <a href="/events.html" class="hover:text-amber-600 transition-colors">EVENTS</a>
-        <a href="/blog.html" class="hover:text-amber-600 transition-colors">BLOG</a>
-        <a href="/about.html" class="hover:text-amber-600 transition-colors">ABOUT</a>
-        <a href="/william-branham.html" class="hover:text-amber-600 transition-colors">WILLIAM BRANHAM</a>
-        <a href="/gallery.html" data-feature="gallery" class="hover:text-amber-600 transition-colors">GALLERY</a>
-        <a href="/music.html" data-feature="music" class="hover:text-amber-600 transition-colors">MUSIC</a>
-        <a href="/connect.html" class="hover:text-amber-600 transition-colors">CONNECT</a>
-        <!-- <a href="/live.html" class="hover:text-amber-600 transition-colors">LIVE STREAM</a> -->
-        <!-- <a href="/blog.html" class="hover:text-amber-600 transition-colors">NOTICE BOARD</a> -->
-      </div>
+      <!-- Logo — absolutely centered regardless of how wide the link list either
+           side is. logo.png already has the "EMMANUEL / GOSPEL CENTRE" wordmark
+           baked into the image, so no separate text is added here. #nav-logo-area
+           is also the hook applyBranding() (js/main.js) replaces with a
+           superadmin-uploaded custom logo, if one is set. -->
+      <a href="/index.html" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+        <div id="nav-logo-area" class="flex items-center shrink-0">
+          <img src="/assets/images/logo.png" alt="Emmanuel Gospel Centre" class="h-12 w-auto">
+        </div>
+      </a>
 
       <div class="flex items-center gap-1">
         <!-- Search trigger -->
         <button onclick="openSearch()" title="Search (/ or Ctrl+K)"
-                class="p-2 text-gray-500 hover:text-amber-600 transition-colors">
+                class="p-2 text-white/70 hover:text-amber-400 transition-colors">
           <i class="fas fa-magnifying-glass text-lg"></i>
         </button>
 
         <!-- Notification bell (shown when signed in by notifications.js) -->
         <div id="notif-bell-wrapper" class="hidden relative">
           <button id="notif-bell-btn"
-                  class="relative p-2 text-gray-500 hover:text-amber-600 transition-colors"
+                  class="relative p-2 text-white/70 hover:text-amber-400 transition-colors"
                   title="Notifications">
             <i class="fas fa-bell text-lg"></i>
             <span id="notif-badge"
@@ -63,26 +68,24 @@
           </div>
         </div>
 
-        <button id="mobile-btn" class="md:hidden text-3xl text-gray-700 p-1">
+        <button id="mobile-btn" class="md:hidden text-3xl text-white p-1">
           <i class="fas fa-bars"></i>
         </button>
       </div>
     </div>
   </div>
 
-  <div id="mobile-menu" class="hidden md:hidden bg-white border-t py-6">
-    <div class="flex flex-col px-6 space-y-6 text-base font-medium">
-      <a href="/index.html" class="hover:text-amber-600">HOME</a>
-      <a href="/sermons.html" class="hover:text-amber-600">SERMONS</a>
-      <a href="/events.html" class="hover:text-amber-600">EVENTS</a>
-      <a href="/blog.html" class="hover:text-amber-600">BLOG</a>
-      <a href="/about.html" class="hover:text-amber-600">ABOUT</a>
-      <a href="/william-branham.html" class="hover:text-amber-600">WILLIAM BRANHAM</a>
-      <a href="/gallery.html" data-feature="gallery" class="hover:text-amber-600">GALLERY</a>
-      <a href="/music.html" data-feature="music" class="hover:text-amber-600">MUSIC</a>
-      <a href="/connect.html" class="hover:text-amber-600">CONNECT</a>
-      <!-- <a href="/live.html" class="hover:text-amber-600">LIVE STREAM</a> -->
-      <!-- <a href="/blog.html" class="hover:text-amber-600">NOTICE BOARD</a> -->
+  <div id="mobile-menu" class="hidden md:hidden bg-[#0A3D62] border-t border-white/10 py-6">
+    <div class="flex flex-col px-6 space-y-6 text-base font-medium text-white/90">
+      <a href="/index.html" class="hover:text-amber-400">HOME</a>
+      <a href="/sermons.html" class="hover:text-amber-400">SERMONS</a>
+      <a href="/events.html" class="hover:text-amber-400">EVENTS</a>
+      <a href="/blog.html" class="hover:text-amber-400">BLOG</a>
+      <a href="/about.html" class="hover:text-amber-400">ABOUT</a>
+      <a href="/william-branham.html" class="hover:text-amber-400">WILLIAM BRANHAM</a>
+      <a href="/gallery.html" data-feature="gallery" class="hover:text-amber-400">GALLERY</a>
+      <a href="/music.html" data-feature="music" class="hover:text-amber-400">MUSIC</a>
+      <a href="/connect.html" class="hover:text-amber-400">CONNECT</a>
       <button id="mobile-login-btn"
               class="bg-amber-500 text-white py-4 rounded-full font-medium mt-4">
         Member Login

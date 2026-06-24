@@ -27,6 +27,7 @@
       .then((html) => {
         placeholder.innerHTML = html;
         highlightActiveLink();
+        initHeroOverlay();
         // Load notifications and search in parallel, then fire nav-loaded.
         let loaded = 0;
         const onReady = () => { if (++loaded === 2) document.dispatchEvent(new CustomEvent('nav-loaded')); };
@@ -83,8 +84,11 @@
     document.querySelectorAll('#nav-placeholder a[href]').forEach((link) => {
       const linkPath = new URL(link.getAttribute('href'), window.location.origin).pathname;
       if (linkPath === current) {
-        link.classList.remove('hover:text-amber-600', 'hover:bg-amber-50', 'transition-colors');
-        link.classList.add('text-amber-600', 'font-semibold');
+        // nav.html (navy bg) uses amber-400; admin-nav.html/members-nav.html
+        // (white bg) use amber-600 — pick the matching active-state shade.
+        const isDarkNav = link.classList.contains('hover:text-amber-400');
+        link.classList.remove('hover:text-amber-600', 'hover:text-amber-400', 'hover:bg-amber-50', 'transition-colors');
+        link.classList.add(isDarkNav ? 'text-amber-400' : 'text-amber-600', 'font-semibold');
       }
     });
 
@@ -97,6 +101,30 @@
     if (adminBtn && current.startsWith('/admin/')) {
       adminBtn.classList.add('text-amber-600', 'font-semibold');
     }
+  }
+
+  // On pages with a [data-hero-banner] element (a video/image/navy banner
+  // sitting right under the nav, pulled up underneath it via a negative
+  // margin in CSS — see the per-page <header> markup), nav.html starts
+  // transparent and turns solid navy once that banner scrolls past it.
+  // Pages without one (login, story, 404) just keep the solid navy default.
+  function initHeroOverlay() {
+    const nav = document.querySelector('#nav-placeholder nav');
+    const hero = document.querySelector('[data-hero-banner]');
+    if (!nav || !hero) return;
+
+    const SOLID = ['bg-[#0A3D62]', 'border-white/10'];
+    const TRANSPARENT = ['bg-transparent', 'border-transparent'];
+
+    function update() {
+      const solid = hero.getBoundingClientRect().bottom <= nav.offsetHeight;
+      nav.classList.remove(...(solid ? TRANSPARENT : SOLID));
+      nav.classList.add(...(solid ? SOLID : TRANSPARENT));
+    }
+
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
   }
 
   if (document.readyState === 'loading') {

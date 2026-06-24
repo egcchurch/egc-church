@@ -18,17 +18,18 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 </head>
-<body class="bg-zinc-50 font-sans overflow-x-hidden" data-page-sections="homepage">
+<body class="bg-zinc-50 font-sans" data-page-sections="homepage">
 
   <!-- Navigation (shared — see nav.html, injected by js/nav.js) -->
-  <div id="nav-placeholder"></div>
+  <div id="nav-placeholder" class="contents"></div>
 
-  <!-- HERO VIDEO — not composable, always first. Height is 100vh minus the nav's
-       fixed h-16 + 1px border (65px) — the nav sits in normal flow above this
-       header (not overlapping it), so a plain h-screen here made the page 65px
-       taller than the viewport, pushing bottom-anchored content (the gradient,
-       the scroll chevron) almost entirely below the fold on first load. -->
-  <header class="relative h-[calc(100vh-65px)] flex items-center justify-center text-center text-white overflow-hidden">
+  <!-- HERO VIDEO — not composable, always first. -mt-16 pulls it up underneath
+       the nav (which still reserves its own h-16 of flow space in #nav-placeholder)
+       so the video starts at the very top of the page and the nav floats
+       transparently on top of it — see [data-hero-banner] handling in js/nav.js.
+       h-screen is safe here (not h-screen + nav height) precisely because the
+       negative margin cancels out the nav's reserved space. -->
+  <header data-hero-banner class="relative -mt-16 h-screen flex items-center justify-center text-center text-white overflow-hidden">
     <video id="hero-video"
            class="absolute inset-0 w-full h-full object-cover"
            autoplay muted loop playsinline>
