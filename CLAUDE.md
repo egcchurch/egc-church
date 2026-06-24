@@ -129,7 +129,10 @@ church-website-pwa/
 │       └── ci.yml              ← Link check, SW cache check, security rules tests
 │
 ├── tests/
-│   └── firestore.rules.test.js ← Firestore security rules tests (mocha + emulator)
+│   ├── firestore.rules.test.js ← Firestore security rules tests (mocha + emulator)
+│   └── storage.rules.test.js   ← Storage security rules tests (mocha + emulator) — see
+│                                  the request.resource-on-delete note under Architecture /
+│                                  Design Decisions for why this exists
 │
 ├── assets/
 │   ├── css/                    ← Custom stylesheets
@@ -925,6 +928,17 @@ Storage rules enforce file size and type per path (see `storage.rules`):
 - Service worker cache list must be updated whenever a new page is added — CI check enforces this
 - Role checks in JS are UX only — Firestore Security Rules are the real enforcement layer
 - Firestore security rules are tested in CI via `@firebase/rules-unit-testing` against the Firebase emulator
+- **In `storage.rules`, never combine a content-validator helper (`isValidImage()`/`isValidAudio()`/
+  `isValidDocument()`) into a single `allow write: if isAdminUser() && isValidImage();`-style rule.**
+  `request.resource` does not exist on a `delete` request, so any helper that reads
+  `request.resource.contentType` throws and the whole rule is denied — silently, with no error
+  surfaced to the admin clicking "delete." This was the actual prior behavior of every path in this
+  file until it was caught (confirmed against the Storage emulator: upload succeeded, delete on the
+  identical file failed with `storage/unauthorized`) — meaning every "deleted" gallery photo, music
+  track, sermon file, team photo, etc. likely left its file behind in Storage for the entire project's
+  history, accumulating silently. Always split into `allow create, update: if isAdminUser() &&
+  isValidImage();` plus a separate `allow delete: if isAdminUser();` (no validator — there's nothing to
+  validate when removing a file). `tests/storage.rules.test.js` guards this for every path.
 - `published` flag on all content — editors can save drafts without going live
 - Cloud Functions used for any operation that requires touching another user's data (broadcasts, DM push, alert fan-out, scheduled tasks, auto-create user docs, account deletion)
 - Cloud Functions use firebase-functions **v1** API — v2 blocking functions require GCIP paid upgrade
@@ -1025,16 +1039,17 @@ Open in VSCode, click Go Live. Site serves at http://127.0.0.1:5500
 ## Running Security Rules Tests
 
 ```
-firebase emulators:start --only firestore
+firebase emulators:start --only firestore,storage
 ```
 
 In a second terminal:
 
 ```
-npx mocha --timeout 10000 tests/firestore.rules.test.js
+npx mocha --timeout 10000 tests/firestore.rules.test.js tests/storage.rules.test.js
 ```
 
-Or via npm:
+Or via npm (runs every `tests/**/*.test.js` file, Firestore + Storage + the pure
+`computePermissions.js` tests):
 
 ```
 npm test

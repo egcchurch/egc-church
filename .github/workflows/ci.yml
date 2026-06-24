@@ -4,7 +4,7 @@ name: CI Checks
 #   1. lint-links    — scans HTML files for broken internal links
 #   2. sw-cache-check — verifies service-worker.js cache list matches the HTML pages on disk
 #                       (add new HTML pages to both the site AND service-worker.js PRECACHE_URLS)
-#   3. security-rules — runs Firestore security rules tests against a local emulator
+#   3. security-rules — runs Firestore + Storage security rules tests against local emulators
 #
 # NEW CHURCH SETUP — two GitHub secrets required for this workflow:
 #   FIREBASE_SERVICE_ACCOUNT
@@ -67,7 +67,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Firestore security rules tests
-        run: firebase emulators:exec --only firestore 'npm test'
+      - name: Run Firestore + Storage security rules tests
+        run: firebase emulators:exec --only firestore,storage 'npm test'
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
