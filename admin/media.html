@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0A3D62">
-  <title>Site Media | EGC Admin</title>
+  <title>Media Library | EGC Admin</title>
 
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -14,6 +14,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-functions-compat.js"></script>
 </head>
 <body class="bg-zinc-50 font-sans overflow-x-hidden">
 
@@ -21,9 +22,9 @@
 
   <!-- PAGE HEADER -->
   <div class="bg-[#0A3D62] text-white py-10 px-6">
-    <div class="max-w-3xl mx-auto">
-      <h1 class="text-3xl font-bold tracking-tight">Site Media</h1>
-      <p class="text-blue-200 mt-1">Upload files for use elsewhere on the site — superadmin only</p>
+    <div class="max-w-5xl mx-auto">
+      <h1 class="text-3xl font-bold tracking-tight">Media Library</h1>
+      <p class="text-blue-200 mt-1">Every file uploaded across the site, in one place — superadmin only</p>
     </div>
   </div>
 
@@ -36,22 +37,21 @@
       <i class="fas fa-lock text-amber-600 text-2xl"></i>
     </div>
     <h2 class="text-xl font-bold text-gray-900 mb-2">Superadmin only</h2>
-    <p class="text-gray-500 mb-6">Site media uploads can only be managed by a superadmin.</p>
+    <p class="text-gray-500 mb-6">The media library can only be managed by a superadmin.</p>
     <a href="/admin/" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
       Back to Dashboard
     </a>
   </div>
 
   <!-- MAIN CONTENT -->
-  <main id="main-content" class="hidden max-w-3xl mx-auto px-6 py-10 space-y-8">
+  <main id="main-content" class="hidden max-w-5xl mx-auto px-6 py-10 space-y-8">
 
     <!-- Upload -->
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
       <h2 class="text-lg font-bold text-[#0A3D62] mb-2">Upload a file</h2>
       <p class="text-sm text-gray-500 mb-6">
-        Images, audio, and documents (PDF/Word/PowerPoint) up to 150MB. Once uploaded, copy its
-        URL below to use anywhere on the site — a page, a download link, an admin field that
-        takes a URL.
+        Images, audio, and documents (PDF/Word/PowerPoint) up to 150MB. Lands in the "General
+        Uploads" tab below with a copyable URL, for use anywhere on the site.
       </p>
       <input type="file" id="file-input" multiple
              class="block w-full text-sm text-gray-600 border border-gray-200 rounded-xl px-4 py-3
@@ -60,9 +60,31 @@
       <div id="upload-progress" class="mt-4 space-y-2"></div>
     </div>
 
-    <!-- Uploaded files list -->
+    <!-- Browse -->
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
-      <h2 class="text-lg font-bold text-[#0A3D62] mb-6">Uploaded files</h2>
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <h2 class="text-lg font-bold text-[#0A3D62]">Browse</h2>
+        <input type="text" id="search-input" placeholder="Search by name or category..."
+               class="border border-gray-200 rounded-full px-4 py-2 text-sm w-full sm:w-72 focus:outline-none focus:border-amber-400">
+      </div>
+
+      <div id="tab-bar" class="flex flex-wrap gap-2 mb-6 text-sm">
+        <!-- Populated by JS: All / General Uploads / Gallery / Music / Sermons / Events & Blog / Team / Orphaned -->
+      </div>
+
+      <!-- Orphan scan controls — only shown on the Orphaned tab -->
+      <div id="orphan-controls" class="hidden mb-6 bg-amber-50 border border-amber-100 rounded-xl p-4">
+        <p class="text-sm text-gray-600 mb-3">
+          Walks every file actually in Storage and flags any that aren't referenced by a gallery,
+          sermon, music track, or anything else on the site. Safe to delete — nothing points at them.
+        </p>
+        <button id="scan-btn"
+                class="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2 rounded-full text-sm font-medium transition-all">
+          <i class="fas fa-magnifying-glass mr-1"></i>Scan for orphaned files
+        </button>
+        <p id="scan-summary" class="text-xs text-gray-400 mt-3"></p>
+      </div>
+
       <div id="media-list" class="space-y-3">
         <p class="text-sm text-gray-400">Loading...</p>
       </div>
@@ -78,7 +100,27 @@
   <script src="/js/main.js"></script>
   <script>
     const db = firebase.firestore();
+    const functionsApi = firebase.functions();
+    const scanOrphanedMediaFn = functionsApi.httpsCallable('scanOrphanedMedia');
     let currentUid = null;
+
+    const TABS = [
+      { key: 'all',      label: 'All' },
+      { key: 'general',  label: 'General Uploads' },
+      { key: 'gallery',  label: 'Gallery' },
+      { key: 'music',    label: 'Music' },
+      { key: 'sermons',  label: 'Sermons' },
+      { key: 'events',   label: 'Events & Blog' },
+      { key: 'team',     label: 'Team' },
+      { key: 'orphaned', label: 'Orphaned' },
+    ];
+
+    let activeTab = 'all';
+    let searchQuery = '';
+    let allItems = [];      // aggregated across every collection (excludes orphans)
+    let orphanItems = null; // null = not scanned yet this page load
+
+    // ── Toast ──────────────────────────────────────────────────────────────────
 
     function showToast(message, type) {
       const toast = document.getElementById('toast');
@@ -103,6 +145,26 @@
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    function inferType(url, contentType) {
+      if (contentType) {
+        if (contentType.startsWith('image/')) return 'image';
+        if (contentType.startsWith('audio/')) return 'audio';
+        return 'document';
+      }
+      const ext = (url || '').split('?')[0].split('.').pop().toLowerCase();
+      if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
+      if (['mp3', 'm4a', 'wav', 'ogg'].includes(ext)) return 'audio';
+      if (['pdf', 'doc', 'docx', 'ppt', 'pptx'].includes(ext)) return 'document';
+      return 'other';
+    }
+
+    function iconFor(type) {
+      if (type === 'image') return 'fa-image';
+      if (type === 'audio') return 'fa-music';
+      if (type === 'document') return 'fa-file-pdf';
+      return 'fa-file';
+    }
+
     // ── Auth + superadmin gate ────────────────────────────────────────────────
 
     firebase.auth().onAuthStateChanged(function (user) {
@@ -114,11 +176,12 @@
           return;
         }
         document.getElementById('main-content').classList.remove('hidden');
-        loadMediaList();
+        renderTabs();
+        loadAllMedia();
       });
     });
 
-    // ── Upload ─────────────────────────────────────────────────────────────────
+    // ── Upload (unchanged behaviour, lands in the General Uploads tab) ─────────
 
     document.getElementById('file-input').addEventListener('change', async (e) => {
       const files = [...e.target.files];
@@ -142,88 +205,323 @@
           url,
           sizeBytes: file.size,
           contentType: file.type || null,
+          category: null,
           uploadedAt: firebase.firestore.FieldValue.serverTimestamp(),
           uploadedBy: currentUid,
         });
         progressEl.remove();
         showToast(`Uploaded ${file.name}`);
-        loadMediaList();
+        loadAllMedia();
       } catch (err) {
         console.error('Upload failed:', err);
         progressEl.innerHTML = `<i class="fas fa-exclamation-circle text-red-500"></i> Failed: ${escHtml(file.name)} — ${escHtml(err.message)}`;
       }
     }
 
-    // ── List + copy + delete ──────────────────────────────────────────────────
+    // ── Tabs + search ────────────────────────────────────────────────────────
 
-    function loadMediaList() {
-      db.collection('siteMedia').orderBy('uploadedAt', 'desc').get()
-        .then((snap) => {
-          const list = document.getElementById('media-list');
-          if (snap.empty) {
-            list.innerHTML = '<p class="text-sm text-gray-400">No files uploaded yet.</p>';
-            return;
-          }
-          list.innerHTML = snap.docs.map((doc) => renderMediaRow(doc.id, doc.data())).join('');
-        })
-        .catch((err) => {
-          console.error('Load failed:', err);
-          document.getElementById('media-list').innerHTML = '<p class="text-sm text-red-500">Failed to load files.</p>';
+    function renderTabs() {
+      const bar = document.getElementById('tab-bar');
+      bar.innerHTML = TABS.map(t => `
+        <button data-tab="${t.key}"
+                class="tab-btn px-4 py-1.5 rounded-full border transition-all ${
+                  t.key === activeTab
+                    ? 'bg-[#0A3D62] text-white border-[#0A3D62]'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300'
+                }">${t.label}</button>
+      `).join('');
+      bar.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          activeTab = btn.dataset.tab;
+          renderTabs();
+          document.getElementById('orphan-controls').classList.toggle('hidden', activeTab !== 'orphaned');
+          renderList();
         });
+      });
+      document.getElementById('orphan-controls').classList.toggle('hidden', activeTab !== 'orphaned');
     }
 
-    function iconFor(contentType) {
-      if (!contentType) return 'fa-file';
-      if (contentType.startsWith('image/')) return 'fa-image';
-      if (contentType.startsWith('audio/')) return 'fa-music';
-      if (contentType === 'application/pdf') return 'fa-file-pdf';
-      return 'fa-file';
-    }
+    document.getElementById('search-input').addEventListener('input', (e) => {
+      searchQuery = e.target.value.trim().toLowerCase();
+      renderList();
+    });
 
-    function renderMediaRow(id, m) {
-      return `
-        <div class="flex items-center gap-4 border border-gray-100 rounded-xl p-4">
-          <div class="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center flex-shrink-0">
-            <i class="fas ${iconFor(m.contentType)} text-amber-600"></i>
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="font-medium text-gray-800 truncate">${escHtml(m.name)}</p>
-            <p class="text-xs text-gray-400">${formatBytes(m.sizeBytes)}</p>
-            <p class="text-[11px] text-gray-400 truncate font-mono" title="${escHtml(m.url)}">${escHtml(m.url)}</p>
-          </div>
-          <button onclick="copyUrl('${id}', this)" title="Copy URL"
-                  class="text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all flex-shrink-0">
-            <i class="fas fa-copy mr-1"></i>Copy URL
-          </button>
-          <button onclick="deleteOne('${id}')" title="Delete"
-                  class="text-gray-300 hover:text-red-500 flex-shrink-0">
-            <i class="fas fa-trash"></i>
-          </button>
-        </div>`;
-    }
+    // ── Load aggregated media across every collection ───────────────────────
 
-    function copyUrl(id, btn) {
-      db.collection('siteMedia').doc(id).get().then((doc) => {
-        if (!doc.exists) return;
-        navigator.clipboard.writeText(doc.data().url).then(() => {
-          const original = btn.innerHTML;
-          btn.innerHTML = '<i class="fas fa-check mr-1"></i>Copied!';
-          setTimeout(() => { btn.innerHTML = original; }, 1500);
-        });
+    // A query that fails (e.g. a rules edge case on one collection) shouldn't take down
+    // the whole library — fall back to an empty result for that source and keep going.
+    const EMPTY_SNAP = { forEach: () => {} };
+    function safeGet(promise, label) {
+      return promise.catch((err) => {
+        console.warn(`Media Library: failed to load "${label}" —`, err.message);
+        return EMPTY_SNAP;
       });
     }
 
-    async function deleteOne(id) {
+    async function loadAllMedia() {
+      document.getElementById('media-list').innerHTML = '<p class="text-sm text-gray-400">Loading...</p>';
+
+      const [siteMediaSnap, gallerySnap, musicSnap, sermonsSnap, seriesSnap,
+             eventsSnap, blogSnap, teamSnap, brandingDoc] = await Promise.all([
+        safeGet(db.collection('siteMedia').orderBy('uploadedAt', 'desc').get(), 'siteMedia'),
+        safeGet(db.collection('gallery').get(), 'gallery'),
+        safeGet(db.collection('music').get(), 'music'),
+        safeGet(db.collection('sermons').get(), 'sermons'),
+        safeGet(db.collection('series').get(), 'series'),
+        safeGet(db.collection('events').get(), 'events'),
+        safeGet(db.collection('blog').get(), 'blog'),
+        safeGet(db.collection('team').get(), 'team'),
+        safeGet(db.collection('config').doc('branding').get(), 'branding'),
+      ]);
+
+      const items = [];
+
+      siteMediaSnap.forEach(doc => {
+        const m = doc.data();
+        items.push({
+          id: `general-${doc.id}`, source: 'general', sourceLabel: 'General Upload',
+          name: m.name, url: m.url, contentType: m.contentType, sizeBytes: m.sizeBytes,
+          category: m.category || '', docId: doc.id,
+        });
+      });
+
+      gallerySnap.forEach(doc => {
+        const g = doc.data();
+        (g.imageUrls || []).forEach((url, i) => {
+          items.push({
+            id: `gallery-${doc.id}-${i}`, source: 'gallery', sourceLabel: `Gallery: ${g.title || 'Untitled'}`,
+            name: `${g.title || 'Untitled'} (image ${i + 1})`, url, manageUrl: '/admin/gallery.html',
+          });
+        });
+      });
+
+      musicSnap.forEach(doc => {
+        const m = doc.data();
+        const label = `Music: ${m.title || 'Untitled'}`;
+        if (m.audioUrl) items.push({ id: `music-${doc.id}-audio`, source: 'music', sourceLabel: label, name: `${m.title || 'Untitled'} (audio)`, url: m.audioUrl, manageUrl: '/admin/music.html' });
+        if (m.coverArtUrl) items.push({ id: `music-${doc.id}-cover`, source: 'music', sourceLabel: label, name: `${m.title || 'Untitled'} (cover art)`, url: m.coverArtUrl, manageUrl: '/admin/music.html' });
+      });
+
+      sermonsSnap.forEach(doc => {
+        const s = doc.data();
+        const label = `Sermon: ${s.title || 'Untitled'}`;
+        if (s.audioUrl) items.push({ id: `sermons-${doc.id}-audio`, source: 'sermons', sourceLabel: label, name: `${s.title || 'Untitled'} (audio)`, url: s.audioUrl, manageUrl: '/admin/sermons.html' });
+        (s.materials || []).forEach((mat, i) => {
+          items.push({ id: `sermons-${doc.id}-mat${i}`, source: 'sermons', sourceLabel: label, name: mat.name || `${s.title || 'Untitled'} (material ${i + 1})`, url: mat.url, manageUrl: '/admin/sermons.html' });
+        });
+      });
+
+      seriesSnap.forEach(doc => {
+        const s = doc.data();
+        if (s.imageUrl) items.push({ id: `series-${doc.id}`, source: 'sermons', sourceLabel: `Series: ${s.title || 'Untitled'}`, name: `${s.title || 'Untitled'} (cover)`, url: s.imageUrl, manageUrl: '/admin/sermons.html' });
+      });
+
+      eventsSnap.forEach(doc => {
+        const e = doc.data();
+        if (e.imageUrl) items.push({ id: `events-${doc.id}`, source: 'events', sourceLabel: `Event: ${e.title || 'Untitled'}`, name: `${e.title || 'Untitled'} (cover)`, url: e.imageUrl, manageUrl: '/admin/events.html' });
+      });
+
+      blogSnap.forEach(doc => {
+        const b = doc.data();
+        const label = `Blog: ${b.title || 'Untitled'}`;
+        if (b.imageUrl) items.push({ id: `blog-${doc.id}-cover`, source: 'events', sourceLabel: label, name: `${b.title || 'Untitled'} (cover)`, url: b.imageUrl, manageUrl: '/admin/blog.html' });
+        (b.galleryUrls || []).forEach((url, i) => {
+          items.push({ id: `blog-${doc.id}-gal${i}`, source: 'events', sourceLabel: label, name: `${b.title || 'Untitled'} (image ${i + 1})`, url, manageUrl: '/admin/blog.html' });
+        });
+      });
+
+      teamSnap.forEach(doc => {
+        const t = doc.data();
+        if (t.photoUrl) items.push({ id: `team-${doc.id}`, source: 'team', sourceLabel: `Team: ${t.name || 'Untitled'}`, name: `${t.name || 'Untitled'} (photo)`, url: t.photoUrl, manageUrl: '/admin/team.html' });
+      });
+
+      if (brandingDoc.exists && brandingDoc.data().logoUrl) {
+        items.push({ id: 'branding-logo', source: 'other', sourceLabel: 'Site Branding', name: 'Logo', url: brandingDoc.data().logoUrl, manageUrl: '/admin/settings.html' });
+      }
+
+      allItems = items;
+      renderList();
+    }
+
+    // ── Render the active tab's list ────────────────────────────────────────
+
+    function renderList() {
+      const list = document.getElementById('media-list');
+
+      if (activeTab === 'orphaned') {
+        renderOrphanList();
+        return;
+      }
+
+      let filtered = activeTab === 'all' ? allItems : allItems.filter(i => i.source === activeTab);
+      if (searchQuery) {
+        filtered = filtered.filter(i =>
+          (i.name || '').toLowerCase().includes(searchQuery) ||
+          (i.category || '').toLowerCase().includes(searchQuery) ||
+          (i.sourceLabel || '').toLowerCase().includes(searchQuery)
+        );
+      }
+
+      if (filtered.length === 0) {
+        list.innerHTML = '<p class="text-sm text-gray-400">No files found.</p>';
+        return;
+      }
+
+      const categories = [...new Set(allItems.filter(i => i.source === 'general' && i.category).map(i => i.category))];
+      list.innerHTML = `
+        <datalist id="category-options">${categories.map(c => `<option value="${escHtml(c)}">`).join('')}</datalist>
+        ${filtered.map(renderRow).join('')}
+      `;
+    }
+
+    function renderRow(item) {
+      const type = inferType(item.url, item.contentType);
+      const thumb = type === 'image'
+        ? `<img src="${escHtml(item.url)}" loading="lazy" class="w-10 h-10 rounded-lg object-cover flex-shrink-0">`
+        : `<div class="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center flex-shrink-0">
+             <i class="fas ${iconFor(type)} text-amber-600"></i>
+           </div>`;
+
+      const isGeneral = item.source === 'general';
+
+      const meta = [item.sourceLabel, formatBytes(item.sizeBytes)].filter(Boolean).join(' &middot; ');
+
+      const actions = isGeneral
+        ? `
+          <input type="text" value="${escHtml(item.category)}" placeholder="Category..." list="category-options"
+                 onchange="setCategory('${item.docId}', this.value)"
+                 class="text-xs border border-gray-200 rounded-full px-3 py-1.5 w-32 focus:outline-none focus:border-amber-400">
+          <button onclick="copyUrl('${escHtml(item.url)}', this)" title="Copy URL"
+                  class="text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all flex-shrink-0">
+            <i class="fas fa-copy mr-1"></i>Copy URL
+          </button>
+          <button onclick="deleteGeneral('${item.docId}', '${escHtml(item.url)}')" title="Delete"
+                  class="text-gray-300 hover:text-red-500 flex-shrink-0">
+            <i class="fas fa-trash"></i>
+          </button>`
+        : `
+          <a href="${escHtml(item.manageUrl)}"
+             class="text-xs text-[#0A3D62] hover:text-amber-700 font-medium border border-gray-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all flex-shrink-0">
+            <i class="fas fa-arrow-up-right-from-square mr-1"></i>Manage
+          </a>`;
+
+      return `
+        <div class="flex items-center gap-4 border border-gray-100 rounded-xl p-4">
+          ${thumb}
+          <div class="flex-1 min-w-0">
+            <p class="font-medium text-gray-800 truncate">${escHtml(item.name)}</p>
+            <p class="text-xs text-gray-400">${meta}</p>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">${actions}</div>
+        </div>`;
+    }
+
+    function copyUrl(url, btn) {
+      navigator.clipboard.writeText(url).then(() => {
+        const original = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check mr-1"></i>Copied!';
+        setTimeout(() => { btn.innerHTML = original; }, 1500);
+      });
+    }
+
+    async function setCategory(docId, value) {
+      try {
+        await db.collection('siteMedia').doc(docId).update({ category: value.trim() || null });
+        const item = allItems.find(i => i.docId === docId);
+        if (item) item.category = value.trim();
+        showToast('Category updated');
+      } catch (err) {
+        console.error('Category update failed:', err);
+        showToast('Failed to update category.', 'error');
+      }
+    }
+
+    async function deleteGeneral(docId, url) {
       if (!confirm('Delete this file? This cannot be undone.')) return;
       try {
-        const doc = await db.collection('siteMedia').doc(id).get();
-        if (doc.exists) await deleteMedia(doc.data().url);
-        await db.collection('siteMedia').doc(id).delete();
-        loadMediaList();
+        await deleteMedia(url);
+        await db.collection('siteMedia').doc(docId).delete();
+        loadAllMedia();
       } catch (err) {
         console.error('Delete failed:', err);
         showToast('Failed to delete file.', 'error');
       }
+    }
+
+    // ── Orphan scan ──────────────────────────────────────────────────────────
+
+    document.getElementById('scan-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('scan-btn');
+      const original = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Scanning...';
+      try {
+        const result = await scanOrphanedMediaFn();
+        orphanItems = result.data.orphans;
+        document.getElementById('scan-summary').textContent =
+          `${orphanItems.length} orphaned file(s) found out of ${result.data.totalScanned} scanned.`;
+        renderList();
+      } catch (err) {
+        console.error('Scan failed:', err);
+        showToast('Scan failed: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = original;
+      }
+    });
+
+    function renderOrphanList() {
+      const list = document.getElementById('media-list');
+      if (orphanItems === null) {
+        list.innerHTML = '<p class="text-sm text-gray-400">Click "Scan for orphaned files" above to check.</p>';
+        return;
+      }
+      let filtered = orphanItems;
+      if (searchQuery) {
+        filtered = filtered.filter(o => o.path.toLowerCase().includes(searchQuery));
+      }
+      if (filtered.length === 0) {
+        list.innerHTML = '<p class="text-sm text-gray-400">No orphaned files found.</p>';
+        return;
+      }
+      list.innerHTML = filtered.map(renderOrphanRow).join('');
+    }
+
+    function renderOrphanRow(o) {
+      const type = inferType(o.path, o.contentType);
+      const thumb = type === 'image'
+        ? `<img src="${escHtml(o.url)}" loading="lazy" class="w-10 h-10 rounded-lg object-cover flex-shrink-0">`
+        : `<div class="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center flex-shrink-0">
+             <i class="fas ${iconFor(type)} text-amber-600"></i>
+           </div>`;
+      return `
+        <div class="flex items-center gap-4 border border-gray-100 rounded-xl p-4">
+          ${thumb}
+          <div class="flex-1 min-w-0">
+            <p class="font-medium text-gray-800 truncate">${escHtml(o.path)}</p>
+            <p class="text-xs text-gray-400">${formatBytes(o.sizeBytes)}</p>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <a href="${escHtml(o.url)}" target="_blank" rel="noopener"
+               class="text-xs text-[#0A3D62] hover:text-amber-700 font-medium border border-gray-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all">
+              <i class="fas fa-eye mr-1"></i>Preview
+            </a>
+            <button onclick="deleteOrphan('${escHtml(o.path)}', '${escHtml(o.url)}')" title="Delete"
+                    class="text-gray-300 hover:text-red-500">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>`;
+    }
+
+    async function deleteOrphan(path, url) {
+      if (!confirm('Delete this file permanently? This cannot be undone.')) return;
+      await deleteMedia(url);
+      orphanItems = orphanItems.filter(o => o.path !== path);
+      document.getElementById('scan-summary').textContent =
+        `${orphanItems.length} orphaned file(s) remaining.`;
+      renderList();
+      showToast('Deleted');
     }
   </script>
 </body>
