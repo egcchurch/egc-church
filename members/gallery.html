@@ -129,7 +129,7 @@
           : 'bg-blue-100 text-blue-700';
         const count = (g.imageUrls || []).length;
         const dateStr = g.date
-          ? new Date(g.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+          ? toDate(g.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
           : '';
 
         const card = document.createElement('div');
@@ -196,6 +196,15 @@
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    // gallery.date is saved as a Firestore Timestamp (admin/gallery.html's
+    // buildTimestamp()), not a string — handles that plus a plain
+    // date-string fallback, same pattern as js/gallery.js's public page.
+    function toDate(value) {
+      if (!value) return new Date(0);
+      if (typeof value.toDate === 'function') return value.toDate();
+      return new Date(value);
+    }
+
     function loadGalleries() {
       db.collection('gallery')
         .where('audience', 'in', ['members', 'youth'])
@@ -205,7 +214,7 @@
           document.getElementById('loading').classList.add('hidden');
           allGalleries = snap.docs
             .map((d) => ({ id: d.id, ...d.data() }))
-            .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            .sort((a, b) => toDate(b.date) - toDate(a.date));
           renderGalleries();
         })
         .catch((err) => {
