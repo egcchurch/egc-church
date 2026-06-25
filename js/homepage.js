@@ -215,7 +215,7 @@
             <h2 class="text-2xl font-bold text-[#0A3D62] mb-3">Your account is awaiting approval</h2>
             <p class="text-gray-500 max-w-sm mx-auto">Approvals usually happen within 24 hours. We'll email you when you're in.</p>
             ${verifyHtml}
-            <button onclick="firebase.auth().signOut()"
+            <button onclick="signOutAndClearCache()"
                     class="mt-8 text-sm text-gray-400 hover:text-gray-600 transition-colors">
               <i class="fas fa-sign-out-alt mr-1"></i>Sign out
             </button>
