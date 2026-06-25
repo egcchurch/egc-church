@@ -10,7 +10,30 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-25
-**Current milestone:** Session 131 redesigned the members dashboard cards (`members/index.html`) to fix a multi-coloured per-card icon inconsistency (already flagged as an anti-pattern in this file's own Design System notes) — now a uniform navy-tint + amber icon, compact horizontal row layout with a trailing chevron, 2-column grid on desktop. `admin/index.html` has the identical anti-pattern on its dashboard cards but was deliberately left untouched — flagged to the user as a candidate for the same fix, not done without confirmation. Session 130 (admin/members nav consistency + shared-partial caching fix) shipped before this. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Session 132 finished the icon-colour unification started in Session 131 — confirmed by user request, applied to the rest of the site. `index.html`'s Explore tiles and `admin/index.html`'s 19 dashboard cards both now use the same uniform navy-tint + amber icon as `members/index.html`; `admin/index.html` also picked up the compact-row + chevron layout. Audited every other colour-class usage site-wide first and confirmed nothing else qualifies (all status badges/pills, not dashboard icons) — see Session 132 entry for the full file list checked. CLAUDE.md's Design System notes updated to describe one unified icon convention instead of a context-dependent one. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — Site-wide icon-colour unification (Session 132)
+
+**Date:** 2026-06-25
+**Status:** Committed locally, PR pending
+
+### Context
+User reviewed the Session 131 members-dashboard redesign ("looks good") and asked to apply the same fix to the homepage and admin page, "and any other page where these might exist."
+
+### What was done
+- **Audited first.** Grepped for every `bg-{color}-100`-style class site-wide (28 files matched). Checked each one's actual usage, not just the class name:
+  - `members/index.html` — already fixed in Session 131.
+  - `admin/index.html` — confirmed the identical anti-pattern: 19 dashboard cards, each a different colour (`blue-100`, `purple-100`, `rose-100`, `indigo-100`, `sky-100`, `teal-100`, `emerald-100`, `cyan-100`, `orange-100`, `lime-100`, `violet-100`, `red-100`, `amber-100`, `gray-100`).
+  - `index.html` — the Explore section (4 tiles) alternated two treatments (amber-tint+amber-icon for two cards, navy-tint+navy-icon for the other two) per a since-superseded design rule — not random, but still inconsistent with the now-unified convention.
+  - Every other hit (`story.html`, `members/cottage.html`, `members/gallery.html`, `members/groups.html`, `members/prayer.html`, `members/serving-teams.html`, and 19 other `admin/*.html` files) turned out to be unrelated UI: status badges/pills (Open/Approval Required, Answered, Joined, capacity-remaining counts), native file-input styling (`file:bg-amber-100`), secondary/cancel buttons, or the single access-denied lock icon repeated identically on every admin page. Confirmed these use different colours *intentionally* (to convey different states) and left them untouched.
+- **`index.html`** — Explore section's 4 tiles unified to `bg-[#0A3D62]/10` + `text-amber-500`, dropping the old amber/navy alternation. Kept the tile shape (icon-on-top, label below, no description text) since these are simple quick-link tiles, not description-bearing dashboard cards — no chevron added here, unlike the dashboard treatment.
+- **`admin/index.html`** — all 19 cards converted to the same compact-row layout as `members/index.html`: uniform `bg-[#0A3D62]/10` + `text-amber-500` icon, horizontal row (icon left, title+description right), trailing `fa-chevron-right`. Grid narrowed from `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` to `grid-cols-1 lg:grid-cols-2` for the same reason as Session 131 (wider rows need more room per card than the old square cards did). Confirmed the permission-filtering JS at the bottom of the file (`[data-perm]`/`[data-superadmin]` → `classList.add('hidden')`) only touches the outer `<a>` element, unaffected by the internal restructure.
+- **`CLAUDE.md`** — updated the Design System note that previously documented two different icon conventions (member-area uniform vs. marketing-grid alternating) to describe the single unified rule, and pointed at `members/index.html` as the reference markup for the dashboard-card row+chevron pattern.
+
+### Verification
+Screenshotted the homepage Explore section and the full admin dashboard locally after the change — confirmed uniform colour across all tiles/cards in both, chevrons present on the admin dashboard, no layout breakage, and that the existing permission-filtering script still finds and hides cards by `data-perm`/`data-superadmin` correctly (verified the attribute is still on the right element, not exercised against a real logged-in session in this offline test).
 
 ---
 
