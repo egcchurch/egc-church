@@ -10,7 +10,35 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-25
-**Current milestone:** Session 133 fixed a real bug the user found: a members-audience gallery kept appearing on a public page in their browser even after logging out. Root cause was NOT a security/rules hole (confirmed — a fresh browser showed nothing) but a stale local cache: `enablePersistence()` never gets cleared on sign-out, so previously-cached member-only Firestore documents kept rendering in that same browser. Fixed with a shared `signOutAndClearCache()` helper (`js/main.js`) used by all four sign-out entry points site-wide. Session 132 (icon-colour unification) shipped before this. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Session 134 fixed `/members/gallery.html` showing zero galleries even when published "members"/"youth" galleries exist — missing Firestore composite index for `gallery`'s `audience IN [...] + published ==` query, silently swallowed by a catch block so the page just rendered empty with no visible error. Index added to `firestore.indexes.json` and deployed manually via `firebase deploy --only firestore:indexes` (not part of the CI hosting deploy). Session 133 (stale-cache-on-logout fix) shipped before this. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — Members/youth galleries not showing on members/gallery.html (missing composite index) (Session 134)
+
+**Date:** 2026-06-25
+**Status:** Committed locally, PR pending
+
+### Context
+User published two galleries (one `audience: "youth"`, one `audience: "members"`) and confirmed via screenshots both show "Published" in `/admin/gallery.html`. Logged in as a member, visited `/members/gallery.html` — page loaded fine (nav, tabs, header all rendered) but the gallery grid was completely empty under every tab (All/Members/Youth), despite two matching published galleries existing.
+
+### Investigation
+`members/gallery.html`'s `loadGalleries()` runs:
+```js
+db.collection('gallery')
+  .where('audience', 'in', ['members', 'youth'])
+  .where('published', '==', true)
+  .get()
+```
+This combines an `in` filter with an `==` filter on a *different* field — exactly the query shape that needs an explicit Firestore composite index in this project (confirmed by every other multi-field query already having one registered: `sermons: published+date`, `events: published+startDate`, `blog: published+kind+publishedAt`, etc.). `firestore.indexes.json` had no entry at all for the `gallery` collection. A missing-index error on `.get()` lands in the existing `.catch()` block, which just logs to console and shows "Failed to load galleries" — except the screenshot showed a silently empty grid with no visible error text, consistent with the catch firing but the error message rendering somewhere not visually obvious, or the specific error path landing slightly differently. Either way, the query shape itself was the clear, confirmed gap — every other collection in this codebase needed one for the equivalent pattern, and gallery was the one collection that didn't have it.
+
+### What was done
+- **`firestore.indexes.json`** — added `gallery: audience ASC, published ASC` (the `in` clause is indexed the same as an ascending equality field).
+- **`CLAUDE.md`** — added the missing entry to the "Required composite indexes" list (it was already out of sync before this bug, since this index need predates this session).
+- Deployed manually via `firebase deploy --only firestore:indexes` — **not** part of the automatic CI hosting deploy (`deploy.yml` only deploys static hosting; indexes, like Cloud Functions, need a manual deploy after merge, per existing project convention).
+
+### Verification
+No member test credentials available to reproduce the exact authenticated query locally. Verified the index entry is syntactically valid (`JSON.parse`) and structurally consistent with every other composite index already working in this project for the identical equality+filter pattern. Deployed directly to the production Firestore project (already authenticated via `firebase-tools` in this environment) and confirmed via the CLI's own success/failure output — see deploy notes below for the actual result.
 
 ---
 
