@@ -35,6 +35,7 @@ The "fresh browser shows nothing, same browser still shows it" report pointed st
 ### What was done
 - **`js/main.js`** — new shared `signOutAndClearCache()`: calls `auth.signOut()`, then best-effort `firebase.firestore().terminate()` followed by `.clearPersistence()` (swallows errors — this fails whenever another tab/connection is still open, which is expected and shouldn't block sign-out).
 - Routed all four sign-out entry points through it, replacing each one's direct `auth.signOut()`/`firebase.auth().signOut()` call: `logoutUser()` (main nav), `window._memberAuthSignOut` (`js/member-auth.js`, the gated-content "Sign out" prompt), the account-deletion flow (`profile.html`), and the pending-approval homepage state's sign-out button (`js/homepage.js`).
+- **`service-worker.js`** — cache v64 → v65 (`js/main.js`, `js/member-auth.js`, `js/homepage.js` all changed; missed this in the first commit on this branch, caught before merge).
 
 ### Verification
 No real Firebase test credentials available in this environment to reproduce the full login→cache→logout cycle end-to-end. Verified what's checkable: `node --check` on all three changed `.js` files, and a local Playwright pass confirming `signOutAndClearCache` is defined and globally callable on `index.html` and `members/groups.html` (profile.html redirects unauthenticated visitors to `/login.html` before the check can run, as expected — confirmed via `grep` that `js/main.js` is still included in its `<script>` tags). No new console errors introduced on any of the three pages.
