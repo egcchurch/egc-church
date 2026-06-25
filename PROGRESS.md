@@ -17,7 +17,8 @@
 ## Session: feat — Site-wide icon-colour unification (Session 132)
 
 **Date:** 2026-06-25
-**Status:** Committed locally, PR pending
+**PR:** #208 (squash-merged)
+**Status:** Merged, deployed to production, verified live
 
 ### Context
 User reviewed the Session 131 members-dashboard redesign ("looks good") and asked to apply the same fix to the homepage and admin page, "and any other page where these might exist."
@@ -40,7 +41,8 @@ Screenshotted the homepage Explore section and the full admin dashboard locally 
 ## Session: feat — Members dashboard card redesign (Session 131)
 
 **Date:** 2026-06-25
-**Status:** Committed locally, PR pending
+**PR:** #207 (squash-merged)
+**Status:** Merged, deployed to production, verified live
 
 ### Context
 User shared two/three design mockups generated in Claude Desktop (`members_dashboard_mobile_preview.html`, a phone-mockup comparison of 3 card styles) and asked for suggestions on making the dashboard icons "look more like the site." Compared the mockups against the live dashboard and against this file's own Design System notes, which already documented the live cards' problem: each card used a different pastel tint (`bg-amber-100`/`bg-blue-100`/`bg-emerald-100`/`bg-purple-100`/`bg-green-100`/`bg-rose-100`/`bg-red-100`) instead of the established uniform `bg-[#0A3D62]/10` + `text-amber-500` convention. The user's preferred mockup ("Option A — Accent bar") already matched that convention closely. User dropped the mockup's left accent bar (Claude Desktop's idea, not a requirement), liked the trailing-chevron suggestion, and said they didn't mind keeping a grid-of-cards layout as long as the look was consistent — left the specific call to the agent.
@@ -58,7 +60,8 @@ Rendered the three Claude Desktop mockups locally (Playwright, file:// URL) to c
 ## Session: fix — Admin/members nav consistency + stale shared-partial caching bug (Session 130)
 
 **Date:** 2026-06-25
-**Status:** Committed locally, PR pending
+**PR:** #206 (squash-merged)
+**Status:** Merged, deployed to production, verified live
 
 ### Context
 User reported two issues on `/admin/connect.html`: the nav bar was light/white instead of navy (admin-nav.html and members-nav.html were never updated in Session 129 — only the public `nav.html` was), and the old fake-logo placeholder still showed briefly on page load before being replaced. Asked whether the real logo could just be the default everywhere, and gave a blanket go-ahead for the changes.
