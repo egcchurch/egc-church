@@ -985,12 +985,17 @@ suggestions seen so far — always grep/read first.
   are the actual default/fallback values and what's used in 95% of places; don't assume every navy/amber
   usage reads from Firestore.
 - **Icons:** Font Awesome 6.5.1 via CDN, **never emoji**. An icon sits in a tinted square/circle container;
-  the established pattern for member-area utility icons (quick links, dashboard cards) is
-  `bg-[#0A3D62]/10` container + `text-amber-500` icon — not the multi-coloured per-item tints
-  (blue-100/purple-100/green-100/etc.) seen in a few older sections that predate this convention being
-  settled. Marketing-style card grids (e.g. the homepage Explore section) instead pair two accent
-  treatments across the card set (amber for one subset, navy-tint for another) rather than one colour
-  per card.
+  the established, **site-wide** pattern (quick links, dashboard cards, marketing grids alike) is
+  `bg-[#0A3D62]/10` container + `text-amber-500` icon, uniformly — never a different colour per card
+  (`blue-100`/`purple-100`/`green-100`/etc.). This used to vary by context (member-area dashboards one way,
+  the homepage Explore grid alternating two treatments another way) but was unified in Session 131 across
+  `index.html`, `members/index.html`, and `admin/index.html` — if you find a per-item-coloured icon
+  anywhere else, it predates this and should be fixed to match, not treated as an intentional exception.
+  Dashboard-style cards with a title + description (member/admin dashboards) also get a trailing
+  `fa-chevron-right` (`text-zinc-300`) on the far right as a tap affordance, in a compact horizontal row
+  (icon left, text right) rather than icon-on-top — see `members/index.html` for the reference markup.
+  Simple icon-tiles with no description text (homepage Explore grid) keep the icon-on-top, label-below,
+  centered tile shape — just with the colour unified.
 - **Corners/shape:** `rounded-2xl` for cards/panels, `rounded-xl` for icon containers, `rounded-full` for
   buttons and pills.
 - **Tailwind:** v4 browser CDN build (`@tailwindcss/browser@4` via jsdelivr) — utility classes scanned and
