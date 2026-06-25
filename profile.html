@@ -400,7 +400,7 @@
       try {
         const deleteUser = firebase.functions().httpsCallable('deleteUserAccount');
         await deleteUser();
-        await auth.signOut();
+        await signOutAndClearCache();
         window.location.href = '/index.html';
       } catch (err) {
         btn.disabled = false;

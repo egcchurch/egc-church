@@ -10,7 +10,35 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-25
-**Current milestone:** Session 132 finished the icon-colour unification started in Session 131 — confirmed by user request, applied to the rest of the site. `index.html`'s Explore tiles and `admin/index.html`'s 19 dashboard cards both now use the same uniform navy-tint + amber icon as `members/index.html`; `admin/index.html` also picked up the compact-row + chevron layout. Audited every other colour-class usage site-wide first and confirmed nothing else qualifies (all status badges/pills, not dashboard icons) — see Session 132 entry for the full file list checked. CLAUDE.md's Design System notes updated to describe one unified icon convention instead of a context-dependent one. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Session 133 fixed a real bug the user found: a members-audience gallery kept appearing on a public page in their browser even after logging out. Root cause was NOT a security/rules hole (confirmed — a fresh browser showed nothing) but a stale local cache: `enablePersistence()` never gets cleared on sign-out, so previously-cached member-only Firestore documents kept rendering in that same browser. Fixed with a shared `signOutAndClearCache()` helper (`js/main.js`) used by all four sign-out entry points site-wide. Session 132 (icon-colour unification) shipped before this. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — Member-only content lingering after logout (stale Firestore cache) (Session 133)
+
+**Date:** 2026-06-25
+**Status:** Committed locally, PR pending
+
+### Context
+User reported: setting a gallery's audience to "members" still showed it on a public page even after logging out. Asked a clarifying question (which page exactly, and same-browser vs. fresh-incognito test) before assuming anything — user confirmed it was the same browser, and that a fresh/different browser correctly showed nothing.
+
+### Investigation
+Traced every code path touching the `/gallery` collection before concluding anything:
+- `js/gallery.js` (public `/gallery.html`) queries `.where('audience', '==', 'public')` — correctly scoped.
+- `firestore.rules`: `allow read: if resource.data.audience == 'public' || isMember();` — correctly scoped.
+- `index.html` (the actual homepage) has no gallery code or Firestore query at all — ruled out as the literal location.
+- `js/search.js` doesn't index galleries. `js/welcome-carousel.js` is purely static, no Firestore involvement.
+- `admin/blog.html`'s "From Gallery" photo-reuse picker queries all published galleries with no audience filter, but that's an admin-only convenience tool that copies specific photo URLs into a blog post on deliberate admin action — not an automatic leak, and not what the user described.
+
+The "fresh browser shows nothing, same browser still shows it" report pointed straight at `enablePersistence({ synchronizeTabs: true })` (`js/main.js`) — Firestore's offline cache persists across sign-out by design (it's not session-scoped), so a member-audience document fetched while logged in stays in that browser's IndexedDB and keeps rendering on a public page after logout, even though the server would correctly refuse to serve it to a logged-out request.
+
+### What was done
+- **`js/main.js`** — new shared `signOutAndClearCache()`: calls `auth.signOut()`, then best-effort `firebase.firestore().terminate()` followed by `.clearPersistence()` (swallows errors — this fails whenever another tab/connection is still open, which is expected and shouldn't block sign-out).
+- Routed all four sign-out entry points through it, replacing each one's direct `auth.signOut()`/`firebase.auth().signOut()` call: `logoutUser()` (main nav), `window._memberAuthSignOut` (`js/member-auth.js`, the gated-content "Sign out" prompt), the account-deletion flow (`profile.html`), and the pending-approval homepage state's sign-out button (`js/homepage.js`).
+- **`service-worker.js`** — cache v64 → v65 (`js/main.js`, `js/member-auth.js`, `js/homepage.js` all changed; missed this in the first commit on this branch, caught before merge).
+
+### Verification
+No real Firebase test credentials available in this environment to reproduce the full login→cache→logout cycle end-to-end. Verified what's checkable: `node --check` on all three changed `.js` files, and a local Playwright pass confirming `signOutAndClearCache` is defined and globally callable on `index.html` and `members/groups.html` (profile.html redirects unauthenticated visitors to `/login.html` before the check can run, as expected — confirmed via `grep` that `js/main.js` is still included in its `<script>` tags). No new console errors introduced on any of the three pages.
 
 ---
 

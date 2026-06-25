@@ -56,7 +56,7 @@
     var cfg = configs[reason] || configs['not-logged-in'];
 
     window._memberAuthSignOut = function () {
-      auth.signOut().then(function () { window.location.href = '/index.html'; });
+      signOutAndClearCache().then(function () { window.location.href = '/index.html'; });
     };
     window._memberAuthResend = function () {
       if (!user) return;

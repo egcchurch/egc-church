@@ -365,9 +365,27 @@ async function applySections(pageId) {
 
 // ── Logout ──
 
+// Shared by every sign-out entry point on the site (the main nav logout
+// button, the gated-content "Sign out" prompt, account deletion, and the
+// pending-approval homepage state). Signs out, then best-effort wipes the
+// offline Firestore cache so member-only content already cached in this
+// browser (e.g. a members-audience gallery) doesn't keep appearing on
+// public pages after logout — enablePersistence() doesn't clear itself on
+// sign-out. clearPersistence() requires no other open Firestore
+// connections/tabs, so it routinely fails; that's fine, it's cache
+// hygiene, not required for sign-out to succeed.
+function signOutAndClearCache() {
+  return auth.signOut().then(() => {
+    if (typeof firebase.firestore !== 'function') return;
+    return firebase.firestore().terminate()
+      .then(() => firebase.firestore().clearPersistence())
+      .catch(() => {});
+  });
+}
+
 function logoutUser() {
   if (confirm("Are you sure you want to logout?")) {
-    auth.signOut().then(() => {
+    signOutAndClearCache().then(() => {
       window.location.href = '/index.html';
     }).catch((error) => {
       console.error("Logout error:", error);
