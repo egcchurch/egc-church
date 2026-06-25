@@ -84,7 +84,11 @@
     </div>
   </div>
 
-  <div id="mobile-menu" class="hidden lg:hidden bg-[#0A3D62] border-t border-white/10 py-6">
+  <!-- position:absolute (not a normal-flow child) so opening this never
+       changes <nav>'s own height — it used to, which broke the hero
+       banner's -mt-16 offset (calibrated for the collapsed nav height
+       only) and exposed the plain page background above the menu. -->
+  <div id="mobile-menu" class="hidden lg:hidden absolute top-full left-0 right-0 bg-[#0A3D62] border-t border-white/10 py-6 max-h-[calc(100vh-4rem)] overflow-y-auto shadow-lg">
     <div class="flex flex-col px-6 space-y-6 text-base font-medium text-white/90">
       <a href="/index.html" class="hover:text-amber-400">HOME</a>
       <a href="/sermons.html" class="hover:text-amber-400">SERMONS</a>
