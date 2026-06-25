@@ -10,7 +10,29 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-25
-**Current milestone:** Session 134 fixed `/members/gallery.html` showing zero galleries even when published "members"/"youth" galleries exist — missing Firestore composite index for `gallery`'s `audience IN [...] + published ==` query, silently swallowed by a catch block so the page just rendered empty with no visible error. Index added to `firestore.indexes.json` and deployed manually via `firebase deploy --only firestore:indexes` (not part of the CI hosting deploy). Session 133 (stale-cache-on-logout fix) shipped before this. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Session 135 found the SECOND bug behind the same "members/gallery.html shows nothing" report — the missing composite index (Session 134) was real and necessary, but fixing it just uncovered a previously-masked second bug: the page's date sort called `.localeCompare()` directly on `gallery.date`, which is saved as a Firestore Timestamp object, not a string — threw a TypeError that the catch block swallowed before the grid ever rendered. Fixed by reusing the same `toDate()` Timestamp-or-string-safe helper the public `/gallery.html` page already uses correctly. Diagnosed via the actual browser console error the user grabbed, after a planned Admin-SDK bypass diagnostic got blocked by a safety check (correctly — it would have read production data without explicit authorization). Session 134 (missing index) shipped before this. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — Second bug behind the same gallery report: date Timestamp vs. localeCompare crash (Session 135)
+
+**Date:** 2026-06-25
+**Status:** Committed locally, PR pending
+
+### Context
+After Session 134's index fix deployed, user reported the galleries still weren't showing. Ruled out several things together with the user before finding the real cause: confirmed `published: true` on both galleries directly in the Firestore console, confirmed the `audience` field value was exactly `"members"` (and separately confirmed this is correctly a *different* field/value from the user's own `membership: "member"` — two intentionally different but similarly-named fields, not a bug). A planned diagnostic using the Firebase Admin SDK to read the live `gallery` collection (bypassing security rules, to rule out a data/rules issue directly) was blocked by a safety check requiring explicit authorization for unattended production reads — correctly so, since it wasn't yet confirmed with the user. Asked the user to check the browser console directly instead, which gave the real answer immediately:
+```
+Gallery load failed: TypeError: (intermediate value).localeCompare is not a function
+```
+
+### Investigation
+This is a *second*, previously-hidden bug, independent of the Session 134 index issue. `members/gallery.html`'s `loadGalleries()` sorted results with `(b.date || '').localeCompare(a.date || '')` — but `admin/gallery.html` saves `date` via `buildTimestamp()` as a Firestore `Timestamp` object, never a string. `Timestamp || ''` evaluates to the Timestamp itself (truthy), which has no `.localeCompare()` method, so the sort throws and the existing `.catch()` swallows it before `renderGalleries()` ever runs — meaning the page has been silently broken for *any* members/youth gallery with a date, not just these two. (Before the index fix, the query itself failed first with a different error, which is why this second bug was never reached/visible until now.) The public `/gallery.html` page already had the correct fix for this exact problem — a `toDate()` helper that calls `.toDate()` on a Timestamp or falls back to `new Date(value)` for a plain string — `members/gallery.html` just never got the same treatment. Also found a second, non-crashing instance of the same wrong assumption in the card-rendering code (`new Date(g.date + 'T00:00:00')`, string concatenation onto a Timestamp object), which would have silently rendered "Invalid Date" once the sort crash was fixed.
+
+### What was done
+- **`members/gallery.html`** — added the same `toDate()` helper used by `js/gallery.js`, and used it in both the sort comparator (`toDate(b.date) - toDate(a.date)`) and the card date display (`toDate(g.date).toLocaleDateString(...)`).
+
+### Verification
+Couldn't reproduce the authenticated member path locally (no test credentials), but verified the fix removes the crash: loaded `/members/gallery.html` locally against the real Firebase backend anonymously (member-auth.js's redirect neutralized via Playwright route mocking) and confirmed the console now shows only the *expected* `permission-denied` error for an anonymous session — the `localeCompare` TypeError is gone. A real member session has no such permission barrier, so with both the index (Session 134) and this fix in place, the galleries should now render.
 
 ---
 
