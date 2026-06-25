@@ -17,7 +17,8 @@
 ## Session: fix — Members/youth galleries not showing on members/gallery.html (missing composite index) (Session 134)
 
 **Date:** 2026-06-25
-**Status:** Committed locally, PR pending
+**PR:** #211 (squash-merged)
+**Status:** Merged, index deployed to production via `firebase deploy --only firestore:indexes` (succeeded), pending user confirmation that both galleries now appear live
 
 ### Context
 User published two galleries (one `audience: "youth"`, one `audience: "members"`) and confirmed via screenshots both show "Published" in `/admin/gallery.html`. Logged in as a member, visited `/members/gallery.html` — page loaded fine (nav, tabs, header all rendered) but the gallery grid was completely empty under every tab (All/Members/Youth), despite two matching published galleries existing.
@@ -38,7 +39,7 @@ This combines an `in` filter with an `==` filter on a *different* field — exac
 - Deployed manually via `firebase deploy --only firestore:indexes` — **not** part of the automatic CI hosting deploy (`deploy.yml` only deploys static hosting; indexes, like Cloud Functions, need a manual deploy after merge, per existing project convention).
 
 ### Verification
-No member test credentials available to reproduce the exact authenticated query locally. Verified the index entry is syntactically valid (`JSON.parse`) and structurally consistent with every other composite index already working in this project for the identical equality+filter pattern. Deployed directly to the production Firestore project (already authenticated via `firebase-tools` in this environment) and confirmed via the CLI's own success/failure output — see deploy notes below for the actual result.
+No member test credentials available to reproduce the exact authenticated query locally. Verified the index entry is syntactically valid (`JSON.parse`) and structurally consistent with every other composite index already working in this project for the identical equality+filter pattern. Deployed directly to the production Firestore project (already authenticated via `firebase-tools` in this environment) — `firebase deploy --only firestore:indexes` reported success, and `firebase firestore:indexes` afterward confirms the new `gallery: audience ASC, published ASC` entry is registered alongside the rest. The `gallery` collection only has 2 documents total, so the index build (normally the slow part for larger collections) should already be complete. Still asked the user to confirm both galleries now actually appear on `/members/gallery.html`, since no member credentials were available here to check directly.
 
 ---
 
