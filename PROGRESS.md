@@ -10,7 +10,25 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-25
-**Current milestone:** Session 130 extended the Session 129 nav/logo redesign to `admin-nav.html` and `members-nav.html` (real logo, navy background, same colour scheme) for full site-wide consistency, and fixed a real caching bug: `nav.html`/`footer.html`/`admin-nav.html`/`members-nav.html` had no explicit `Cache-Control` header, so Firebase Hosting's default 1-hour cache could serve a stale (pre-deploy) copy of these shared partials — same root-cause class as the `/js/**` caching bug fixed in Session 128, just on a different file type, and explains the "old logo still shows after load" report. Fixed with the same `no-cache` header pattern. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Session 131 redesigned the members dashboard cards (`members/index.html`) to fix a multi-coloured per-card icon inconsistency (already flagged as an anti-pattern in this file's own Design System notes) — now a uniform navy-tint + amber icon, compact horizontal row layout with a trailing chevron, 2-column grid on desktop. `admin/index.html` has the identical anti-pattern on its dashboard cards but was deliberately left untouched — flagged to the user as a candidate for the same fix, not done without confirmation. Session 130 (admin/members nav consistency + shared-partial caching fix) shipped before this. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: feat — Members dashboard card redesign (Session 131)
+
+**Date:** 2026-06-25
+**Status:** Committed locally, PR pending
+
+### Context
+User shared two/three design mockups generated in Claude Desktop (`members_dashboard_mobile_preview.html`, a phone-mockup comparison of 3 card styles) and asked for suggestions on making the dashboard icons "look more like the site." Compared the mockups against the live dashboard and against this file's own Design System notes, which already documented the live cards' problem: each card used a different pastel tint (`bg-amber-100`/`bg-blue-100`/`bg-emerald-100`/`bg-purple-100`/`bg-green-100`/`bg-rose-100`/`bg-red-100`) instead of the established uniform `bg-[#0A3D62]/10` + `text-amber-500` convention. The user's preferred mockup ("Option A — Accent bar") already matched that convention closely. User dropped the mockup's left accent bar (Claude Desktop's idea, not a requirement), liked the trailing-chevron suggestion, and said they didn't mind keeping a grid-of-cards layout as long as the look was consistent — left the specific call to the agent.
+
+### What was done
+- **`members/index.html`** — all 7 dashboard cards (Directory, Groups, Cottage Meetings, Prayer Requests, Daily Devotional, Members Gallery, Live Stream) converted from tall vertical cards (icon-on-top, multi-coloured per card) to compact horizontal rows: icon left (`bg-[#0A3D62]/10 rounded-xl` + `text-amber-500`, uniform across all 7), title + description stacked to the right, a muted `fa-chevron-right` on the far right as a tap affordance. Grid wrapper changed from `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6` to `grid-cols-1 lg:grid-cols-2 gap-4` — the wider/shorter row shape needs more width per card than the old square-ish cards did, so 3 narrow columns would have cramped the description text; kept the "grid of cards" structure the user said they didn't mind, just fewer/wider columns.
+- Did **not** touch `admin/index.html`, which has the exact same anti-pattern on its 14 dashboard cards (`bg-amber-100`/`bg-blue-100`/`bg-emerald-100`/etc., confirmed via grep) — flagged to the user as a candidate for the identical fix rather than silently expanding scope to a page that wasn't part of this conversation.
+- Audited every other file matching the same colour-class grep (28 files, mostly `admin/*.html`) before concluding scope — confirmed all the public/member-area hits (`story.html`, `members/cottage.html`, `members/gallery.html`, `members/groups.html`, `members/prayer.html`, `members/serving-teams.html`) are legitimate status badges (Open/Approval Required, Answered, Joined, capacity remaining) where different colours per state are intentional and correct — not the same bug, left untouched.
+
+### Verification
+Rendered the three Claude Desktop mockups locally (Playwright, file:// URL) to compare directly against a live screenshot of the production mobile dashboard before deciding anything. After implementing, screenshotted the new layout at both mobile (390px, single column) and desktop (1280px, 2-column grid) against the real local dev server — confirmed uniform icon colour, chevron, spacing, and that the grid behaves correctly at both breakpoints. (Fewer than 7 cards rendered in the test screenshots because the local server's pages still load the real `firebase-config.js` and hit the live `egc-church` Firestore project for `/config/features` and `/config/pages` — an unrelated, pre-existing feature-flag/page-composition state, not a markup bug.)
 
 ---
 
