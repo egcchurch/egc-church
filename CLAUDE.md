@@ -866,6 +866,7 @@ Firestore rules for `/groups/{groupId}` updates:
   - `blog`: `published ASC, kind ASC, publishedAt DESC` (homepage announcements vs articles split)
   - `conversations`: `participants CONTAINS, lastMessageAt DESC` (messages inbox)
   - `conversations`: `groupId ASC, type ASC` (group chat lookup)
+  - `gallery`: `audience IN, published ASC` (members/gallery.html — members + youth galleries)
 
 ---
 
