@@ -9,8 +9,35 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-06-25
-**Current milestone:** Session 136 fixed two mobile-nav bugs the user found by screenshot: (1) opening the hamburger menu made the top bar (logo) turn white/invisible on every page — the menu was a normal-flow child of `<nav>`, so opening it ballooned nav's own height, which broke the hero banner's fixed `-mt-16` offset (calibrated only for the collapsed 64px nav) and exposed the plain page background in the gap; fixed by making the menu `position: absolute` so it never affects nav's flow height. (2) The "My Profile"/"Members Area"/"Admin Dashboard" links injected into the mobile menu when signed in still used the old light-background text colours (`text-gray-700`/`text-gray-400`) from before the navy redesign, unreadable until hover (which doesn't exist on touch) — recoloured to match the rest of the navy mobile menu. Session 135 (gallery Timestamp crash) shipped before this. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Last worked on:** 2026-06-27
+**Current milestone:** Sessions 137–139 delivered: LIVE nav link on all nav bars (public + members) with membership check, members-only overlay for non-members, and a pulsing red dot when a stream is active. CI/CD pipelines also fully fixed — both `preview.yml` and `deploy.yml` now use direct `firebase-tools@latest` CLI instead of `action-hosting-deploy@v0` (which was failing due to missing Cloud Functions list permission), and the deploy job now treats Firebase's "current active version" 400 as a no-op success. Maintenance backlog carried over: WhatsApp Stage 2 still pending church's WhatsApp Business number; Serving Teams Phase 1.7 (availability + auto-assign) not started.
+
+---
+
+## Session: fix — CI/CD deploy pipeline hardening (Sessions 137–139)
+
+**Date:** 2026-06-27
+**PRs:** #214 (CI preview fix), #215 (LIVE nav), #216 (deploy.yml CLI fix), #217 (noop 400 handling)
+**Status:** Deployed to production
+
+### Context
+After Session 136 merged, the preview CI workflow started consistently failing with `exit code 1` on the `FirebaseExtended/action-hosting-deploy@v0` step. Separately, the user asked for the live stream link to be more prominent — currently buried as a card on the members dashboard. Also fixed the production deploy workflow which had the same underlying issue.
+
+### What was done
+
+**CI workflow fixes (PRs #214, #216, #217):**
+- **`preview.yml`** — replaced `action-hosting-deploy@v0` with direct `npx firebase-tools@latest hosting:channel:deploy` CLI. The action internally calls `cloudfunctions.functions.list`, which the service account lacks permission for, causing the job to exit 1 even though hosting files uploaded successfully. The direct CLI is hosting-only and never triggers that API call. Also resolves the Node 20 deprecation warning.
+- **`deploy.yml`** — same fix: replaced the action with `npx firebase-tools@latest deploy --only hosting:production`. Additionally, added output parsing so Firebase's `HTTP 400: current active version` response (which fires on workflow-only PRs where no static files changed) is treated as a success exit (production is already up to date) rather than a failure. Real upload errors still cause exit 1.
+
+**LIVE nav link (PR #215):**
+- **`nav.html`** — added `● LIVE` pill button (desktop, `hidden lg:flex`) and `LIVE STREAM` entry with dot (mobile menu). Both use `href="#"` so click is intercepted by `js/main.js`.
+- **`members-nav.html`** — added LIVE pill (desktop, direct `href="/members/live.html"`, no interception needed) and updated mobile entry with the same dot indicator.
+- **`js/main.js`** — added `initLiveNavLink()`: reads `homepage/content.liveStream.active` and pulses the dot red when a stream is live; wires click handlers on public nav links that check `window._egcUserIsMember` and either navigate to `/members/live.html` (members) or show a members-only overlay (non-members). `showLiveMembersOnlyMessage()` renders a navy card with amber icon, a "Log In" CTA, auto-dismisses after 6 s, and has a Dismiss button. Also set `window._egcUserIsMember` in `updateLoginButtons()` so the click handler always has an up-to-date value regardless of auth state timing.
+- **`service-worker.js`** — bumped cache version (js/main.js changed).
+
+### Notes
+- Production confirmed serving correct content: Firebase's "current active version" 400 on the workflow-only PRs proved the PR #215 files were already released before the action's functions.list step failed
+- `deploy.yml` no longer uses any GitHub Action for the actual deploy — both preview and production now use direct firebase-tools CLI, which removes the dependency on `action-hosting-deploy` entirely
 
 ---
 
