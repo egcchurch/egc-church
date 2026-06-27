@@ -27,11 +27,17 @@ jobs:
         run: |
           printf '%s' "$FIREBASE_SA" > /tmp/sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
-          DEPLOY_FAILED=0
+          DEPLOY_EXIT=0
           npx firebase-tools@latest deploy \
             --only hosting:production \
-            --project egc-church 2>&1 || DEPLOY_FAILED=1
+            --project egc-church 2>&1 | tee /tmp/deploy-out.txt || DEPLOY_EXIT=1
           rm -f /tmp/sa.json
-          exit $DEPLOY_FAILED
+          if [ "$DEPLOY_EXIT" -ne 0 ]; then
+            if grep -q "is the current active version" /tmp/deploy-out.txt; then
+              echo "No static file changes — production is already up to date."
+              exit 0
+            fi
+            exit 1
+          fi
         env:
           FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
