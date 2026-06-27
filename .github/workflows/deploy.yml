@@ -24,10 +24,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Deploy to Firebase Production
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: egc-church   # <-- CHANGE THIS to your Firebase project ID
-          target: production
-          channelId: live
+        run: |
+          printf '%s' "$FIREBASE_SA" > /tmp/sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
+          DEPLOY_FAILED=0
+          npx firebase-tools@latest deploy \
+            --only hosting:production \
+            --project egc-church 2>&1 || DEPLOY_FAILED=1
+          rm -f /tmp/sa.json
+          exit $DEPLOY_FAILED
+        env:
+          FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
