@@ -10,6 +10,13 @@
       <div class="hidden md:flex items-center gap-x-8 text-sm font-medium text-white/90">
         <a href="/index.html" class="hover:text-amber-400 transition-colors"><i class="fas fa-arrow-left mr-1"></i>Back to Site</a>
 
+        <!-- Live stream — direct link for members (no interception needed) -->
+        <a href="/members/live.html" id="nav-live-link"
+           class="flex items-center gap-1.5 text-xs font-bold text-white/70 hover:text-white border border-white/25 hover:border-white/50 px-3 py-1.5 rounded-full transition-all whitespace-nowrap">
+          <span id="nav-live-dot" class="w-2 h-2 bg-white/40 rounded-full transition-colors"></span>
+          LIVE
+        </a>
+
         <div class="relative" id="members-nav-wrapper">
           <button id="members-nav-btn"
                   class="flex items-center gap-1.5 hover:text-amber-400 transition-colors">
@@ -87,7 +94,10 @@
       <a href="/members/prayer.html" class="hover:text-amber-400">PRAYER</a>
       <a href="/members/devotional.html" data-feature="devotional" class="hover:text-amber-400">DEVOTIONAL</a>
       <a href="/members/gallery.html" data-feature="gallery" class="hover:text-amber-400">GALLERY</a>
-      <a href="/members/live.html" data-feature="liveStream" class="hover:text-amber-400">LIVE</a>
+      <a href="/members/live.html" data-feature="liveStream" class="flex items-center gap-2 hover:text-amber-400" id="mobile-live-link">
+        <span id="mobile-live-dot" class="w-2 h-2 bg-white/40 rounded-full transition-colors"></span>
+        LIVE STREAM
+      </a>
       <a href="/members/messages.html" data-feature="messaging" class="hover:text-amber-400">MESSAGES</a>
       <button id="mobile-login-btn"
               class="bg-amber-500 text-white py-4 rounded-full font-medium mt-4">

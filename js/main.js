@@ -38,6 +38,7 @@ document.addEventListener('nav-loaded', () => {
   });
 
   initNavDropdowns();
+  initLiveNavLink();
   checkAuthState();
 
   // Section composition — publicly readable, fires for all visitors
@@ -91,6 +92,75 @@ function initNavDropdowns() {
       document.getElementById(chevronId)?.classList.remove('rotate-180');
     });
   });
+}
+
+// ==================== LIVE NAV LINK ====================
+
+function initLiveNavLink() {
+  // Update the pulsing dot when a stream is active
+  if (typeof firebase !== 'undefined') {
+    firebase.firestore().doc('homepage/content').get().then(doc => {
+      if (!doc.exists || !doc.data().liveStream?.active) return;
+      ['nav-live-dot', 'mobile-live-dot'].forEach(id => {
+        const dot = document.getElementById(id);
+        if (!dot) return;
+        dot.classList.remove('bg-white/40');
+        dot.classList.add('bg-red-500', 'animate-pulse');
+      });
+      ['nav-live-link', 'mobile-live-link'].forEach(id => {
+        const link = document.getElementById(id);
+        if (!link) return;
+        link.classList.remove('text-white/70', 'border-white/25');
+        link.classList.add('text-white', 'border-red-500/50');
+      });
+    }).catch(() => {});
+  }
+
+  // Intercept clicks on public-nav LIVE links (href="#") to check membership.
+  // Members-nav LIVE links are plain <a href="…"> and navigate directly.
+  function handleLiveClick(e) {
+    e.preventDefault();
+    if (window._egcUserIsMember) {
+      window.location.href = '/members/live.html';
+    } else {
+      showLiveMembersOnlyMessage();
+    }
+  }
+
+  ['nav-live-link', 'mobile-live-link'].forEach(id => {
+    const link = document.getElementById(id);
+    if (link && link.getAttribute('href') === '#') {
+      link.addEventListener('click', handleLiveClick);
+    }
+  });
+}
+
+function showLiveMembersOnlyMessage() {
+  document.getElementById('live-access-toast')?.remove();
+  const el = document.createElement('div');
+  el.id = 'live-access-toast';
+  el.style.cssText =
+    'position:fixed;top:72px;left:50%;transform:translateX(-50%);' +
+    'z-index:9998;background:#0A3D62;color:#fff;' +
+    'padding:20px 24px;border-radius:16px;' +
+    'box-shadow:0 8px 32px rgba(0,0,0,0.4);' +
+    'text-align:center;max-width:min(90vw,340px);width:100%;' +
+    'font-family:inherit;font-size:14px;line-height:1.5;' +
+    'border:1px solid rgba(255,255,255,0.15);';
+  el.innerHTML =
+    '<i class="fas fa-circle-play" style="font-size:32px;color:#F59E0B;margin-bottom:10px;display:block"></i>' +
+    '<div style="font-weight:700;font-size:15px;margin-bottom:6px">Members Only</div>' +
+    '<div style="opacity:0.75;margin-bottom:14px">Live streaming is available to church members. Log in to your account to watch.</div>' +
+    '<a href="/login.html" style="display:inline-block;background:#F59E0B;color:#fff;padding:9px 24px;border-radius:20px;font-weight:600;text-decoration:none;font-size:13px">Log In</a>';
+  const dismissBtn = document.createElement('button');
+  dismissBtn.textContent = 'Dismiss';
+  dismissBtn.style.cssText =
+    'display:block;margin:10px auto 0;background:none;border:none;' +
+    'color:rgba(255,255,255,0.5);cursor:pointer;font-size:12px;';
+  dismissBtn.addEventListener('click', () => el.remove());
+  el.appendChild(dismissBtn);
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 6000);
 }
 
 // ==================== AUTH STATE ====================
@@ -165,6 +235,7 @@ async function updateLoginButtons(user) {
                     (Array.isArray(userData.roles) && userData.roles.length > 0) ||
                     (Array.isArray(userData.extraPermissions) && userData.extraPermissions.length > 0);
     const isMember = userData.membership === 'member' || isAdmin;
+    window._egcUserIsMember = isMember;
 
     // ── Desktop: turn button into dropdown trigger ──
     if (desktopBtn) {
@@ -193,6 +264,7 @@ async function updateLoginButtons(user) {
 
   } else {
     // ── Logged out: restore defaults ──
+    window._egcUserIsMember = false;
     if (desktopBtn) {
       desktopBtn.textContent = 'Member Login';
       desktopBtn.classList.remove('bg-[#0A3D62]', 'hover:bg-[#083352]');
