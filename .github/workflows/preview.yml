@@ -61,11 +61,35 @@ jobs:
         env:
           FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      - name: Deploy preview to Firebase
-        uses: FirebaseExtended/action-hosting-deploy@v0
+      - name: Deploy preview to Firebase Hosting
+        id: deploy
+        run: |
+          printf '%s' "$FIREBASE_SA" > /tmp/sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
+          DEPLOY_FAILED=0
+          npx firebase-tools@latest hosting:channel:deploy \
+            pr-${{ github.event.number }} \
+            --only staging \
+            --expires 7d \
+            --project egc-church 2>&1 | tee /tmp/deploy-out.txt || DEPLOY_FAILED=1
+          rm -f /tmp/sa.json
+          if [ "$DEPLOY_FAILED" -eq 1 ]; then
+            echo "Deploy failed"
+            exit 1
+          fi
+          URL=$(grep -oE 'https://[a-z0-9-]+\.web\.app' /tmp/deploy-out.txt | head -1)
+          [ -n "$URL" ] && echo "preview_url=$URL" >> "$GITHUB_OUTPUT" || true
+        env:
+          FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Post preview URL to PR
+        if: steps.deploy.outputs.preview_url != ''
+        uses: actions/github-script@v7
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: egc-church   # <-- CHANGE THIS to your Firebase project ID
-          target: staging
-          channelId: pr-${{ github.event.number }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## Preview deployed\n\n**Staging preview:** ${{ steps.deploy.outputs.preview_url }}`
+            });

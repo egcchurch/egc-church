@@ -10,7 +10,29 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-25
-**Current milestone:** Session 135 found the SECOND bug behind the same "members/gallery.html shows nothing" report — the missing composite index (Session 134) was real and necessary, but fixing it just uncovered a previously-masked second bug: the page's date sort called `.localeCompare()` directly on `gallery.date`, which is saved as a Firestore Timestamp object, not a string — threw a TypeError that the catch block swallowed before the grid ever rendered. Fixed by reusing the same `toDate()` Timestamp-or-string-safe helper the public `/gallery.html` page already uses correctly. Diagnosed via the actual browser console error the user grabbed, after a planned Admin-SDK bypass diagnostic got blocked by a safety check (correctly — it would have read production data without explicit authorization). Session 134 (missing index) shipped before this. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+**Current milestone:** Session 136 fixed two mobile-nav bugs the user found by screenshot: (1) opening the hamburger menu made the top bar (logo) turn white/invisible on every page — the menu was a normal-flow child of `<nav>`, so opening it ballooned nav's own height, which broke the hero banner's fixed `-mt-16` offset (calibrated only for the collapsed 64px nav) and exposed the plain page background in the gap; fixed by making the menu `position: absolute` so it never affects nav's flow height. (2) The "My Profile"/"Members Area"/"Admin Dashboard" links injected into the mobile menu when signed in still used the old light-background text colours (`text-gray-700`/`text-gray-400`) from before the navy redesign, unreadable until hover (which doesn't exist on touch) — recoloured to match the rest of the navy mobile menu. Session 135 (gallery Timestamp crash) shipped before this. Maintenance backlog carried over: installed-PWA rotation still not confirmed on the user's device (Android WebAPK rebuild delay, outside our control) — Phase 3 WhatsApp Stage 2 still pending the church's WhatsApp number
+
+---
+
+## Session: fix — Mobile nav: white top bar on menu open + unreadable signed-in links (Session 136)
+
+**Date:** 2026-06-25
+**Status:** Committed locally, PR pending
+
+### Context
+User shared a phone screenshot: opening the hamburger menu on any page turns the top bar (where the logo sits) white instead of navy/transparent, making the white logo nearly invisible. Same screenshot also showed "My Profile"/"Members Area"/"Admin Dashboard" in barely-legible dark text against the navy menu background.
+
+### Investigation
+Reproduced live on `app.egc.church` (Playwright, mobile viewport) before touching anything. Confirmed via computed styles: at the point of the bug, `<nav>` correctly had `bg-transparent` (the homepage hero-overlay state working as designed) — so the white wasn't a colour-class bug. The actual cause: `#mobile-menu` was a normal-flow child of `<nav>`. Opening it made `<nav>`'s own height balloon from ~64px to ~600px+ (top bar + full expanded menu). The hero banner's `-mt-16` negative margin is a *fixed* offset, calibrated only to cancel the *collapsed* nav height — with the menu open, that fixed offset under-compensates by (expanded height − 64px), leaving a gap between `#nav-placeholder`'s now-much-taller reserved flow space and where the hero actually starts rendering. Nothing else occupies that gap, so the plain `<body class="bg-zinc-50">` background shows through it — confirmed by screenshotting the reproduction: the hero video was visible peeking out far lower on the page than normal, exactly the size of the gap.
+
+The second issue was simpler: `js/main.js`'s `buildMobileHTML()` (builds the "Signed in as…" section injected into the mobile menu) was never updated when the mobile menu's background changed from white to navy in an earlier session — still used `text-gray-700`/`text-gray-400`/`border-gray-100`, the old light-background palette, with the contrast only "fixed" by a `hover:text-amber-600` that has no effect on touch devices.
+
+### What was done
+- **`nav.html`** — `#mobile-menu` changed from a normal block child to `absolute top-full left-0 right-0` (plus `max-h-[calc(100vh-4rem)] overflow-y-auto shadow-lg`), so opening it can never change `<nav>`'s own flow height again — the hero offset math stays valid regardless of menu state. As a side benefit, the menu now overlays the page (standard mobile-nav pattern) instead of pushing it down.
+- **`js/main.js`** — `buildMobileHTML()` recoloured to the navy palette already used everywhere else in the mobile menu: `text-white/90` links, `text-white/50` icons and the "Signed in as" label, `border-white/10` divider, `hover:text-amber-400`.
+
+### Verification
+Reproduced the bug live on production first (confirmed `bg-transparent` + the height-mismatch theory), then verified the fix locally: homepage mobile menu now shows the dark hero video correctly through the transparent top bar (logo clearly visible) instead of white, and `nav.offsetHeight` stays at the collapsed ~65px with the menu open (confirmed via `getComputedStyle`). Verified the signed-in links by calling `buildMobileHTML()` directly with test data on a local page (no real auth available) — "My Profile", "Members Area", "Admin Dashboard" all render clearly legible in white against navy, matching the rest of the menu.
 
 ---
 

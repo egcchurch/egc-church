@@ -246,23 +246,23 @@ function buildDropdownHTML(isMember, isAdmin) {
 
 function buildMobileHTML(displayName, isMember, isAdmin) {
   let html = `
-    <div class="border-t border-gray-100 mt-2 pt-4">
-      <p class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-3">Signed in as ${displayName}</p>
-      <a href="/profile.html" class="flex items-center gap-3 py-2.5 text-gray-700 hover:text-amber-600 transition-colors">
-        <i class="fas fa-user w-5 text-center text-gray-400"></i> My Profile
+    <div class="border-t border-white/10 mt-2 pt-4">
+      <p class="text-xs text-white/50 font-semibold uppercase tracking-wide mb-3">Signed in as ${displayName}</p>
+      <a href="/profile.html" class="flex items-center gap-3 py-2.5 text-white/90 hover:text-amber-400 transition-colors">
+        <i class="fas fa-user w-5 text-center text-white/50"></i> My Profile
       </a>`;
 
   if (isMember) {
     html += `
-      <a href="/members/index.html" class="flex items-center gap-3 py-2.5 text-gray-700 hover:text-amber-600 transition-colors">
-        <i class="fas fa-users w-5 text-center text-gray-400"></i> Members Area
+      <a href="/members/index.html" class="flex items-center gap-3 py-2.5 text-white/90 hover:text-amber-400 transition-colors">
+        <i class="fas fa-users w-5 text-center text-white/50"></i> Members Area
       </a>`;
   }
 
   if (isAdmin) {
     html += `
-      <a href="/admin/index.html" class="flex items-center gap-3 py-2.5 text-gray-700 hover:text-amber-600 transition-colors">
-        <i class="fas fa-shield-alt w-5 text-center text-gray-400"></i> Admin Dashboard
+      <a href="/admin/index.html" class="flex items-center gap-3 py-2.5 text-white/90 hover:text-amber-400 transition-colors">
+        <i class="fas fa-shield-alt w-5 text-center text-white/50"></i> Admin Dashboard
       </a>`;
   }
 
