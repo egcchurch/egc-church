@@ -9,8 +9,24 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-06-27
-**Current milestone:** Sessions 137–139 delivered: LIVE nav link on all nav bars (public + members) with membership check, members-only overlay for non-members, and a pulsing red dot when a stream is active. CI/CD pipelines also fully fixed — both `preview.yml` and `deploy.yml` now use direct `firebase-tools@latest` CLI instead of `action-hosting-deploy@v0` (which was failing due to missing Cloud Functions list permission), and the deploy job now treats Firebase's "current active version" 400 as a no-op success. Maintenance backlog carried over: WhatsApp Stage 2 still pending church's WhatsApp Business number; Serving Teams Phase 1.7 (availability + auto-assign) not started.
+**Last worked on:** 2026-06-29
+**Current milestone:** Session 140 — docs/environment cleanup. PROGRESS.md archived from 3,612 → 769 lines (Sessions 22–119 moved to PROGRESS-archive.md); stale session statuses fixed; CLAUDE.md tightened (branham-sermons.js added to structure, Current Phase condensed to active-work list, two verbose Architecture/Design Decisions bullets shortened, Cloud Functions phase labels removed); completed phase docs flagged as reference-only. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: docs — environment file cleanup (Session 140)
+
+**Date:** 2026-06-29
+**PR:** #219
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`PROGRESS.md`** — archived Sessions 22–119 to `PROGRESS-archive.md` (3,612 → 769 lines); fixed four stale "Committed locally, PR pending" statuses on Sessions 133–136
+- **`PROGRESS-archive.md`** — updated header to reflect Sessions 1–119; Sessions 22–119 prepended in newest-first order before the existing Sessions 1–21 content
+- **`CLAUDE.md`** — added `branham-sermons.js` to project structure (static sermon grid for `fulfillment-of-prophecy.html`); replaced 9-bullet phase checklist in Current Phase with 4-line active-work summary (all phases done; WhatsApp Stage 2 and Serving Teams 1.7/2 called out as pending); condensed two long narrative Architecture/Design Decisions bullets (no-cache header story, storage.rules split story) to single-line rules; removed stale Phase 1/4/5/6/7 labels from Cloud Functions section headers
+- **`docs/PERMISSIONS.md`, `docs/HOMEPAGE.md`, `docs/PHASE8.md`, `docs/PHASE9.md`** — added "Complete and deployed — reference only" banner to each
+- **`docs/ROADMAP.md`** — updated byline to state all items complete; pointed to CLAUDE.md Current Phase for active pending work
 
 ---
 
