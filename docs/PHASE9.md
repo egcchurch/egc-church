@@ -1,7 +1,7 @@
 # Phase 9 — Page Composition
 
+> **Status: Complete and deployed.** Reference only — implementation is in the code.
 > Planning document. Source of truth for the section manager system.
-> Save to the repo as `docs/PHASE9.md`. Keep updated as PRs land.
 
 ---
 

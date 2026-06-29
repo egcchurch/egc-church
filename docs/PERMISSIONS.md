@@ -1,7 +1,7 @@
 # Phase 6 — Permissions & Roles
 
+> **Status: Complete and deployed.** Reference only — implementation is in the code.
 > Planning document. Source of truth for the granular permissions system.
-> Save to the repo as `docs/PERMISSIONS.md`. Keep updated as PRs land.
 
 ---
 

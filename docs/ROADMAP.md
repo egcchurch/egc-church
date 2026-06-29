@@ -1,8 +1,7 @@
 # Roadmap — Future Improvements
 
-> Tracked ideas and improvements beyond Phase 7. Items move to a formal phase doc
-> (like `docs/PERMISSIONS.md`) once they are scoped and ready to build.
-> Updated: 2026-06-14 (all phases and Priority 1/2/3 items completed)
+> **Status: All planned items complete.** This is an archive of completed features and out-of-scope decisions.
+> Active pending work is tracked in `CLAUDE.md` under "Current Phase".
 
 ---
 

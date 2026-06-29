@@ -1,7 +1,7 @@
 # Phase 7 — Adaptive Homepage & Engagement Surface
 
+> **Status: Complete and deployed.** Reference only — implementation is in the code.
 > Planning document. Source of truth for the adaptive home surface.
-> Save to the repo as `docs/HOMEPAGE.md`. Keep updated as PRs land.
 
 ---
 
