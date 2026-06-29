@@ -731,8 +731,6 @@
           members: firebase.firestore.FieldValue.arrayUnion(selected.uid),
         });
         addMemberSelected[teamId] = null;
-        document.getElementById(`add-member-search-${teamId}`).value = '';
-        // Invalidate the roster cache so a re-search reflects the new member state
         addMemberRoster = null;
         reloadTeamCard(teamId);
       } catch (err) {
