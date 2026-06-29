@@ -10,7 +10,19 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-29
-**Current milestone:** Session 141 — removed redundant "Plan your first visit" CTA from homepage; the "A Warm Welcome" section already covers first-visitor intent with a Contact Us button. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 142 — replaced UID-based add-member flow on Serving Teams with name search. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: feat — Serving Teams member name search (Session 142)
+
+**Date:** 2026-06-29
+**PR:** #223
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`members/serving-teams.html`** — replaced the "Member UID" text input with a type-ahead name search. Leader types ≥ 2 characters → dropdown of matching directory-visible members → click to select → click Add. No UID sharing needed. Uses the existing `membership + directoryVisible` composite index (same query as `/members/directory.html`); results cached in-session, cache invalidated after a successful add. Also fixed a pre-existing bug where the member list didn't refresh after an add (now calls `reloadTeamCard`).
 
 ---
 
