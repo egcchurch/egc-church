@@ -187,6 +187,9 @@
     let generatePatternRows = []; // [{ id, dayOfWeek, label, functions: [...] }] — staged in the Schedule modal
     let memberFunctionsModalTeamId = null;
     let memberFunctionsModalUid = null;
+    let addMemberSelected = {};   // teamId -> { uid, name } | null
+    let addMemberRoster = null;   // cached list of directory-visible members for search
+    let addMemberSearchTimer = null;
 
     auth.onAuthStateChanged((user) => { currentUser = user; });
 
@@ -444,14 +447,20 @@
               `).join('') : '<span class="text-xs text-zinc-400">No members yet</span>'}
             </div>
             <div class="flex items-center gap-2 mt-3">
-              <input id="add-member-uid-${team.id}" type="text" placeholder="Member UID"
-                     class="flex-1 max-w-xs border border-zinc-200 rounded-full px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400">
-              <button onclick="addMemberByUid('${team.id}')"
-                      class="text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all">
-                <i class="fas fa-user-plus mr-1"></i>Add Member
+              <div class="relative flex-1 max-w-xs">
+                <input id="add-member-search-${team.id}" type="text" placeholder="Search member by name…"
+                       oninput="searchMembersToAdd('${team.id}')"
+                       onblur="setTimeout(() => hideAddMemberResults('${team.id}'), 200)"
+                       autocomplete="off"
+                       class="w-full border border-zinc-200 rounded-full px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400">
+                <div id="add-member-results-${team.id}"
+                     class="hidden absolute z-20 top-full mt-1 left-0 right-0 bg-white border border-zinc-200 rounded-xl shadow-lg max-h-40 overflow-y-auto"></div>
+              </div>
+              <button onclick="confirmAddMember('${team.id}')"
+                      class="text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all whitespace-nowrap">
+                <i class="fas fa-user-plus mr-1"></i>Add
               </button>
             </div>
-            <p class="text-xs text-zinc-400 mt-1.5">Ask the member for their Member ID — they can copy it from their <a href="/profile.html" class="text-blue-600 hover:underline">Profile page</a>.</p>
           </div>
           <div class="mb-5">
             <div class="flex items-center justify-between mb-2">
@@ -652,22 +661,80 @@
       }
     }
 
-    async function addMemberByUid(teamId) {
-      const input = document.getElementById(`add-member-uid-${teamId}`);
-      const uid = input.value.trim();
-      if (!uid) return;
+    async function searchMembersToAdd(teamId) {
+      clearTimeout(addMemberSearchTimer);
+      const input = document.getElementById(`add-member-search-${teamId}`);
+      const q = (input.value || '').trim().toLowerCase();
 
-      const userDoc = await db.collection('users').doc(uid).get().catch(() => null);
-      if (!userDoc || !userDoc.exists) {
-        alert("Couldn't find a member with that ID. Ask them to copy it from their Profile page and double-check it.");
-        return;
+      // Clear selection if user edits the field after picking someone
+      if (addMemberSelected[teamId] && addMemberSelected[teamId].name.toLowerCase() !== q) {
+        addMemberSelected[teamId] = null;
       }
 
+      const results = document.getElementById(`add-member-results-${teamId}`);
+      if (q.length < 2) { results.classList.add('hidden'); results.innerHTML = ''; return; }
+
+      addMemberSearchTimer = setTimeout(async () => {
+        // Load the roster of directory-visible members once and cache it
+        if (!addMemberRoster) {
+          const snap = await db.collection('users')
+            .where('membership', '==', 'member')
+            .where('directoryVisible', '==', true)
+            .get()
+            .catch(() => null);
+          addMemberRoster = snap
+            ? snap.docs.map(d => ({ uid: d.id, name: d.data().displayName || '' })).filter(u => u.name)
+            : [];
+        }
+
+        const team = teamsCache[teamId] || {};
+        const existing = new Set([...(team.members || []), ...(team.leaders || [])]);
+
+        const matches = addMemberRoster.filter(u =>
+          u.name.toLowerCase().includes(q) && !existing.has(u.uid)
+        );
+
+        if (!matches.length) {
+          results.innerHTML = '<p class="text-xs text-zinc-400 px-3 py-2">No members found.</p>';
+        } else {
+          results.innerHTML = matches.map(u => `
+            <button type="button"
+                    onmousedown="selectMemberToAdd('${teamId}', '${u.uid}', ${JSON.stringify(u.name).replace(/"/g, '&quot;')})"
+                    class="w-full text-left px-3 py-2 text-xs text-zinc-700 hover:bg-amber-50 hover:text-amber-800 transition-colors">
+              ${escapeHtml(u.name)}
+            </button>
+          `).join('');
+        }
+        results.classList.remove('hidden');
+      }, 200);
+    }
+
+    function selectMemberToAdd(teamId, uid, name) {
+      addMemberSelected[teamId] = { uid, name };
+      document.getElementById(`add-member-search-${teamId}`).value = name;
+      hideAddMemberResults(teamId);
+    }
+
+    function hideAddMemberResults(teamId) {
+      const el = document.getElementById(`add-member-results-${teamId}`);
+      if (el) el.classList.add('hidden');
+    }
+
+    async function confirmAddMember(teamId) {
+      const selected = addMemberSelected[teamId];
+      if (!selected) {
+        document.getElementById(`add-member-search-${teamId}`)?.focus();
+        return;
+      }
       try {
         await db.collection('servingTeams').doc(teamId).update({
-          members: firebase.firestore.FieldValue.arrayUnion(uid),
+          members: firebase.firestore.FieldValue.arrayUnion(selected.uid),
         });
-        input.value = '';
+        addMemberSelected[teamId] = null;
+        document.getElementById(`add-member-search-${teamId}`).value = '';
+        // Invalidate the roster cache so a re-search reflects the new member state
+        addMemberRoster = null;
+        reloadTeamCard(teamId);
       } catch (err) {
         console.error('Add member failed:', err);
         alert('Failed to add member.');
