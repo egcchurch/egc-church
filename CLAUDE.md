@@ -174,6 +174,9 @@ church-website-pwa/
 │   ├── connect.js              ← Visitor connect form submission
 │   ├── gallery.js              ← Public gallery page (Firestore)
 │   ├── music.js                ← Music library page (Firestore)
+│   ├── branham-sermons.js      ← Static sermon grid for fulfillment-of-prophecy.html — hardcoded
+│   │                              metadata with inline audio player + PDF/audio download links;
+│   │                              URLs filled in via /admin/media.html uploads
 │   ├── storage-upload.js       ← The ONLY module that knows about Firebase Storage — see
 │   │                              "Media Storage" section below
 │   ├── search.js               ← Global ⌘K/Ctrl+K content search overlay (sermons/events/blog)
@@ -391,42 +394,42 @@ All Cloud Functions live in `/functions/index.js` and are deployed separately fr
 
 Functions are organised by trigger type:
 
-### HTTP / Callable Functions (Phase 4)
+### HTTP / Callable Functions
 
 - `sendBroadcast` — called from `/admin/notifications.html` — accepts notification payload and audience, fans out to matching FCM tokens, also writes per-user copies to `/users/{uid}/notifications/`
 
-### Firestore Triggers (Phase 4)
+### Firestore Triggers
 
 - `onNewMessage` — trigger: `/conversations/{conversationId}/messages/{messageId}` created — pushes FCM to recipient (with `webpush.notification.data: { linkUrl: '/members/messages.html?conv={convId}' }` for `notificationclick` tap navigation) and writes in-app notification
 - `onNewPrayerRequest` — trigger: `/prayerRequests/{requestId}` created — if `isPrivate: false`, writes in-app notification to all members; if `isPrivate: true`, writes in-app notification to admins only
 - `onNewConnectForm` — trigger: `/connectForms/{submissionId}` created — writes in-app notification to all admins
 
-### Scheduled Functions (Phase 4)
+### Scheduled Functions
 
 - `weeklyDigest` — runs every Sunday morning — compiles recent sermons, events, and announcements, fans out FCM push to all members
 
-### Auth Triggers (Phase 1 — DEPLOYED)
+### Auth Triggers
 
 - `onUserCreate` — trigger: new Firebase Auth user — creates `/users/{uid}` doc with `membership: "pending"`, `isSuperadmin: false`, `roles: []`, `extraPermissions: []`, `emailVerified: false`, default privacy flags
 
-### Phase 5
+### Account Management
 
 - `deleteUserAccount` — callable from `/profile.html` — performs GDPR-compliant account deletion (see Account Deletion section)
 - `podcastFeed` — HTTP function, served at `/feed.xml` via a Firebase Hosting rewrite (both staging and production) — queries published sermons with a non-empty `audioUrl`, sorts by date desc client-side (single equality filter, no composite index needed), returns an RSS 2.0 + iTunes-tagged XML feed (up to 100 items, 1-hour cache)
 
-### Phase 6
+### Permissions
 
 - `syncUserClaims` — trigger: `/users/{uid}` write — recomputes effective permissions from `user.roles` + `user.extraPermissions`, writes to Firebase Auth custom claims (`{ superadmin: true }` or `{ superadmin: false, perms: [...] }`). Skips if no permission-relevant fields changed. Helper logic in `functions/computePermissions.js` (pure module, tested independently).
 - `migrateRolesV1` — callable (superadmin only) — one-time Phase 6 migration: (1) seeds `/roles/` with 7 default roles if empty; (2) iterates all user docs in batches of 100 and sets `isSuperadmin`, `roles`, `extraPermissions` (idempotent — skips users where all three fields already exist). Returns `{ usersUpdated, rolesSeeded, errors }`. Already run on staging and production.
 
-### Phase 7
+### Membership
 
 - `requestMemberAccess` — callable from `/profile.html` — allows `public` users to request membership; writes `membershipRequestedAt: serverTimestamp()` to their user doc and sends in-app notification to all users with `users.approve` permission. 24h idempotency guard prevents repeat notifications.
 - `welcomeNewMember` — trigger: `/users/{uid}` write — when `membership` changes to `"member"`, writes a welcome in-app notification pointing the user to the members area.
 - `syncUserNotificationEligibility` — trigger: `/users/{uid}` write — if `membership` drops from `member` to anything else, deletes all docs in `/users/{uid}/fcmTokens` subcollection so the user stops receiving push notifications.
 - `cleanupNonMemberTokens` — callable (superadmin only) — one-time migration: deletes FCM token subcollections for all users where `membership !== 'member'`. Already run on production.
 
-### Cottage Meetings (Phase 1)
+### Cottage Meetings
 
 - `registerForCottageMeeting` — callable from `/members/cottage.html` — transactionally reserves seats (no overselling), enforces one active registration per member, writes `/cottageRegistrations/{uid}` (incl. the member's phone, captured at registration), increments the meeting's `seatsTaken`, and sends an in-app + push confirmation with the venue/date/time. **Phase 2:** also sends an **SMS via SMSPortal** (`POST rest.smsportal.com/v3/BulkMessages`, Basic auth) when the member **opts in** (a checkbox on the register form, default off) and a number is available, and the `SMSPORTAL_CLIENT_ID` / `SMSPORTAL_API_SECRET` secrets are set — best-effort, never blocks registration. The member's profile number is authoritative (edited on `/profile.html`); a number is only typed at registration when the profile has none, and that number **back-fills the profile** (only when empty). WhatsApp + per-member channel preferences are a planned later phase. **Deploy note:** both SMSPORTAL secrets must exist in Secret Manager before deploying this function (listed in its `runWith`).
 - `cancelCottageRegistration` — callable from `/members/cottage.html` — transactionally frees the seats and deletes the member's registration.
@@ -927,31 +930,11 @@ Storage rules enforce file size and type per path (see `storage.rules`):
   cache-first in `service-worker.js` — once a path is cached under a `CACHE_NAME`, that strategy serves
   the cached copy forever and never re-checks the network for that path, no matter how many times the
   underlying file is redeployed.
-- **`/js/**` gets an explicit `no-cache` header in `firebase.json`** (same as `manifest.json` and
-  `service-worker.js`) for the same underlying reason: Firebase Hosting's default
-  `Cache-Control: max-age=3600` on static files means a phone's plain HTTP cache can keep serving an
-  old `.js` file for up to an hour regardless of the Service Worker layer above — uninstalling and
-  reinstalling the PWA, or even using a different browser entirely on the same device, doesn't help if
-  that browser's HTTP cache already holds the stale file. This is what actually bit a real user: edits
-  to `js/branham-sermons.js` across several PRs (targeting a DOM id that no longer existed after a
-  redesign) kept rendering nothing on mobile — reinstalling the PWA and trying a second mobile browser
-  both failed to fix it, while desktop happened to hit a fresh CDN edge — until this header was added.
-  `no-cache` still allows caching, it just forces a revalidation round-trip (cheap `304` on a cache hit)
-  instead of trusting a local copy blindly.
+- **`/js/**` gets an explicit `no-cache` header in `firebase.json`** (same as `manifest.json` and `service-worker.js`). Firebase Hosting defaults to `max-age=3600`, so a phone's plain HTTP cache can serve stale JS for up to an hour — independent of the Service Worker, and not cleared by reinstalling the PWA or switching browsers. `no-cache` still caches; it forces a cheap `304` revalidation instead of blindly trusting the local copy.
 - Service worker cache list must be updated whenever a new page is added — CI check enforces this
 - Role checks in JS are UX only — Firestore Security Rules are the real enforcement layer
 - Firestore security rules are tested in CI via `@firebase/rules-unit-testing` against the Firebase emulator
-- **In `storage.rules`, never combine a content-validator helper (`isValidImage()`/`isValidAudio()`/
-  `isValidDocument()`) into a single `allow write: if isAdminUser() && isValidImage();`-style rule.**
-  `request.resource` does not exist on a `delete` request, so any helper that reads
-  `request.resource.contentType` throws and the whole rule is denied — silently, with no error
-  surfaced to the admin clicking "delete." This was the actual prior behavior of every path in this
-  file until it was caught (confirmed against the Storage emulator: upload succeeded, delete on the
-  identical file failed with `storage/unauthorized`) — meaning every "deleted" gallery photo, music
-  track, sermon file, team photo, etc. likely left its file behind in Storage for the entire project's
-  history, accumulating silently. Always split into `allow create, update: if isAdminUser() &&
-  isValidImage();` plus a separate `allow delete: if isAdminUser();` (no validator — there's nothing to
-  validate when removing a file). `tests/storage.rules.test.js` guards this for every path.
+- **In `storage.rules`, never use a combined `allow write: if isAdminUser() && isValidImage();` rule.** `request.resource` does not exist on `delete`, so the content-validator throws and the whole rule is denied silently — the file stays in Storage with no error shown. Always split: `allow create, update: if isAdminUser() && isValidImage();` plus a separate `allow delete: if isAdminUser();`. `tests/storage.rules.test.js` guards this for every path.
 - `published` flag on all content — editors can save drafts without going live
 - Cloud Functions used for any operation that requires touching another user's data (broadcasts, DM push, alert fan-out, scheduled tasks, auto-create user docs, account deletion)
 - Cloud Functions use firebase-functions **v1** API — v2 blocking functions require GCIP paid upgrade
@@ -1110,14 +1093,9 @@ The agentic-style local workflow:
 
 ## Current Phase
 
-- [x] **Phase 1 — Foundation** — complete and deployed
-- [x] **Phase 2 — Core Public Site** — complete and deployed
-- [x] **Phase 3 — Members Area** — complete and deployed
-- [x] **Phase 4 — Notifications & Messaging** — complete and deployed
-- [x] **Phase 5 — Polish** — complete and deployed
-- [x] **Phase 6 — Permissions & Roles** — complete and deployed (`docs/PERMISSIONS.md`)
-- [x] **Phase 7 — Adaptive Homepage** — complete and deployed (`docs/HOMEPAGE.md`)
-- [x] **Phase 8 — Multi-Church Template** — complete and deployed (`docs/PHASE8.md`)
-- [x] **Phase 9 — Page Composition** — complete and deployed (`docs/PHASE9.md`)
+All 9 phases (Foundation through Page Composition) are complete and deployed. Design docs in `docs/`.
 
-Future improvements and backlog tracked in `docs/ROADMAP.md`.
+**Active / pending:**
+- **WhatsApp Stage 2** — blocked on church obtaining a WhatsApp Business sender number (`docs/WHATSAPP.md`)
+- **Serving Teams Phase 1.7** — day/time availability + auto-assign rotation (planned, not started; `docs/SERVING_TEAMS.md`)
+- **Serving Teams Phase 2** — Equipment Register + Moves (future; `docs/SERVING_TEAMS.md`)

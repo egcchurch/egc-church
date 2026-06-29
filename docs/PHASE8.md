@@ -1,7 +1,7 @@
 # Phase 8 — Multi-Church Template
 
+> **Status: Complete and deployed.** Reference only — implementation is in the code.
 > Planning document. Source of truth for the church template and customisation system.
-> Save to the repo as `docs/PHASE8.md`. Keep updated as PRs land.
 
 ---
 
