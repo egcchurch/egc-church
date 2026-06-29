@@ -10,7 +10,20 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-29
-**Current milestone:** Session 140 — docs/environment cleanup. PROGRESS.md archived from 3,612 → 769 lines (Sessions 22–119 moved to PROGRESS-archive.md); stale session statuses fixed; CLAUDE.md tightened (branham-sermons.js added to structure, Current Phase condensed to active-work list, two verbose Architecture/Design Decisions bullets shortened, Cloud Functions phase labels removed); completed phase docs flagged as reference-only. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 141 — removed redundant "Plan your first visit" CTA from homepage; the "A Warm Welcome" section already covers first-visitor intent with a Contact Us button. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: fix — remove redundant Connect CTA from homepage (Session 141)
+
+**Date:** 2026-06-29
+**PR:** #221
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`index.html`** — removed the "Plan your first visit / Get in touch" CTA section (`data-section="connectCta"`). Redundant with the "A Warm Welcome" section's "Contact Us" button above it, and Connect is also reachable from the Explore grid, the nav, and the footer.
+- **`admin/pages.html`** — removed the `connectCta` entry from the Page Layout section list so it no longer appears as a toggleable option for a section that no longer exists.
 
 ---
 
