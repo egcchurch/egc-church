@@ -50,24 +50,9 @@
     </div>
 
     <!-- Service times -->
-    <div class="mt-8 bg-zinc-800 rounded-2xl p-6">
+    <div id="service-times-card" class="hidden mt-8 bg-zinc-800 rounded-2xl p-6">
       <h2 class="text-white font-semibold mb-4">Service Times</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-white/70">
-        <div class="flex items-start gap-3">
-          <i class="fas fa-sun text-amber-400 mt-0.5"></i>
-          <div>
-            <p class="font-medium text-white">Sunday Morning Service</p>
-            <p>10:00 AM — 12:00 PM</p>
-          </div>
-        </div>
-        <div class="flex items-start gap-3">
-          <i class="fas fa-moon text-amber-400 mt-0.5"></i>
-          <div>
-            <p class="font-medium text-white">Wednesday Bible Study</p>
-            <p>7:00 PM — 9:00 PM</p>
-          </div>
-        </div>
-      </div>
+      <div id="service-times-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-white/70"></div>
     </div>
 
   </main>
@@ -77,37 +62,53 @@
   <script>
     const db = firebase.firestore();
 
-    function loadLiveStream() {
-      // Check Firestore for an active stream config
-      // Admins can store a live stream doc at /config/liveStream with:
-      //   { youtubeId: "...", title: "...", description: "...", isLive: true }
-      db.collection('config').doc('liveStream').get()
+    function loadPage() {
+      db.collection('homepage').doc('content').get()
         .then((doc) => {
-          if (!doc.exists || !doc.data().youtubeId) return;
-          const data = doc.data();
-
-          if (data.isLive) {
-            document.getElementById('live-banner').classList.remove('hidden');
-          }
-
-          if (data.title) {
-            document.getElementById('stream-title').textContent = data.title;
-          }
-          if (data.description) {
-            document.getElementById('stream-desc').textContent = data.description;
-          }
-
-          const iframe = document.getElementById('stream-iframe');
-          iframe.src = `https://www.youtube.com/embed/${data.youtubeId}?autoplay=0&rel=0`;
-          iframe.classList.remove('hidden');
-          document.getElementById('stream-placeholder').classList.add('hidden');
+          const data = doc.exists ? doc.data() : {};
+          renderStream(data.liveStream || {});
+          renderServiceTimes(data.serviceTimes || []);
         })
-        .catch(() => {
-          // No config or permission error — show placeholder
-        });
+        .catch(() => {});
     }
 
-    document.addEventListener('nav-loaded', loadLiveStream);
+    function renderStream(ls) {
+      if (!ls.youtubeId) return;
+
+      if (ls.active) {
+        document.getElementById('live-banner').classList.remove('hidden');
+      }
+      if (ls.title) {
+        document.getElementById('stream-title').textContent = ls.title;
+      }
+
+      const iframe = document.getElementById('stream-iframe');
+      iframe.src = `https://www.youtube.com/embed/${ls.youtubeId}?autoplay=0&rel=0`;
+      iframe.classList.remove('hidden');
+      document.getElementById('stream-placeholder').classList.add('hidden');
+    }
+
+    function renderServiceTimes(times) {
+      const streamed = times.filter(t => t.streamed === true);
+      if (!streamed.length) return;
+
+      const grid = document.getElementById('service-times-grid');
+      grid.innerHTML = streamed.map(t => {
+        const icon = /PM/i.test(t.time) ? 'fa-moon' : 'fa-sun';
+        return `
+          <div class="flex items-start gap-3">
+            <i class="fas ${icon} text-amber-400 mt-0.5"></i>
+            <div>
+              <p class="font-medium text-white">${t.label}</p>
+              <p>${t.day} — ${t.time}</p>
+            </div>
+          </div>`;
+      }).join('');
+
+      document.getElementById('service-times-card').classList.remove('hidden');
+    }
+
+    document.addEventListener('nav-loaded', loadPage);
   </script>
 </body>
 </html>
