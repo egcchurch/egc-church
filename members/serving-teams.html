@@ -507,6 +507,12 @@
         .forEach((group) => {
           slotsContainer.appendChild(renderRosterTile(team.id, group, isLeader));
         });
+
+      // Highlight a specific slot if the page was opened from a notification link
+      const urlTeamId = new URLSearchParams(window.location.search).get('team');
+      if (!urlTeamId || urlTeamId === team.id) {
+        setTimeout(highlightSlotFromUrl, 150);
+      }
     }
 
     // Common time-of-day labels in chronological order, so "Morning" sorts
@@ -551,6 +557,7 @@
       const label = (slot.functions || []).join(' + ') || '(no function set)';
       const row = document.createElement('div');
       row.className = 'border-t border-zinc-200 pt-2 first:border-t-0 first:pt-0';
+      row.setAttribute('data-slot-id', slot.id);
 
       const leadIsSelf = slot.assignedUid === uid;
       const traineeIsSelf = slot.traineeUid === uid;
@@ -1376,6 +1383,29 @@
         console.error('Delete schedule failed:', err);
         alert('Failed to delete schedule.');
       }
+    }
+
+    // ── Slot deep-link highlight ──────────────────────────────────────────────────
+    // When the page is opened via a notification link (?team=X&slot=Y), scroll
+    // to and briefly highlight the specific slot row so the user sees it immediately.
+
+    function highlightSlotFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const targetSlotId = params.get('slot');
+      if (!targetSlotId) return;
+      const el = document.querySelector(`[data-slot-id="${targetSlotId}"]`);
+      if (!el) return;
+      Object.assign(el.style, {
+        outline: '2px solid #F59E0B',
+        outlineOffset: '2px',
+        borderRadius: '6px',
+        backgroundColor: '#FFFBEB',
+        transition: 'background-color 1.5s, outline 1.5s',
+      });
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => Object.assign(el.style, {
+        outline: '', outlineOffset: '', borderRadius: '', backgroundColor: '', transition: '',
+      }), 6000);
     }
 
     // ── Initial load ──────────────────────────────────────────────────────────────

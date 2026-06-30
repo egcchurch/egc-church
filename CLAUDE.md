@@ -403,10 +403,12 @@ Functions are organised by trigger type:
 - `onNewMessage` — trigger: `/conversations/{conversationId}/messages/{messageId}` created — pushes FCM to recipient (with `webpush.notification.data: { linkUrl: '/members/messages.html?conv={convId}' }` for `notificationclick` tap navigation) and writes in-app notification
 - `onNewPrayerRequest` — trigger: `/prayerRequests/{requestId}` created — if `isPrivate: false`, writes in-app notification to all members; if `isPrivate: true`, writes in-app notification to admins only
 - `onNewConnectForm` — trigger: `/connectForms/{submissionId}` created — writes in-app notification to all admins
+- `onServingSlotReleased` — trigger: `/servingTeams/{teamId}/slots/{slotId}` updated — fires when `assignedUid` changes from set to null (member released their slot); sends FCM push + in-app notification to all team leaders so they can arrange a replacement. Deep link: `?team={teamId}&slot={slotId}` on `/members/serving-teams.html`.
 
 ### Scheduled Functions
 
 - `weeklyDigest` — runs every Sunday morning — compiles recent sermons, events, and announcements, fans out FCM push to all members
+- `sendServingSlotReminders` — runs every morning at 07:00 SAST (05:00 UTC) — queries `collectionGroup('slots')` for today's date; sends each assigned member a FCM push + in-app reminder linking to their specific slot (`?team=X&slot=Y`); sends each team's leaders one aggregated notification listing how many slots are unassigned (avoids per-slot alert fatigue). Requires the `slots` collection group index in `firestore.indexes.json`.
 
 ### Auth Triggers
 
@@ -857,7 +859,7 @@ Firestore rules for `/groups/{groupId}` updates:
 - Firestore database: `(default)` in nam5 region (production mode)
 - Firebase Storage: in use (audio, sermon notes/materials, images, music, cover art)
 - Cloud Messaging (FCM): deployed — VAPID key configured, token registration in js/notifications.js
-- Cloud Functions: 18 functions deployed — see "Cloud Functions Architecture" below for the full, current list
+- Cloud Functions: 21 functions deployed — see "Cloud Functions Architecture" below for the full, current list
 - Authorised domains: localhost, 127.0.0.1, egcchurch.github.io, egc-church.firebaseapp.com, egc-church.web.app, staging.egc.church, app.egc.church
 - Billing plan: **Blaze (pay-as-you-go)** — required for Cloud Functions; usage stays within free tier at church scale
 - Required composite indexes (defined in `firestore.indexes.json`):
