@@ -227,13 +227,7 @@
 
   // Public — logged in, approved but not yet member
   function renderPublic(user, content, announcements) {
-    const firstName = (user.displayName || '').split(' ')[0] || 'there';
     setAdaptive(
-      `<section class="bg-white border-b border-gray-100 py-6 px-6">
-        <div class="max-w-4xl mx-auto">
-          <p class="text-2xl font-bold text-[#0A3D62]">Welcome back, ${esc(firstName)}</p>
-        </div>
-      </section>` +
       buildLiveTeaser(content.liveStream, false) +
       buildAnnouncementsFeed(announcements) +
       `<section class="bg-amber-50 border-y border-amber-100 py-12 px-6">
@@ -258,13 +252,7 @@
 
   // Member — full dashboard (+ optional admin shortcuts strip)
   function renderMember(user, content, announcements, devotional, events, adminCounts) {
-    const firstName = (user.displayName || '').split(' ')[0] || 'there';
     setAdaptive(
-      `<section class="bg-white border-b border-gray-100 py-6 px-6">
-        <div class="max-w-4xl mx-auto">
-          <p class="text-2xl font-bold text-[#0A3D62]">Welcome back, ${esc(firstName)}</p>
-        </div>
-      </section>` +
       buildLiveBanner(content.liveStream, content.serviceTimes) +
       buildQuickLinks() +
       buildAdminShortcutsStrip(adminCounts) +
