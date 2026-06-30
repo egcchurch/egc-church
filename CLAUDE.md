@@ -1019,6 +1019,7 @@ suggestions seen so far — always grep/read first.
 - Append a session entry to `PROGRESS.md` on every PR
 - **Branch sequentially, never in parallel** — when a session produces multiple PRs, wait for each to merge to `main` before creating the next branch. Never create two branches from the same base commit when they modify the same files (e.g. `functions/index.js`). This avoids merge conflicts on rebase.
 - **Discussion must conclude before coding** — when the user asks a question or is describing a requirement, answer the question and wait. Only start writing or deploying code when the user explicitly signals to proceed (e.g. "go ahead", "fix it", "do it"). Do not jump into implementation while the user is still providing context.
+- **No Claude attribution in commits or PRs** — do not add "Co-Authored-By: Claude", "Generated with Claude Code", or any similar AI attribution to commit messages or pull request bodies.
 
 ---
 
