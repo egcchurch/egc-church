@@ -288,6 +288,36 @@
       </section>`;
   }
 
+  // Returns the next upcoming occurrence of a service time entry.
+  // day is a string like "Sunday" / "Wednesday"; time is "10:00 AM" / "7:00 PM".
+  function nextOccurrence(dayStr, timeStr) {
+    const DAY_MAP = { sunday:0, monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6 };
+    const targetDay = DAY_MAP[dayStr.toLowerCase()];
+    if (targetDay === undefined) return Infinity;
+
+    const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!match) return Infinity;
+    let h = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    const meridiem = match[3].toUpperCase();
+    if (meridiem === 'PM' && h !== 12) h += 12;
+    if (meridiem === 'AM' && h === 12) h = 0;
+
+    const now = new Date();
+    const nowDay = now.getDay();
+    let daysAhead = (targetDay - nowDay + 7) % 7;
+    // If it's the same day, check if the time has already passed
+    if (daysAhead === 0) {
+      const serviceMinutes = h * 60 + m;
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      if (nowMinutes >= serviceMinutes) daysAhead = 7;
+    }
+    const next = new Date(now);
+    next.setDate(now.getDate() + daysAhead);
+    next.setHours(h, m, 0, 0);
+    return next;
+  }
+
   // Full live banner for member state — larger, with next-service fallback
   function buildLiveBanner(ls, serviceTimes) {
     if (ls && ls.active) {
@@ -310,8 +340,17 @@
         </section>`;
     }
 
-    const times = serviceTimes && serviceTimes.length ? serviceTimes : DEFAULT_SERVICE_TIMES;
-    const next  = times[0];
+    // Filter to streamed services only, then pick the soonest upcoming one.
+    // DEFAULT_SERVICE_TIMES have no streamed field — treat all as streamed.
+    // Firestore times with streamed:false are filtered out; if none are streamed, show nothing.
+    const allTimes = serviceTimes && serviceTimes.length ? serviceTimes : DEFAULT_SERVICE_TIMES;
+    const usingFirestore = !!(serviceTimes && serviceTimes.length);
+    const eligible = usingFirestore ? allTimes.filter(t => t.streamed === true) : allTimes;
+    if (!eligible.length) return '';
+    const candidates = eligible.map(t => ({ t, next: nextOccurrence(t.day, t.time) }));
+    candidates.sort((a, b) => a.next - b.next);
+    const next = candidates[0].t;
+
     return `
       <section class="bg-[#0A3D62] py-8 px-6">
         <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">

@@ -178,6 +178,10 @@
                class="st-day w-28 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
         <input type="text" placeholder="Time (e.g. 10:00 AM)" value="${esc(t.time || '')}"
                class="st-time w-28 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        <label class="flex items-center gap-1.5 mt-2.5 shrink-0 text-sm text-gray-600 cursor-pointer">
+          <input type="checkbox" class="st-streamed rounded" ${t.streamed ? 'checked' : ''}>
+          Streamed
+        </label>
         <button onclick="this.closest('.service-time-row').remove()"
                 class="mt-2 text-gray-400 hover:text-red-500 transition-colors text-sm px-1">
           <i class="fas fa-trash"></i>
@@ -192,9 +196,10 @@
 
     function collectServiceTimes() {
       return Array.from(document.querySelectorAll('.service-time-row')).map(row => ({
-        label: row.querySelector('.st-label').value.trim(),
-        day:   row.querySelector('.st-day').value.trim(),
-        time:  row.querySelector('.st-time').value.trim(),
+        label:    row.querySelector('.st-label').value.trim(),
+        day:      row.querySelector('.st-day').value.trim(),
+        time:     row.querySelector('.st-time').value.trim(),
+        streamed: row.querySelector('.st-streamed').checked,
       })).filter(t => t.label || t.day || t.time);
     }
 
