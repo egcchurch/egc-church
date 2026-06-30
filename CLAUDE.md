@@ -22,7 +22,7 @@ maintainable, and expandable by non-developers over time.
 | Layer         | Technology                                                           |
 | ------------- | -------------------------------------------------------------------- |
 | Frontend      | HTML5, CSS3, Vanilla JavaScript (ES6)                                |
-| Styling       | Tailwind CSS (CDN browser build)                                     |
+| Styling       | Tailwind CSS v4 (pre-built static CSS via `@tailwindcss/cli`, CI step) |
 | Icons         | Font Awesome 6.5.1 (CDN)                                             |
 | Backend       | Firebase (Auth, Firestore, Storage, FCM)                             |
 | Hosting       | Firebase Hosting (multi-site: egc-staging777, egc-app777)            |
@@ -914,7 +914,7 @@ Storage rules enforce file size and type per path (see `storage.rules`):
 ## Architecture / Design Decisions
 
 - No frontend frameworks — vanilla HTML, CSS, JS only
-- Tailwind CSS via CDN (acceptable trade-off for simplicity)
+- Tailwind CSS v4 pre-built static CSS — generated at CI deploy time by `@tailwindcss/cli`, committed to repo for local dev
 - Firebase is the only approved external dependency (plus Tailwind and Font Awesome)
 - Firebase Hosting (not GitHub Pages) — supports per-PR preview channels, CDN, custom domains, multi-site
 - All paths use `/` as root (not `/egc-church/` — that was the old GitHub Pages subpath)
@@ -984,9 +984,13 @@ suggestions seen so far — always grep/read first.
   centered tile shape — just with the colour unified.
 - **Corners/shape:** `rounded-2xl` for cards/panels, `rounded-xl` for icon containers, `rounded-full` for
   buttons and pills.
-- **Tailwind:** v4 browser CDN build (`@tailwindcss/browser@4` via jsdelivr) — utility classes scanned and
-  generated at runtime in-browser, no build step, no purge/compile. Arbitrary-value classes like
-  `bg-[#0A3D62]/10` work fine with this build.
+- **Tailwind:** v4 pre-built static CSS (`assets/css/tailwind.css`) — built at deploy time by the
+  `@tailwindcss/cli` step in `deploy.yml` and `preview.yml` (input: `assets/css/tailwind-input.css`
+  which just contains `@import "tailwindcss";`; Tailwind v4 auto-scans all HTML files). The built
+  CSS is also committed to the repo for local development (no build step required locally). Arbitrary-
+  value classes like `bg-[#0A3D62]/10` work fine — just make sure any dynamically inserted element
+  with new Tailwind classes also has those classes somewhere in the static HTML source so they get
+  picked up at build time. Bump the cache version when the CSS changes (see cache-version note).
 - **Shared partials (nav.html, admin-nav.html, members-nav.html, footer.html):** injected into a
   placeholder div via `fetch(file).then(html => placeholder.innerHTML = html)` in `js/nav.js`. **A
   `<script>` tag inside a partial fetched this way will never execute** — script tags inserted via

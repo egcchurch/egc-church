@@ -27,6 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Build Tailwind CSS
+        run: |
+          npm install
+          npx @tailwindcss/cli -i assets/css/tailwind-input.css -o assets/css/tailwind.css --minify
+
       - name: Clean up stale PR preview channels
         run: |
           printf '%s' "$FIREBASE_SA" > /tmp/sa.json
