@@ -10,7 +10,22 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-30
-**Current milestone:** Sessions 143–145 — Serving Teams UX polish: name search for adding members (members page), crash fix after add (onSnapshot DOM race), name search + chips for leaders (admin page). Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Sessions 146–148 — Serving Teams schedule cadence: week-of-month checkboxes (replaced by interval), interval-based repeat (every N weeks, exact 14-day spacing), stale member functions fix (read from active slots not team.functions). Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: feat+fix — Serving Teams schedule cadence + member functions fix (Sessions 146–148)
+
+**Date:** 2026-06-30
+**PRs:** #228 (week-of-month), #229 (CLAUDE.md no-attribution), #230 (closed — superseded), #231 (interval-based repeat), #232 (member functions from slots)
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`members/serving-teams.html`** (PR #228, superseded by #231) — added week-of-month checkboxes (1st–5th) to schedule pattern rows. Replaced by PR #231 after the calendar-month approach was found to drift.
+- **`CLAUDE.md`** (PR #229) — added rule: no Claude/AI attribution in commit messages or PR bodies.
+- **`members/serving-teams.html`** (PR #231) — replaced week-of-month checkboxes with a "Repeat every N week(s)" number input per pattern row. Generator now steps by exactly N × 7 days from the first matching date — no calendar drift. Existing weekly schedules (no `repeatEveryWeeks` field) default to 1, backward compatible.
+- **`members/serving-teams.html`** (PR #232) — fixed member functions modal showing stale functions from deleted schedules. `team.functions` is additive-only and retains entries from deleted schedules/slots. Modal now derives the function list from `teamSlotsCache` (active slots in memory) instead, so only currently-used functions appear.
 
 ---
 
