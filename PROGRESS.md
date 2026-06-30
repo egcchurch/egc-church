@@ -9,8 +9,22 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-06-29
-**Current milestone:** Session 142 — replaced UID-based add-member flow on Serving Teams with name search. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Last worked on:** 2026-06-30
+**Current milestone:** Sessions 143–145 — Serving Teams UX polish: name search for adding members (members page), crash fix after add (onSnapshot DOM race), name search + chips for leaders (admin page). Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: feat+fix — Serving Teams UX polish (Sessions 143–145)
+
+**Date:** 2026-06-30
+**PRs:** #223 (member name search), #225 (add-member DOM crash fix), #226 (admin leader name search)
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`members/serving-teams.html`** (PR #223) — replaced the "Member UID" text input with a type-ahead name search for the leader "Add Member" flow. Leader types ≥ 2 characters → dropdown of matching directory-visible members → click to select → click Add. Uses `membership + directoryVisible` composite index; roster cached in-session.
+- **`members/serving-teams.html`** (PR #225) — fixed crash `TypeError: can't access property "value", document.getElementById(...) is null` after a successful member add. Root cause: `loadTeams()` uses `onSnapshot`; the Firestore update triggers the listener which rebuilds the card DOM before the `await` resolves, destroying the input element. Fix: removed the redundant post-add `getElementById(...).value = ''` line — the card rebuild already gives a blank input.
+- **`admin/serving-teams.html`** (PR #226) — replaced the "Leader UIDs (comma separated)" text field with a name search + chip UI. Type ≥ 2 characters → dropdown → select → navy chip with × remove button. Multiple leaders supported; existing leaders resolve to names when the edit form opens. Same Firestore query pattern as the members page.
 
 ---
 
