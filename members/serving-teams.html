@@ -117,7 +117,7 @@
         <h3 class="text-lg font-bold text-[#0A3D62]" id="generate-modal-title">New Schedule</h3>
         <button onclick="closeGenerateModal()" class="text-zinc-400 hover:text-zinc-600"><i class="fas fa-times text-xl"></i></button>
       </div>
-      <p class="text-xs text-zinc-400 mb-4">Define the recurring services and pick which weeks of the month they apply (leave all unticked for every week). Then generate every open slot for a date range in one go. Saving changes regenerates slots from the updated definition.</p>
+      <p class="text-xs text-zinc-400 mb-4">Define the recurring services and how often they repeat — every week, every 2 weeks, etc. Then generate every open slot for a date range in one go. Saving changes regenerates slots from the updated definition.</p>
 
       <datalist id="generate-functions-datalist"></datalist>
 
@@ -993,10 +993,9 @@
     function renderScheduleRowHtml(teamId, schedule, slots) {
       const count = slots.filter((s) => s.scheduleId === schedule.id).length;
       const patSummary = (schedule.patterns || []).map((p) => {
-        const weekNote = (p.weekOfMonth && p.weekOfMonth.length)
-          ? ' [' + p.weekOfMonth.map((w) => WEEK_ORDINALS[w - 1]).join(', ') + ']'
-          : '';
-        return `${DAY_NAMES[p.dayOfWeek].slice(0, 3)}${weekNote}${p.label ? ' (' + escapeHtml(p.label) + ')' : ''}: ${(p.functions || []).map(escapeHtml).join(', ')}`;
+        const interval = p.repeatEveryWeeks || 1;
+        const freq = interval > 1 ? ` (every ${interval} weeks)` : '';
+        return `${DAY_NAMES[p.dayOfWeek].slice(0, 3)}${freq}${p.label ? ' (' + escapeHtml(p.label) + ')' : ''}: ${(p.functions || []).map(escapeHtml).join(', ')}`;
       }).join(' &middot; ') || '(no services defined)';
       return `
         <div class="bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3">
@@ -1041,10 +1040,10 @@
         dayOfWeek: p.dayOfWeek ?? 0,
         label: p.label || '',
         functions: Array.isArray(p.functions) ? p.functions.slice() : [],
-        weekOfMonth: Array.isArray(p.weekOfMonth) ? p.weekOfMonth.slice() : [],
+        repeatEveryWeeks: p.repeatEveryWeeks || 1,
       }));
       if (!generatePatternRows.length) {
-        generatePatternRows.push({ id: newPatternRowId(), dayOfWeek: 0, label: '', functions: [], weekOfMonth: [] });
+        generatePatternRows.push({ id: newPatternRowId(), dayOfWeek: 0, label: '', functions: [], repeatEveryWeeks: 1 });
       }
 
       const dl = document.getElementById('generate-functions-datalist');
@@ -1071,7 +1070,7 @@
     }
 
     function addPatternRow() {
-      generatePatternRows.push({ id: newPatternRowId(), dayOfWeek: 0, label: '', functions: [], weekOfMonth: [] });
+      generatePatternRows.push({ id: newPatternRowId(), dayOfWeek: 0, label: '', functions: [], repeatEveryWeeks: 1 });
       renderGeneratePatternRows();
     }
 
@@ -1081,20 +1080,13 @@
     }
 
     function updatePatternRowField(idx, field, value) {
-      generatePatternRows[idx][field] = field === 'dayOfWeek' ? parseInt(value, 10) : value;
-    }
-
-    function toggleWeekOfMonth(idx, week) {
-      const row = generatePatternRows[idx];
-      if (!row.weekOfMonth) row.weekOfMonth = [];
-      const pos = row.weekOfMonth.indexOf(week);
-      if (pos === -1) {
-        row.weekOfMonth.push(week);
-        row.weekOfMonth.sort((a, b) => a - b);
+      if (field === 'dayOfWeek') {
+        generatePatternRows[idx][field] = parseInt(value, 10);
+      } else if (field === 'repeatEveryWeeks') {
+        generatePatternRows[idx][field] = Math.max(1, parseInt(value, 10) || 1);
       } else {
-        row.weekOfMonth.splice(pos, 1);
+        generatePatternRows[idx][field] = value;
       }
-      // Checkboxes update their own visual state on click; no re-render needed.
     }
 
     function addPatternFunctionChip(idx) {
@@ -1113,8 +1105,6 @@
       renderGeneratePatternRows();
     }
 
-    const WEEK_ORDINALS = ['1st', '2nd', '3rd', '4th', '5th'];
-
     function renderGeneratePatternRows() {
       const container = document.getElementById('generate-pattern-rows');
       container.innerHTML = generatePatternRows.map((row, idx) => `
@@ -1128,17 +1118,12 @@
                    class="flex-1 border border-zinc-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
             <button type="button" onclick="removePatternRow(${idx})" title="Remove service" class="text-zinc-300 hover:text-red-500"><i class="fas fa-trash"></i></button>
           </div>
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <span class="text-xs text-zinc-500">Weeks:</span>
-            ${WEEK_ORDINALS.map((label, wi) => `
-              <label class="flex items-center gap-1 text-xs text-zinc-600 cursor-pointer select-none">
-                <input type="checkbox" class="w-3.5 h-3.5 accent-amber-500"
-                       onclick="toggleWeekOfMonth(${idx}, ${wi + 1})"
-                       ${(row.weekOfMonth || []).includes(wi + 1) ? 'checked' : ''}>
-                ${label}
-              </label>
-            `).join('')}
-            <span class="text-xs text-zinc-400 italic ml-1">(untick all&nbsp;=&nbsp;every&nbsp;week)</span>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-zinc-500">Repeat every</span>
+            <input type="number" min="1" max="52" value="${row.repeatEveryWeeks || 1}"
+                   oninput="updatePatternRowField(${idx}, 'repeatEveryWeeks', this.value)"
+                   class="w-16 border border-zinc-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-400">
+            <span class="text-xs text-zinc-500">week(s)</span>
           </div>
           <div class="flex gap-2">
             <input type="text" id="pattern-fn-input-${idx}" list="generate-functions-datalist" placeholder="Add a function, e.g. Sound"
@@ -1170,23 +1155,19 @@
     }
 
     // All dates between start/end (inclusive, YYYY-MM-DD strings) that fall on
-    // the given day of week (0=Sunday..6=Saturday, matching Date#getDay()) and,
-    // when weekOfMonth is a non-empty array, only on the specified occurrences
-    // of that day within each calendar month (1=1st, 2=2nd … 5=5th).
-    // Empty weekOfMonth means every week (no filtering).
-    function getDatesForPattern(startStr, endStr, dayOfWeek, weekOfMonth) {
+    // the given day of week (0=Sunday..6=Saturday) and repeat every N weeks
+    // from the first occurrence. repeatEveryWeeks=1 gives every week, 2 gives
+    // fortnightly, etc. Intervals are exact (N×7 days) so spacing never drifts.
+    function getDatesForPattern(startStr, endStr, dayOfWeek, repeatEveryWeeks) {
       const dates = [];
       const cursor = new Date(startStr + 'T00:00:00');
       const end = new Date(endStr + 'T00:00:00');
       const offset = (dayOfWeek - cursor.getDay() + 7) % 7;
       cursor.setDate(cursor.getDate() + offset);
-      const filterWeeks = weekOfMonth && weekOfMonth.length > 0;
+      const stepDays = Math.max(1, repeatEveryWeeks || 1) * 7;
       while (cursor <= end) {
-        const occurrence = Math.ceil(cursor.getDate() / 7);
-        if (!filterWeeks || weekOfMonth.includes(occurrence)) {
-          dates.push(formatDateLocal(cursor));
-        }
-        cursor.setDate(cursor.getDate() + 7);
+        dates.push(formatDateLocal(cursor));
+        cursor.setDate(cursor.getDate() + stepDays);
       }
       return dates;
     }
@@ -1197,7 +1178,7 @@
     function buildSlotDefsFromPatterns(patterns, startDate, endDate) {
       const defs = [];
       (patterns || []).filter((r) => (r.functions || []).length > 0).forEach((row) => {
-        const dates = getDatesForPattern(startDate, endDate, row.dayOfWeek, row.weekOfMonth || []);
+        const dates = getDatesForPattern(startDate, endDate, row.dayOfWeek, row.repeatEveryWeeks || 1);
         dates.forEach((date) => {
           row.functions.forEach((fn) => {
             defs.push({ date, label: row.label || null, functions: [fn] });
@@ -1296,7 +1277,7 @@
 
       const teamId = generateModalTeamId;
       const scheduleId = generateModalScheduleId;
-      const patternsToSave = activeRows.map((r) => ({ id: r.id, dayOfWeek: r.dayOfWeek, label: r.label || null, functions: r.functions, weekOfMonth: r.weekOfMonth && r.weekOfMonth.length ? r.weekOfMonth : [] }));
+      const patternsToSave = activeRows.map((r) => ({ id: r.id, dayOfWeek: r.dayOfWeek, label: r.label || null, functions: r.functions, repeatEveryWeeks: r.repeatEveryWeeks || 1 }));
       const scheduleData = { name, patterns: patternsToSave, startDate, endDate };
 
       try {
