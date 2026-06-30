@@ -10,15 +10,15 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-01
-**Current milestone:** Session 150 — Auth flash fix + Tailwind pre-built CSS + preconnect hints. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 150 complete — Auth flash fix + Tailwind pre-built CSS + preconnect hints. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
 
 ---
 
 ## Session: perf — Auth flash fix + Tailwind pre-built CSS + preconnect hints (Session 150)
 
 **Date:** 2026-07-01
-**PR:** #236 (pending)
-**Status:** In progress
+**PR:** #236
+**Status:** Merged, deployed to production
 
 ### What was done
 
