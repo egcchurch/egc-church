@@ -25,14 +25,14 @@
 - **`functions/index.js`** — added two new Cloud Functions:
   - `sendServingSlotReminders` (scheduled, 07:00 SAST daily) — queries `collectionGroup('slots')` for today's date; sends each assigned member and trainee a FCM push + in-app notification linking to their specific slot (`?team=X&slot=Y` deep link); sends each team's leaders one aggregated notification per team for any unassigned slots (avoids per-slot spam).
   - `onServingSlotReleased` (Firestore trigger on `/servingTeams/{teamId}/slots/{slotId}` updates) — fires when `assignedUid` changes from set to null; notifies all team leaders with a FCM push + in-app: "[Name] can't make it for [function] on [date] — slot is now open." Deep link goes to the specific slot.
-- **`firestore.indexes.json`** — added a `COLLECTION_GROUP` scoped index on `slots/date` (required for the cross-team `collectionGroup('slots').where('date', '==', today)` query).
+- **`firestore.indexes.json`** — added a `COLLECTION_GROUP` index on `slots/date` (PR #234), then removed it in PR #235 — the Firebase CLI rejected it with "this index is not necessary"; Firestore handles single-field collection group queries automatically.
 - **`members/serving-teams.html`** — added `data-slot-id` attribute to each slot row; added `highlightSlotFromUrl()` which reads `?slot=` from the URL, finds the slot element, scrolls to it, and applies a 6-second amber highlight; called at the end of `renderRosterSection` for teams matching the URL's `?team=` param.
 - **`CLAUDE.md`** — updated function count (18 → 21), documented both new functions in the Cloud Functions Architecture section.
 
 ### Deploy note
 
 After merging, run: `firebase deploy --only functions`
-Also deploy updated Firestore indexes: `firebase deploy --only firestore:indexes`
+No Firestore index changes needed — single-field collection group queries are handled automatically.
 
 ---
 

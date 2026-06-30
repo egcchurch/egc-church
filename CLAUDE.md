@@ -408,7 +408,7 @@ Functions are organised by trigger type:
 ### Scheduled Functions
 
 - `weeklyDigest` — runs every Sunday morning — compiles recent sermons, events, and announcements, fans out FCM push to all members
-- `sendServingSlotReminders` — runs every morning at 07:00 SAST (05:00 UTC) — queries `collectionGroup('slots')` for today's date; sends each assigned member a FCM push + in-app reminder linking to their specific slot (`?team=X&slot=Y`); sends each team's leaders one aggregated notification listing how many slots are unassigned (avoids per-slot alert fatigue). Requires the `slots` collection group index in `firestore.indexes.json`.
+- `sendServingSlotReminders` — runs every morning at 07:00 SAST (05:00 UTC) — queries `collectionGroup('slots')` for today's date; sends each assigned member a FCM push + in-app reminder linking to their specific slot (`?team=X&slot=Y`); sends each team's leaders one aggregated notification listing how many slots are unassigned (avoids per-slot alert fatigue). Single-field collection group queries are handled automatically by Firestore — no manual index entry needed.
 
 ### Auth Triggers
 
