@@ -613,18 +613,23 @@
       document.getElementById('member-functions-name').textContent = name;
 
       const team = teamsCache[teamId] || {};
-      const teamFunctions = team.functions || [];
+      // Derive the function list from actual current slots, not team.functions.
+      // team.functions is additive-only and retains stale entries from deleted
+      // schedules/slots; slots are the authoritative source of what's active.
+      const activeFunctions = [...new Set(
+        (teamSlotsCache[teamId] || []).flatMap((s) => s.functions || [])
+      )].sort();
       const mine = (team.memberFunctions || {})[uid] || [];
 
       const container = document.getElementById('member-functions-checkboxes');
-      container.innerHTML = teamFunctions.length
-        ? teamFunctions.map((f) => `
+      container.innerHTML = activeFunctions.length
+        ? activeFunctions.map((f) => `
             <label class="flex items-center gap-2 text-sm text-zinc-700 cursor-pointer select-none">
               <input type="checkbox" class="member-fn-checkbox w-4 h-4 accent-amber-500" value="${escapeHtml(f)}" ${mine.includes(f) ? 'checked' : ''}>
               ${escapeHtml(f)}
             </label>
           `).join('')
-        : '<p class="text-xs text-zinc-400 italic">This team has no functions yet — add one via "Add Slot" or a Schedule first.</p>';
+        : '<p class="text-xs text-zinc-400 italic">This team has no slots yet — add one via "Add Slot" or a Schedule first.</p>';
 
       document.getElementById('member-functions-modal').classList.remove('hidden');
     }
