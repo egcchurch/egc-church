@@ -4,6 +4,13 @@
 // Include on every /members/*.html page.
 
 (function () {
+  // Hide the page immediately (runs synchronously in <head>, before <body> renders)
+  // so protected content never flashes before auth resolves. Removed on access
+  // granted or when the access-denied overlay is shown instead.
+  var _authStyle = document.createElement('style');
+  _authStyle.textContent = 'body{visibility:hidden}';
+  document.head.appendChild(_authStyle);
+
   var MEMBER_TIERS = ['member'];
 
   function showAccessDenied(reason, user) {
@@ -77,6 +84,7 @@
       return '<button onclick="' + fn + '" style="' + style + '">' + b.label + '</button>';
     }).join('');
 
+    _authStyle.remove(); // reveal page so the overlay below is visible
     var overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:#f9fafb;z-index:9999;display:flex;align-items:center;justify-content:center;padding:1.5rem;';
     overlay.innerHTML =
@@ -124,6 +132,8 @@
           var data = doc.data();
           if (!MEMBER_TIERS.includes(data.membership)) {
             showAccessDenied(data.membership === 'pending' ? 'pending' : 'public', user);
+          } else {
+            _authStyle.remove(); // access confirmed — reveal page
           }
         })
         .catch(function (err) {

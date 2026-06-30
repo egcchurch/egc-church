@@ -11,6 +11,13 @@
 // or a non-empty perms list (admin dashboard page uses this form).
 
 (function () {
+  // Hide the page immediately (runs synchronously in <head>, before <body> renders)
+  // so protected content never flashes before auth resolves. Removed on access
+  // granted or when the access-denied overlay is shown instead.
+  var _authStyle = document.createElement('style');
+  _authStyle.textContent = 'body{visibility:hidden}';
+  document.head.appendChild(_authStyle);
+
   // Capture synchronously — document.currentScript is null inside async callbacks.
   var requiredPerm = document.currentScript ? document.currentScript.dataset.requirePerm : null;
 
@@ -45,6 +52,7 @@
       return '<a href="' + b.href + '" style="' + style + '">' + b.label + '</a>';
     }).join('');
 
+    _authStyle.remove(); // reveal page so the overlay below is visible
     var overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:#f9fafb;z-index:9999;display:flex;align-items:center;justify-content:center;padding:1.5rem;';
     overlay.innerHTML =
@@ -89,8 +97,13 @@
 
           if (requiredPerm) {
             var ok = isSuperadmin || (Array.isArray(claims.perms) && claims.perms.includes(requiredPerm));
-            if (!ok) showAccessDenied('insufficient-permission');
+            if (!ok) {
+              showAccessDenied('insufficient-permission');
+              return;
+            }
           }
+
+          _authStyle.remove(); // access confirmed — reveal page
         })
         .catch(function (err) {
           console.error('Admin auth check failed:', err);

@@ -9,8 +9,25 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-06-30
-**Current milestone:** Session 149 — Serving slot morning-of notifications: daily 7 AM SAST Cloud Function, leader notifications on slot release, deep-link highlight on member page. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Last worked on:** 2026-07-01
+**Current milestone:** Session 150 — Auth flash fix + Tailwind pre-built CSS + preconnect hints. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: perf — Auth flash fix + Tailwind pre-built CSS + preconnect hints (Session 150)
+
+**Date:** 2026-07-01
+**PR:** #236 (pending)
+**Status:** In progress
+
+### What was done
+
+- **Auth flash fix (`js/member-auth.js`, `js/admin-auth.js`)** — both auth guard scripts now inject `<style>body{visibility:hidden}</style>` into `document.head` synchronously (before `<body>` renders), preventing any flash of protected content. The style is removed on the access-granted path or just before the access-denied overlay is shown.
+- **Tailwind CDN → pre-built CSS** — replaced `@tailwindcss/browser@4` CDN script with a locally-built static CSS file (`assets/css/tailwind.css`). Input file: `assets/css/tailwind-input.css` (`@import "tailwindcss"`). Both `deploy.yml` and `preview.yml` now run `npm install && npx @tailwindcss/cli -i ... -o ... --minify` before the Firebase deploy. CSS committed to repo for local dev. File size: ~60KB (vs ~400KB CDN runtime build). Updated 43 HTML files.
+- **Preconnect hints** — added `<link rel="preconnect" href="https://www.gstatic.com" crossorigin>` and `<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>` to all 43 HTML files, establishing early connections to Firebase SDK and Font Awesome CDN origins.
+- **`service-worker.js`** — added `/assets/css/tailwind.css` to PRECACHE_URLS, removed `cdn.jsdelivr.net` from CDN_ORIGINS (no longer used), bumped cache to v67.
+- **`package.json`** — added `@tailwindcss/cli` and `tailwindcss` as devDependencies.
+- **`CLAUDE.md`** — updated Tech Stack and Design System Tailwind entries to reflect pre-built approach.
 
 ---
 

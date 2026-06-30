@@ -40,7 +40,7 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-const CACHE_NAME = 'egc-cache-v66';
+const CACHE_NAME = 'egc-cache-v67';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -115,6 +115,7 @@ const PRECACHE_URLS = [
   '/js/footer.js',
   '/js/welcome-carousel.js',
   '/js/branham-sermons.js',
+  '/assets/css/tailwind.css',
   '/assets/css/custom.css',
   '/manifest.json',
   '/assets/images/icons/icon-192.png',
@@ -123,7 +124,6 @@ const PRECACHE_URLS = [
 
 // CDN origins to cache on first fetch (runtime caching)
 const CDN_ORIGINS = [
-  'cdn.jsdelivr.net',
   'cdnjs.cloudflare.com',
   'www.gstatic.com',
 ];
