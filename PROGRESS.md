@@ -10,7 +10,29 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-06-30
-**Current milestone:** Sessions 146–148 — Serving Teams schedule cadence: week-of-month checkboxes (replaced by interval), interval-based repeat (every N weeks, exact 14-day spacing), stale member functions fix (read from active slots not team.functions). Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 149 — Serving slot morning-of notifications: daily 7 AM SAST Cloud Function, leader notifications on slot release, deep-link highlight on member page. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: feat — Serving slot morning-of notifications (Session 149)
+
+**Date:** 2026-06-30
+**PR:** #234
+**Status:** Merged, deployed to production (Cloud Functions deployed manually after merge)
+
+### What was done
+
+- **`functions/index.js`** — added two new Cloud Functions:
+  - `sendServingSlotReminders` (scheduled, 07:00 SAST daily) — queries `collectionGroup('slots')` for today's date; sends each assigned member and trainee a FCM push + in-app notification linking to their specific slot (`?team=X&slot=Y` deep link); sends each team's leaders one aggregated notification per team for any unassigned slots (avoids per-slot spam).
+  - `onServingSlotReleased` (Firestore trigger on `/servingTeams/{teamId}/slots/{slotId}` updates) — fires when `assignedUid` changes from set to null; notifies all team leaders with a FCM push + in-app: "[Name] can't make it for [function] on [date] — slot is now open." Deep link goes to the specific slot.
+- **`firestore.indexes.json`** — added a `COLLECTION_GROUP` scoped index on `slots/date` (required for the cross-team `collectionGroup('slots').where('date', '==', today)` query).
+- **`members/serving-teams.html`** — added `data-slot-id` attribute to each slot row; added `highlightSlotFromUrl()` which reads `?slot=` from the URL, finds the slot element, scrolls to it, and applies a 6-second amber highlight; called at the end of `renderRosterSection` for teams matching the URL's `?team=` param.
+- **`CLAUDE.md`** — updated function count (18 → 21), documented both new functions in the Cloud Functions Architecture section.
+
+### Deploy note
+
+After merging, run: `firebase deploy --only functions`
+Also deploy updated Firestore indexes: `firebase deploy --only firestore:indexes`
 
 ---
 

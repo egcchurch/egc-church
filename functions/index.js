@@ -1158,6 +1158,153 @@ async function sendUserNotification(uid, { title, body, type, linkUrl }) {
   }
 }
 
+// ── sendServingSlotReminders ───────────────────────────────────────────────────
+// Scheduled daily at 07:00 SAST (05:00 UTC).
+// Queries all slots across every serving team for today's date.
+// - Each assigned member gets a push + in-app reminder linking directly to their slot.
+// - Each trainee (when trainingEnabled) gets the same.
+// - Team leaders receive one aggregated push + in-app per team for any open slots,
+//   rather than one notification per slot, to avoid alert fatigue.
+
+function sastDateStr() {
+  const sast = new Date(Date.now() + 2 * 60 * 60 * 1000); // UTC+2, no DST
+  const y = sast.getUTCFullYear();
+  const m = String(sast.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(sast.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+exports.sendServingSlotReminders = functions.pubsub
+  .schedule('0 5 * * *')
+  .timeZone('UTC')
+  .onRun(async () => {
+    const today = sastDateStr();
+    const slotsSnap = await db.collectionGroup('slots').where('date', '==', today).get();
+
+    if (slotsSnap.empty) {
+      console.log(`sendServingSlotReminders: no slots for ${today}`);
+      return null;
+    }
+
+    // Fetch each team doc once
+    const teamIds = new Set(slotsSnap.docs.map(d => d.ref.parent.parent.id));
+    const teamDocs = {};
+    await Promise.all([...teamIds].map(async (teamId) => {
+      const doc = await db.collection('servingTeams').doc(teamId).get();
+      if (doc.exists) teamDocs[teamId] = doc.data();
+    }));
+
+    const sends = [];
+    // Aggregate open-slot counts per team for leader notifications
+    const teamLeaderAlerts = {}; // teamId -> { teamName, leaders, openCount }
+
+    slotsSnap.docs.forEach(doc => {
+      const slot = doc.data();
+      const slotId = doc.id;
+      const teamId = doc.ref.parent.parent.id;
+      const team = teamDocs[teamId];
+      if (!team) return;
+
+      const teamName = team.name || 'Serving Team';
+      const fnLabel = (slot.functions || []).join(' + ') || 'your position';
+      const slotUrl = `/members/serving-teams.html?team=${teamId}&slot=${slotId}`;
+
+      if (slot.assignedUid) {
+        sends.push(sendUserNotification(slot.assignedUid, {
+          title: `Serving today — ${teamName}`,
+          body: `You're on ${fnLabel}. Tap to view your slot or release if you can't make it.`,
+          type: 'serving_reminder',
+          linkUrl: slotUrl,
+        }));
+      }
+
+      if (slot.trainingEnabled && slot.traineeUid) {
+        sends.push(sendUserNotification(slot.traineeUid, {
+          title: `Serving today — ${teamName}`,
+          body: `You're the trainee for ${fnLabel}. Tap to view your slot or release if you can't make it.`,
+          type: 'serving_reminder',
+          linkUrl: slotUrl,
+        }));
+      }
+
+      // Collect open main slots per team so leaders get one aggregated notification
+      if (!slot.assignedUid && (team.leaders || []).length) {
+        if (!teamLeaderAlerts[teamId]) {
+          teamLeaderAlerts[teamId] = { teamName, leaders: team.leaders || [], openCount: 0 };
+        }
+        teamLeaderAlerts[teamId].openCount++;
+      }
+    });
+
+    // One notification per leader per team with open slots
+    for (const [teamId, info] of Object.entries(teamLeaderAlerts)) {
+      const linkUrl = `/members/serving-teams.html?team=${teamId}`;
+      const n = info.openCount;
+      const body = `${n} slot${n !== 1 ? 's are' : ' is'} unassigned for today's service. Tap to view the roster.`;
+      for (const leaderUid of info.leaders) {
+        sends.push(sendUserNotification(leaderUid, {
+          title: `${info.teamName} — open slot${n !== 1 ? 's' : ''} today`,
+          body,
+          type: 'serving_open',
+          linkUrl,
+        }));
+      }
+    }
+
+    await Promise.allSettled(sends);
+    console.log(`sendServingSlotReminders: ${slotsSnap.size} slots for ${today}, ${sends.length} sends queued`);
+    return null;
+  });
+
+// ── onServingSlotReleased ─────────────────────────────────────────────────────
+// Triggered when a serving slot is updated.
+// When the assigned member releases their slot (assignedUid set → null),
+// notifies all team leaders so they can arrange a replacement.
+
+exports.onServingSlotReleased = functions.firestore
+  .document('servingTeams/{teamId}/slots/{slotId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after  = change.after.data();
+    const { teamId, slotId } = context.params;
+
+    // Only fire when the lead position is released (not trainee releases)
+    if (!before.assignedUid || after.assignedUid) return null;
+
+    const releasedName = before.assignedName || 'A team member';
+    const fnLabel = (after.functions || before.functions || []).join(' + ') || 'their slot';
+    const date = after.date || before.date || '';
+    let formattedDate = 'today';
+    if (date) {
+      try {
+        formattedDate = new Date(date + 'T00:00:00').toLocaleDateString('en-ZA', {
+          weekday: 'short', day: 'numeric', month: 'short',
+        });
+      } catch (_) { formattedDate = date; }
+    }
+
+    const teamDoc = await db.collection('servingTeams').doc(teamId).get();
+    if (!teamDoc.exists) return null;
+    const team = teamDoc.data();
+    const leaders = team.leaders || [];
+    if (!leaders.length) return null;
+
+    const teamName = team.name || 'Serving Team';
+    const linkUrl = `/members/serving-teams.html?team=${teamId}&slot=${slotId}`;
+
+    await Promise.allSettled(leaders.map(leaderUid =>
+      sendUserNotification(leaderUid, {
+        title: `${teamName} — slot released`,
+        body: `${releasedName} can't make it for ${fnLabel} on ${formattedDate}. The slot is now open.`,
+        type: 'serving_released',
+        linkUrl,
+      })
+    ));
+
+    console.log(`onServingSlotReleased: notified ${leaders.length} leader(s) for team ${teamId}`);
+    return null;
+  });
+
 // Normalise a SA mobile number to international digits (no +): 0XXXXXXXXX -> 27XXXXXXXXX.
 function normaliseSaNumber(raw) {
   const d = String(raw || '').replace(/[^0-9]/g, '');
