@@ -1174,6 +1174,8 @@
     // when weekOfMonth is a non-empty array, only on the specified occurrences
     // of that day within each calendar month (1=1st, 2=2nd … 5=5th).
     // Empty weekOfMonth means every week (no filtering).
+    // The very first occurrence (on or after startStr) is always included — a
+    // 5th-week start date must not be silently dropped because 5 is not ticked.
     function getDatesForPattern(startStr, endStr, dayOfWeek, weekOfMonth) {
       const dates = [];
       const cursor = new Date(startStr + 'T00:00:00');
@@ -1181,11 +1183,13 @@
       const offset = (dayOfWeek - cursor.getDay() + 7) % 7;
       cursor.setDate(cursor.getDate() + offset);
       const filterWeeks = weekOfMonth && weekOfMonth.length > 0;
+      let isFirst = true;
       while (cursor <= end) {
         const occurrence = Math.ceil(cursor.getDate() / 7);
-        if (!filterWeeks || weekOfMonth.includes(occurrence)) {
+        if (!filterWeeks || isFirst || weekOfMonth.includes(occurrence)) {
           dates.push(formatDateLocal(cursor));
         }
+        isFirst = false;
         cursor.setDate(cursor.getDate() + 7);
       }
       return dates;
