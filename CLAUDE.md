@@ -991,6 +991,14 @@ suggestions seen so far — always grep/read first.
   value classes like `bg-[#0A3D62]/10` work fine — just make sure any dynamically inserted element
   with new Tailwind classes also has those classes somewhere in the static HTML source so they get
   picked up at build time. Bump the cache version when the CSS changes (see cache-version note).
+  **⚠ CLI scanner limitation:** the scanner only reads static source files — it cannot see Tailwind
+  classes added at runtime by JavaScript. A class used only in `element.classList.add('...')` or
+  a template string in JS will be absent from the built CSS and silently have no effect. Two safe
+  approaches: (1) **preferred** — use inline `style` / `style.cssText` for any element created or
+  heavily modified in JS (this is already the pattern in the auth overlays, notification toasts,
+  and slot highlights — keep it); (2) if you must use a Tailwind class in a JS-generated element,
+  ensure that exact class string also appears verbatim somewhere in a static HTML file so the
+  scanner picks it up.
 - **Shared partials (nav.html, admin-nav.html, members-nav.html, footer.html):** injected into a
   placeholder div via `fetch(file).then(html => placeholder.innerHTML = html)` in `js/nav.js`. **A
   `<script>` tag inside a partial fetched this way will never execute** — script tags inserted via
