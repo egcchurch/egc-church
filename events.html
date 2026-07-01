@@ -106,18 +106,18 @@
       <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
 
         <!-- Day of week headers -->
-        <div class="grid grid-cols-7 border-b border-zinc-100 bg-zinc-50">
-          <div class="text-center text-xs font-semibold text-zinc-400 py-2.5">Sun</div>
-          <div class="text-center text-xs font-semibold text-zinc-400 py-2.5">Mon</div>
-          <div class="text-center text-xs font-semibold text-zinc-400 py-2.5">Tue</div>
-          <div class="text-center text-xs font-semibold text-zinc-400 py-2.5">Wed</div>
-          <div class="text-center text-xs font-semibold text-zinc-400 py-2.5">Thu</div>
-          <div class="text-center text-xs font-semibold text-zinc-400 py-2.5">Fri</div>
-          <div class="text-center text-xs font-semibold text-zinc-400 py-2.5">Sat</div>
+        <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-bottom:1px solid #f4f4f5;background:#fafafa;">
+          <div style="text-align:center;font-size:11px;font-weight:600;color:#a1a1aa;padding:10px 0">Su</div>
+          <div style="text-align:center;font-size:11px;font-weight:600;color:#a1a1aa;padding:10px 0">Mo</div>
+          <div style="text-align:center;font-size:11px;font-weight:600;color:#a1a1aa;padding:10px 0">Tu</div>
+          <div style="text-align:center;font-size:11px;font-weight:600;color:#a1a1aa;padding:10px 0">We</div>
+          <div style="text-align:center;font-size:11px;font-weight:600;color:#a1a1aa;padding:10px 0">Th</div>
+          <div style="text-align:center;font-size:11px;font-weight:600;color:#a1a1aa;padding:10px 0">Fr</div>
+          <div style="text-align:center;font-size:11px;font-weight:600;color:#a1a1aa;padding:10px 0">Sa</div>
         </div>
 
         <!-- Grid — filled by JS -->
-        <div id="cal-grid" class="grid grid-cols-7"></div>
+        <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr))"></div>
 
       </div>
 
@@ -144,7 +144,7 @@
           <span class="w-2 h-2 rounded-full bg-amber-500 shrink-0" style="box-shadow:0 0 0 4px rgba(245,158,11,0.15)"></span>
           <h3 id="day-panel-title" class="text-lg font-bold text-[#0A3D62]"></h3>
         </div>
-        <div id="day-events" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+        <div id="day-events" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;"></div>
       </div>
 
       <!-- Empty state -->
