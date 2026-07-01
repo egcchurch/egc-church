@@ -10,7 +10,29 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-01
-**Current milestone:** Session 156 complete — Notification cleanup: scheduled auto-prune (30 days) + "Clear all" button + delete rule fix (PRs #254, #255, #257). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 157 complete — Notices page rebuilt as monthly grid calendar (PR #259). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: feat — Notices page as monthly calendar (Session 157)
+
+**Date:** 2026-07-01
+**PR:** #259
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`events.html`** — rebuilt as a monthly calendar view. Header, category filter, and footer unchanged. Calendar features:
+  - Month navigation (prev/next arrows + "Today" pill that appears when not on the current month)
+  - 7-column grid (Sun–Sat headers, day cells with day number + coloured dots for events)
+  - Today highlighted with amber circle; selected date with navy circle + light blue cell bg
+  - Colour-coded dots by category (blue = Service, green = Group, amber = Special, grey = Other); up to 3 dots then "+N" overflow
+  - Tapping a date with events opens a detail panel below the calendar showing event cards with image, title, date/time, location, description, and RSVP button
+  - Legend below the grid explaining dot colours
+  - Empty state for months with no events
+  - Category filter updates dot display in real time
+- **`js/events.js`** — complete rewrite. Removed hero card, Today/This Week/Coming Up sections. Added `currentMonth`, `selectedDate`, `renderCalendar()`, `selectDay()`, `renderDayPanel()`, `buildDayCard()`, `prevMonth()`, `nextMonth()`, `goToToday()`, `eventOnDate()`, `eventOverlapsMonth()`, `isoDate()`. Multi-day events show dots on every day they span. All published events loaded (past + future) so past months are browsable.
+- **`service-worker.js`** — bumped cache to v78.
 
 ---
 
