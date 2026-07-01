@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="EGC">
   <link rel="apple-touch-icon" href="assets/images/icons/icon-192.png">
-  <title>Events | Emmanuel Gospel Centre</title>
+  <title>What's On | Emmanuel Gospel Centre</title>
 
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
@@ -29,69 +29,97 @@
 </head>
 <body class="bg-zinc-50 font-sans">
 
-  <!-- Navigation (shared — see nav.html, injected by js/nav.js) -->
+  <!-- Navigation -->
   <div id="nav-placeholder" class="contents"></div>
 
   <!-- Header -->
   <header data-hero-banner class="relative -mt-16 pt-32 pb-16 bg-[#0A3D62] text-white">
     <div class="max-w-7xl mx-auto px-6 text-center">
-      <h1 class="text-5xl font-bold mb-4">Church Events</h1>
-      <p class="text-amber-200 max-w-lg mx-auto">Come and gather with the family of God</p>
+      <h1 class="text-5xl font-bold mb-4">What's On</h1>
+      <p class="text-amber-200 max-w-lg mx-auto">Everything happening at EGC, right now and coming soon</p>
     </div>
   </header>
 
-  <div class="max-w-7xl mx-auto px-6 py-10">
-
-    <!-- Category Filter -->
-    <div class="flex flex-wrap gap-3 mb-10">
-      <button onclick="setCategory('all')" id="filter-all"
-              class="category-btn active px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
-        All Events
-      </button>
-      <button onclick="setCategory('service')" id="filter-service"
-              class="category-btn px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
-        <i class="fas fa-church mr-1"></i> Services
-      </button>
-      <button onclick="setCategory('group')" id="filter-group"
-              class="category-btn px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
-        <i class="fas fa-users mr-1"></i> Groups
-      </button>
-      <button onclick="setCategory('special')" id="filter-special"
-              class="category-btn px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
-        <i class="fas fa-star mr-1"></i> Special
-      </button>
-      <button onclick="setCategory('other')" id="filter-other"
-              class="category-btn px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
-        <i class="fas fa-calendar mr-1"></i> Other
-      </button>
-    </div>
-
-    <!-- Upcoming Events -->
-    <section id="upcoming-section">
-      <h2 class="text-2xl font-bold text-[#0A3D62] mb-6">Upcoming Events</h2>
-      <div id="upcoming-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12"></div>
-      <p id="upcoming-empty" class="hidden text-gray-500 text-center py-8 mb-12">No upcoming events in this category.</p>
-    </section>
-
-    <!-- Past Events -->
-    <section id="past-section" class="hidden">
-      <h2 class="text-2xl font-bold text-gray-500 mb-6">Past Events</h2>
-      <div id="past-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-    </section>
-
-    <!-- Loading state -->
-    <div id="loading" class="text-center py-16 text-gray-400">
-      <i class="fas fa-spinner fa-spin text-3xl mb-3 block"></i>
-      Loading events...
-    </div>
-
-    <!-- Error state -->
-    <div id="error-msg" class="hidden text-center py-16 text-red-400">
-      <i class="fas fa-exclamation-circle text-3xl mb-3 block"></i>
-      Failed to load events. Please try again later.
-    </div>
-
+  <!-- Loading state -->
+  <div id="loading" class="text-center py-16 text-gray-400">
+    <i class="fas fa-spinner fa-spin text-3xl mb-3 block"></i>
+    Loading...
   </div>
+
+  <!-- Error state -->
+  <div id="error-msg" class="hidden text-center py-16 text-red-400">
+    <i class="fas fa-exclamation-circle text-3xl mb-3 block"></i>
+    Failed to load events. Please try again later.
+  </div>
+
+  <!-- Main content — revealed after load -->
+  <div id="content" class="hidden">
+
+    <!-- Hero: next upcoming event -->
+    <div id="hero-section" class="hidden max-w-7xl mx-auto px-6 pt-10 pb-2">
+      <div id="hero-card"></div>
+    </div>
+
+    <!-- Category filter -->
+    <div class="max-w-7xl mx-auto px-6 pt-8 pb-4">
+      <div class="flex flex-wrap gap-3">
+        <button onclick="setCategory('all')" id="filter-all"
+                class="category-btn active px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
+          All
+        </button>
+        <button onclick="setCategory('service')" id="filter-service"
+                class="category-btn px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
+          <i class="fas fa-church mr-1"></i> Services
+        </button>
+        <button onclick="setCategory('group')" id="filter-group"
+                class="category-btn px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
+          <i class="fas fa-users mr-1"></i> Groups
+        </button>
+        <button onclick="setCategory('special')" id="filter-special"
+                class="category-btn px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
+          <i class="fas fa-star mr-1"></i> Special
+        </button>
+        <button onclick="setCategory('other')" id="filter-other"
+                class="category-btn px-6 py-3 rounded-3xl border border-gray-200 bg-white font-medium text-sm transition hover:border-[#0A3D62]">
+          <i class="fas fa-calendar mr-1"></i> Other
+        </button>
+      </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-6 pb-16">
+
+      <!-- Today -->
+      <section id="today-section" class="hidden mt-8 mb-10">
+        <div class="flex items-center gap-3 mb-6">
+          <span class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" style="box-shadow: 0 0 0 4px rgba(245,158,11,0.2)"></span>
+          <h2 class="text-xl font-bold text-[#0A3D62]">Today</h2>
+        </div>
+        <div id="today-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+      </section>
+
+      <!-- This Week -->
+      <section id="week-section" class="hidden mt-8 mb-10">
+        <h2 class="text-xl font-bold text-[#0A3D62] mb-6">This Week</h2>
+        <div id="week-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+      </section>
+
+      <!-- Coming Up -->
+      <section id="coming-section" class="hidden mt-8 mb-10">
+        <h2 class="text-xl font-bold text-gray-400 mb-6">Coming Up</h2>
+        <div id="coming-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+      </section>
+
+      <!-- Empty state -->
+      <div id="empty-state" class="hidden text-center py-20 text-gray-400">
+        <i class="fas fa-calendar text-4xl mb-4 block text-gray-300"></i>
+        <p class="text-lg font-medium text-gray-500 mb-2">Nothing coming up at the moment</p>
+        <p class="text-sm">Check back soon for upcoming events and services.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="footer-placeholder"></div>
 
   <script src="firebase-config.js"></script>
   <script src="/js/nav.js"></script>
