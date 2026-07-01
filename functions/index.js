@@ -1287,6 +1287,37 @@ exports.sendServingSlotReminders = functions.pubsub
     return null;
   });
 
+// ── pruneOldNotifications ─────────────────────────────────────────────────────
+// Scheduled nightly at 02:00 SAST (00:00 UTC).
+// Deletes in-app notifications older than 30 days across all users.
+
+exports.pruneOldNotifications = functions.pubsub
+  .schedule('0 0 * * *')
+  .timeZone('UTC')
+  .onRun(async () => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+
+    const snap = await db.collectionGroup('notifications')
+      .where('sentAt', '<', cutoff)
+      .get();
+
+    if (snap.empty) {
+      console.log('pruneOldNotifications: nothing to delete');
+      return null;
+    }
+
+    // Batch delete in chunks of 450 (Firestore limit is 500)
+    for (let i = 0; i < snap.docs.length; i += 450) {
+      const batch = db.batch();
+      snap.docs.slice(i, i + 450).forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+
+    console.log(`pruneOldNotifications: deleted ${snap.docs.length} notifications`);
+    return null;
+  });
+
 // ── onServingSlotReleased ─────────────────────────────────────────────────────
 // Triggered when a serving slot is updated.
 // When the assigned member releases their slot (assignedUid set → null),
