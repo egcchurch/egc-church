@@ -10,7 +10,22 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-01
-**Current milestone:** Session 156 complete — Notification cleanup: scheduled auto-prune (30 days) + "Clear all" button (PR #254, #255). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 156 complete — Notification cleanup: scheduled auto-prune (30 days) + "Clear all" button + delete rule fix (PRs #254, #255, #257). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: fix — Notification delete rule (Session 156c)
+
+**Date:** 2026-07-01
+**PR:** #257
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`firestore.rules`** — added `allow delete: if isOwner(uid)` to `/users/{uid}/notifications/{notifId}`. The missing rule was silently rejecting client-side deletes, causing the `onSnapshot` listener to immediately restore cleared notifications.
+
+### Deploy note
+Required `firebase deploy --only firestore:rules` after merge.
 
 ---
 
