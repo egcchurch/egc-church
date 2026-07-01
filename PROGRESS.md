@@ -10,15 +10,15 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-01
-**Current milestone:** Session 151 — Events + blog UX improvements. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 151 complete — Events + blog UX improvements. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
 
 ---
 
 ## Session: fix — Events and blog UX improvements (Session 151)
 
 **Date:** 2026-07-01
-**PR:** pending
-**Status:** In progress
+**PR:** #241
+**Status:** Merged, deployed to production
 
 ### What was done
 
