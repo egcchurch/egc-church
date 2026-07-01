@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-01
-**Current milestone:** Session 155 complete — Group/team-only messaging redesign (PR #251). Removed 1-to-1 DMs; added serving team chat; updated Cloud Function to fan out to all participants. **Pending manual steps:** `firebase deploy --only functions`, then run `purgeDirectMessages` from superadmin console. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 155 complete — Group/team-only messaging redesign (PR #251). Removed 1-to-1 DMs; added serving team chat; updated Cloud Function to fan out to all participants. Functions deployed and old DMs purged. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
 
 ---
 
@@ -18,7 +18,7 @@
 
 **Date:** 2026-07-01
 **PR:** #251
-**Status:** Merged
+**Status:** Merged, deployed to production
 
 ### What was done
 
