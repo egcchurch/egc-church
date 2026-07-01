@@ -71,8 +71,17 @@
           <input id="f-location" type="text" placeholder="e.g. Church Hall" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
         </div>
         <div>
-          <label class="block text-sm font-medium text-zinc-700 mb-1">Leader UIDs (comma separated)</label>
-          <input id="f-leaders" type="text" placeholder="uid1, uid2" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Leaders</label>
+          <div id="f-leaders-chips" class="flex flex-wrap gap-2 mb-2"></div>
+          <div class="relative">
+            <input id="f-leaders-search" type="text" placeholder="Search member by name…"
+                   oninput="searchLeaderToAdd()"
+                   onblur="setTimeout(hideLeaderResults, 200)"
+                   autocomplete="off"
+                   class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+            <div id="f-leaders-results"
+                 class="hidden absolute z-20 top-full mt-1 left-0 right-0 bg-white border border-zinc-200 rounded-xl shadow-lg max-h-48 overflow-y-auto"></div>
+          </div>
         </div>
         <div class="flex items-center gap-2">
           <input type="checkbox" id="f-public" class="w-4 h-4 accent-amber-500" checked>
@@ -112,8 +121,11 @@
     const db = firebase.firestore();
     let editingId = null;
     let allGroups = [];
+    let formLeaders = [];
+    let leaderSearchTimer = null;
+    let leaderRoster = null;
 
-    function openForm(group) {
+    async function openForm(group) {
       editingId = group?.id || null;
       document.getElementById('form-title').textContent = group ? 'Edit Group' : 'New Group';
       document.getElementById('f-name').value = group?.name || '';
@@ -122,9 +134,19 @@
       document.getElementById('f-day').value = group?.meetingDay || '';
       document.getElementById('f-time').value = group?.meetingTime || '';
       document.getElementById('f-location').value = group?.location || '';
-      document.getElementById('f-leaders').value = (group?.leaders || []).join(', ');
       document.getElementById('f-public').checked = group ? group.isPublic !== false : true;
       document.getElementById('form-msg').classList.add('hidden');
+
+      formLeaders = [];
+      for (const uid of (group?.leaders || [])) {
+        const doc = await db.collection('users').doc(uid).get().catch(() => null);
+        const name = doc?.data()?.displayName || uid;
+        formLeaders.push({ uid, name });
+      }
+      renderLeaderChips();
+      leaderRoster = null;
+      document.getElementById('f-leaders-search').value = '';
+
       document.getElementById('group-form').classList.remove('hidden');
       document.getElementById('group-form').scrollIntoView({ behavior: 'smooth' });
     }
@@ -132,6 +154,81 @@
     function closeForm() {
       document.getElementById('group-form').classList.add('hidden');
       editingId = null;
+      formLeaders = [];
+      renderLeaderChips();
+    }
+
+    function renderLeaderChips() {
+      const container = document.getElementById('f-leaders-chips');
+      if (!container) return;
+      container.innerHTML = formLeaders.map(l => `
+        <span class="inline-flex items-center gap-1.5 bg-[#0A3D62]/10 text-[#0A3D62] rounded-full px-3 py-1 text-xs font-medium">
+          ${escapeHtml(l.name)}
+          <button type="button" onclick="removeFormLeader('${l.uid}')"
+                  class="text-[#0A3D62]/50 hover:text-red-500 transition-colors">
+            <i class="fas fa-times text-[10px]"></i>
+          </button>
+        </span>
+      `).join('');
+    }
+
+    async function searchLeaderToAdd() {
+      clearTimeout(leaderSearchTimer);
+      const input = document.getElementById('f-leaders-search');
+      const q = (input?.value || '').trim().toLowerCase();
+      const results = document.getElementById('f-leaders-results');
+      if (q.length < 2) { results.classList.add('hidden'); results.innerHTML = ''; return; }
+
+      leaderSearchTimer = setTimeout(async () => {
+        if (!leaderRoster) {
+          const snap = await db.collection('users')
+            .where('membership', '==', 'member')
+            .where('directoryVisible', '==', true)
+            .get()
+            .catch(() => null);
+          leaderRoster = snap
+            ? snap.docs.map(d => ({ uid: d.id, name: d.data().displayName || '' })).filter(u => u.name)
+            : [];
+        }
+
+        const existingUids = new Set(formLeaders.map(l => l.uid));
+        const matches = leaderRoster.filter(u =>
+          u.name.toLowerCase().includes(q) && !existingUids.has(u.uid)
+        );
+
+        if (!matches.length) {
+          results.innerHTML = '<p class="text-xs text-zinc-400 px-3 py-2">No members found.</p>';
+        } else {
+          results.innerHTML = matches.map(u => `
+            <button type="button"
+                    onmousedown="selectLeaderToAdd('${u.uid}', ${JSON.stringify(u.name).replace(/"/g, '&quot;')})"
+                    class="w-full text-left px-3 py-2 text-sm text-zinc-700 hover:bg-amber-50 hover:text-amber-800 transition-colors">
+              ${escapeHtml(u.name)}
+            </button>
+          `).join('');
+        }
+        results.classList.remove('hidden');
+      }, 200);
+    }
+
+    function selectLeaderToAdd(uid, name) {
+      if (!formLeaders.find(l => l.uid === uid)) {
+        formLeaders.push({ uid, name });
+        renderLeaderChips();
+      }
+      const input = document.getElementById('f-leaders-search');
+      if (input) input.value = '';
+      hideLeaderResults();
+    }
+
+    function removeFormLeader(uid) {
+      formLeaders = formLeaders.filter(l => l.uid !== uid);
+      renderLeaderChips();
+    }
+
+    function hideLeaderResults() {
+      const el = document.getElementById('f-leaders-results');
+      if (el) el.classList.add('hidden');
     }
 
     async function saveGroup() {
@@ -144,8 +241,7 @@
         return;
       }
 
-      const leadersRaw = document.getElementById('f-leaders').value;
-      const leaders = leadersRaw.split(',').map((s) => s.trim()).filter(Boolean);
+      const leaders = formLeaders.map(l => l.uid);
 
       const data = {
         name,
