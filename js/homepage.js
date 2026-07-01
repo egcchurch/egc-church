@@ -402,7 +402,7 @@
       <section class="bg-white py-12 px-6">
         <div class="max-w-4xl mx-auto">
           <div class="flex items-center justify-between mb-6">
-            <h2 class="text-xl font-bold text-[#0A3D62]">Notice Board</h2>
+            <h2 class="text-xl font-bold text-[#0A3D62]">Reports</h2>
             <a href="/blog.html" class="text-sm text-amber-600 hover:text-amber-700 font-medium">View all →</a>
           </div>
           <div class="space-y-4">${items}</div>
