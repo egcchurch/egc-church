@@ -269,10 +269,15 @@
 
     function renderActionButton(t, isMemberOf, isLeader, isPending) {
       if (isLeader || isMemberOf) {
-        return `<button onclick="leaveTeam('${t.id}')"
-                        class="border border-zinc-200 hover:border-red-200 hover:text-red-500 text-zinc-500 px-4 py-2 rounded-full text-xs font-medium transition-all">
-                  Leave Team
-                </button>`;
+        return `
+          <button onclick="leaveTeam('${t.id}')"
+                  class="border border-zinc-200 hover:border-red-200 hover:text-red-500 text-zinc-500 px-4 py-2 rounded-full text-xs font-medium transition-all">
+            Leave Team
+          </button>
+          <button onclick="startTeamChat('${t.id}', '${escapeHtml(t.name).replace(/'/g, "\\'")}')"
+                  class="border border-indigo-200 hover:border-indigo-300 text-indigo-600 hover:text-indigo-700 px-4 py-2 rounded-full text-xs font-medium transition-all flex items-center gap-1.5">
+            <i class="fas fa-comments"></i> Team Chat
+          </button>`;
       }
       if (isPending) {
         return `<button onclick="cancelRequest('${t.id}')"
@@ -322,6 +327,54 @@
       } catch (err) {
         console.error('Leave failed:', err);
         alert('Failed to leave team.');
+      }
+    }
+
+    async function startTeamChat(teamId, teamName) {
+      if (!currentUser) return;
+      try {
+        const teamSnap = await db.collection('servingTeams').doc(teamId).get();
+        if (!teamSnap.exists) return;
+        const teamData = teamSnap.data();
+        const participantSet = new Set([...(teamData.leaders || []), ...(teamData.members || [])]);
+        const participants = Array.from(participantSet);
+
+        if (participants.length < 2) {
+          alert('The team needs at least 2 members to start a chat.');
+          return;
+        }
+
+        // Find existing team conversation (query by participants, filter client-side)
+        const existingSnap = await db.collection('conversations')
+          .where('participants', 'array-contains', currentUser.uid)
+          .get();
+        const existingDoc = existingSnap.docs.find(d => {
+          const c = d.data();
+          return c.type === 'team' && c.groupId === teamId;
+        });
+
+        let convId;
+        if (existingDoc) {
+          convId = existingDoc.id;
+        } else {
+          const meSnap = await db.collection('users').doc(currentUser.uid).get();
+          const myName = meSnap.data()?.displayName || 'Member';
+          const convRef = await db.collection('conversations').add({
+            type: 'team',
+            groupId: teamId,
+            groupName: teamName,
+            participants,
+            lastMessage: `${myName} started a team chat`,
+            lastMessageAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            unreadBy: participants.filter(uid => uid !== currentUser.uid),
+          });
+          convId = convRef.id;
+        }
+        window.location.href = `/members/messages.html?conv=${convId}`;
+      } catch (err) {
+        console.error('startTeamChat failed:', err);
+        alert('Failed to open team chat. Please try again.');
       }
     }
 
