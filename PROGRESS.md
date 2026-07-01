@@ -10,7 +10,27 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-01
-**Current milestone:** Session 153 complete — Events renamed to Notices, blog renamed to Reports. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 154 complete — Groups: leader add-member search + group chat access for all members. Also: admin/groups.html leader autocomplete (PR #247). Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: feat — Group member management + group chat access (Session 154)
+
+**Date:** 2026-07-01
+**PR:** #248
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`members/groups.html`** — two improvements:
+  - **Add Member (leader only):** "Add Member" button added next to "Group Chat" in the leader section. Opens a modal with live member search (2+ chars); excludes existing members, leaders, and pending members from results; clicking a name adds the member directly via `arrayUnion` (bypasses join policy — leader override); error shown inline in the modal.
+  - **Group Chat (all members):** Group Chat button was previously only visible to leaders via `renderLeaderSection`. Regular joined members now see a "Group Chat" button in their card action area. Both paths call the same `startGroupChat()`, which re-uses an existing group conversation rather than creating a duplicate.
+  - Added `allGroups` variable to track the live snapshot data so the add-member modal can exclude current group members from search results.
+- **`service-worker.js`** — bumped cache to v74.
+
+### Also in this session (PR #247 — merged prior)
+
+- **`admin/groups.html`** — replaced "Leader UIDs (comma separated)" text input with the same chip-based member name autocomplete used in `admin/serving-teams.html`. Existing leaders resolved to display names on edit.
 
 ---
 
