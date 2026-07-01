@@ -90,7 +90,7 @@
     if (clearBtn) {
       clearBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        clearAllNotifications(uid, currentItems);
+        clearAllNotifications(uid, clearBtn);
       });
     }
 
@@ -161,14 +161,22 @@
     });
   }
 
-  function clearAllNotifications(uid, items) {
-    if (!items.length) return;
-    items.forEach(n => {
-      firebase.firestore()
+  async function clearAllNotifications(uid, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Clearing…'; }
+    try {
+      const snap = await firebase.firestore()
         .collection('users').doc(uid)
-        .collection('notifications').doc(n.id)
-        .delete().catch(() => {});
-    });
+        .collection('notifications')
+        .get();
+      for (let i = 0; i < snap.docs.length; i += 450) {
+        const batch = firebase.firestore().batch();
+        snap.docs.slice(i, i + 450).forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Clear notifications failed:', e);
+      if (btn) { btn.disabled = false; btn.textContent = 'Clear all'; }
+    }
   }
 
   // ── FCM token registration ───────────────────────────────────────────────────
