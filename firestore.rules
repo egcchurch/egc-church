@@ -61,6 +61,7 @@ service cloud.firestore {
     match /users/{uid}/notifications/{notifId} {
       allow read: if isOwner(uid);
       allow update: if isOwner(uid);
+      allow delete: if isOwner(uid);
       // Cloud Functions write via admin SDK (bypasses these rules)
     }
 
