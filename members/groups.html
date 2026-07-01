@@ -43,6 +43,21 @@
     <div id="group-list" class="space-y-6"></div>
   </main>
 
+  <!-- ADD MEMBER MODAL (leader view) -->
+  <div id="add-member-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-[#0A3D62]">Add Member</h3>
+        <button onclick="closeAddMemberModal()" class="text-zinc-400 hover:text-zinc-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <input id="add-member-search" type="text" placeholder="Search by name…"
+             oninput="searchMemberToAdd()"
+             autocomplete="off"
+             class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 mb-3">
+      <div id="add-member-results" class="space-y-1 max-h-64 overflow-y-auto"></div>
+    </div>
+  </div>
+
   <!-- PENDING APPROVAL MODAL (leader view) -->
   <div id="pending-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
@@ -60,6 +75,7 @@
     const db = firebase.firestore();
     let currentUser = null;
     let userNames = {};
+    let allGroups = [];
 
     auth.onAuthStateChanged((user) => { currentUser = user; });
 
@@ -129,11 +145,22 @@
     }
 
     function renderActionButton(g, isMember, isLeader, isPending) {
-      if (isLeader || isMember) {
+      if (isLeader) {
         return `<button onclick="leaveGroup('${g.id}')"
                         class="border border-zinc-200 hover:border-red-200 hover:text-red-500 text-zinc-500 px-4 py-2 rounded-full text-xs font-medium transition-all">
                   Leave Group
                 </button>`;
+      }
+      if (isMember) {
+        return `
+          <button onclick="leaveGroup('${g.id}')"
+                  class="border border-zinc-200 hover:border-red-200 hover:text-red-500 text-zinc-500 px-4 py-2 rounded-full text-xs font-medium transition-all">
+            Leave Group
+          </button>
+          <button onclick="startGroupChat('${g.id}', '${escapeHtml(g.name).replace(/'/g, "\\'")}')"
+                  class="border border-indigo-200 hover:border-indigo-300 text-indigo-600 hover:text-indigo-700 px-4 py-2 rounded-full text-xs font-medium transition-all flex items-center gap-1.5">
+            <i class="fas fa-comments"></i> Group Chat
+          </button>`;
       }
       if (isPending) {
         return `<button onclick="cancelRequest('${g.id}')"
@@ -156,10 +183,16 @@
         <div class="mt-5 pt-5 border-t border-zinc-100">
           <div class="flex items-center justify-between mb-3">
             <h3 class="text-sm font-semibold text-zinc-600">Group Members</h3>
-            <button onclick="startGroupChat('${g.id}', '${escapeHtml(g.name).replace(/'/g, "\\'")}')"
-                    class="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1 border border-indigo-200 hover:border-indigo-300 px-2.5 py-1 rounded-full transition-all">
-              <i class="fas fa-comments"></i> Group Chat
-            </button>
+            <div class="flex items-center gap-2">
+              <button onclick="openAddMemberModal('${g.id}')"
+                      class="text-xs text-[#0A3D62] hover:text-amber-600 font-medium flex items-center gap-1 border border-zinc-200 hover:border-amber-300 px-2.5 py-1 rounded-full transition-all">
+                <i class="fas fa-user-plus"></i> Add Member
+              </button>
+              <button onclick="startGroupChat('${g.id}', '${escapeHtml(g.name).replace(/'/g, "\\'")}')"
+                      class="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1 border border-indigo-200 hover:border-indigo-300 px-2.5 py-1 rounded-full transition-all">
+                <i class="fas fa-comments"></i> Group Chat
+              </button>
+            </div>
           </div>
           <div id="members-${g.id}" class="flex flex-wrap gap-2">
             <span class="text-xs text-zinc-400">Loading...</span>
@@ -235,6 +268,84 @@
         if (!(g.members || []).length) {
           container.innerHTML = '<span class="text-xs text-zinc-400">No members yet</span>';
         }
+      }
+    }
+
+    let addMemberGroupId = null;
+    let addMemberGroupData = null;
+    let memberSearchRoster = null;
+    let memberSearchTimer = null;
+
+    function openAddMemberModal(groupId) {
+      addMemberGroupId = groupId;
+      addMemberGroupData = allGroups.find(g => g.id === groupId);
+      document.getElementById('add-member-search').value = '';
+      document.getElementById('add-member-results').innerHTML =
+        '<p class="text-xs text-zinc-400 px-1 py-2">Type at least 2 characters to search.</p>';
+      document.getElementById('add-member-modal').classList.remove('hidden');
+    }
+
+    function closeAddMemberModal() {
+      document.getElementById('add-member-modal').classList.add('hidden');
+      addMemberGroupId = null;
+      addMemberGroupData = null;
+    }
+
+    async function searchMemberToAdd() {
+      clearTimeout(memberSearchTimer);
+      const q = document.getElementById('add-member-search').value.trim().toLowerCase();
+      const results = document.getElementById('add-member-results');
+      if (q.length < 2) {
+        results.innerHTML = '<p class="text-xs text-zinc-400 px-1 py-2">Type at least 2 characters to search.</p>';
+        return;
+      }
+      memberSearchTimer = setTimeout(async () => {
+        if (!memberSearchRoster) {
+          const snap = await db.collection('users')
+            .where('membership', '==', 'member')
+            .where('directoryVisible', '==', true)
+            .get().catch(() => null);
+          memberSearchRoster = snap
+            ? snap.docs.map(d => ({ uid: d.id, name: d.data().displayName || '' })).filter(u => u.name)
+            : [];
+        }
+        const excluded = new Set([
+          ...(addMemberGroupData?.members || []),
+          ...(addMemberGroupData?.leaders || []),
+          ...(addMemberGroupData?.pendingMembers || []),
+        ]);
+        const matches = memberSearchRoster.filter(u =>
+          u.name.toLowerCase().includes(q) && !excluded.has(u.uid)
+        );
+        if (!matches.length) {
+          results.innerHTML = '<p class="text-xs text-zinc-400 px-1 py-2">No matching members found.</p>';
+        } else {
+          results.innerHTML = matches.map(u => `
+            <button type="button" onclick="addMemberToGroup('${u.uid}')"
+                    class="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-amber-50 transition-colors">
+              <div class="w-8 h-8 rounded-full bg-[#0A3D62] text-white text-xs font-bold flex items-center justify-center uppercase shrink-0">
+                ${escapeHtml((u.name || '?')[0])}
+              </div>
+              <span class="text-sm text-zinc-700">${escapeHtml(u.name)}</span>
+            </button>
+          `).join('');
+        }
+      }, 200);
+    }
+
+    async function addMemberToGroup(uid) {
+      if (!addMemberGroupId) return;
+      try {
+        await db.collection('groups').doc(addMemberGroupId).update({
+          members: firebase.firestore.FieldValue.arrayUnion(uid),
+          pendingMembers: firebase.firestore.FieldValue.arrayRemove(uid),
+        });
+        closeAddMemberModal();
+        memberSearchRoster = null;
+      } catch (err) {
+        console.error('Add member failed:', err);
+        document.getElementById('add-member-results').innerHTML =
+          '<p class="text-xs text-red-500 px-1 py-2">Failed to add member. Please try again.</p>';
       }
     }
 
@@ -351,11 +462,11 @@
         .where('isPublic', '==', true)
         .onSnapshot((snap) => {
           document.getElementById('loading').classList.add('hidden');
-          const groups = snap.docs
+          allGroups = snap.docs
             .map((d) => ({ id: d.id, ...d.data() }))
             .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-          renderGroups(groups);
-          populateLeaderSections(groups);
+          renderGroups(allGroups);
+          populateLeaderSections(allGroups);
         }, (err) => {
           console.error('Groups load failed:', err);
           document.getElementById('loading').innerHTML =
