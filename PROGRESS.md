@@ -10,7 +10,36 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-01
-**Current milestone:** Session 154 complete — Groups: leader add-member search + group chat access for all members. Also: admin/groups.html leader autocomplete (PR #247). Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 155 complete — Group/team-only messaging redesign. Removed 1-to-1 DMs; added serving team chat; updated Cloud Function to fan out to all participants. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: feat — Group/team-only messaging redesign (Session 155)
+
+**Date:** 2026-07-01
+**PR:** #251
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`functions/index.js`** — two changes:
+  - **`onNewMessage`** — updated to fan out FCM push + in-app notification to **all** participants except the sender (was: single recipient only). Title now includes `groupName` for group/team conversations (e.g. "Edwin in Youth Team"). Tokens collected from all recipients via `Promise.all`; invalid tokens cleaned up as before.
+  - **`purgeDirectMessages`** (new callable, superadmin only) — deletes all `/conversations` docs where `type` is not `'group'` or `'team'` using `db.recursiveDelete()`. Trigger once after deploying: `firebase.functions().httpsCallable('purgeDirectMessages')()` from a superadmin browser session.
+- **`members/messages.html`** — removed "New Message" DM button and its modal entirely; subtitle changed from "Direct messages between members" to "Group and team conversations"; empty state updated to "Select a conversation from the list".
+- **`js/messaging.js`** — removed `bindNewConv()` and `startConversation()` (DM creation); updated empty-state message to "Join a group or serving team to start chatting"; updated `type` check to cover both `'group'` and `'team'` for avatar icons and sender-label display.
+- **`members/serving-teams.html`** — added `startTeamChat(teamId, teamName)` function; added "Team Chat" button alongside "Leave Team" in `renderActionButton` for all team members and leaders.
+- **`service-worker.js`** — bumped cache to v75.
+- **`CLAUDE.md`** — updated messaging architecture section, `onNewMessage` description, Broadcast Types table, and Architecture/Design Decisions note.
+
+### Deploy note
+Cloud Functions changed — after this PR merges, run:
+```
+firebase deploy --only functions
+```
+Then purge old DMs (once, from a superadmin browser session):
+```javascript
+firebase.functions().httpsCallable('purgeDirectMessages')()
+```
 
 ---
 

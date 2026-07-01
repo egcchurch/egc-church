@@ -587,7 +587,8 @@ exports.weeklyDigest = functions.pubsub
 
 // ── onNewMessage ──────────────────────────────────────────────────────────────
 // Triggered when a message is created in /conversations/{convId}/messages/{msgId}.
-// Pushes an FCM notification + in-app notification to the recipient.
+// Fans out FCM + in-app notifications to ALL participants except the sender.
+// Supports group (type:'group') and team (type:'team') conversations.
 
 exports.onNewMessage = functions.firestore
   .document('conversations/{convId}/messages/{msgId}')
@@ -598,35 +599,40 @@ exports.onNewMessage = functions.firestore
 
     if (!senderId) return;
 
-    // Get conversation to find the recipient
     const convSnap = await db.collection('conversations').doc(convId).get();
     if (!convSnap.exists) return;
 
-    const participants = convSnap.data().participants || [];
-    const recipientId  = participants.find(uid => uid !== senderId);
-    if (!recipientId) return;
+    const conv         = convSnap.data();
+    const participants = conv.participants || [];
+    const recipientIds = participants.filter(uid => uid !== senderId);
+    if (!recipientIds.length) return;
 
-    // Get sender display name
     const senderSnap = await db.collection('users').doc(senderId).get();
     const senderName = senderSnap.data()?.displayName || 'Someone';
 
-    const title = `Message from ${senderName}`;
+    // Include group/team name in the title for group conversations
+    const groupName = conv.groupName || '';
+    const title = groupName ? `${senderName} in ${groupName}` : `Message from ${senderName}`;
     const body  = (message.body || '').substring(0, 120);
     const link  = `/members/messages.html?conv=${convId}`;
     const sentAt = admin.firestore.FieldValue.serverTimestamp();
 
-    // Write in-app notification
-    await db.collection('users').doc(recipientId).collection('notifications').add({
-      title, body, type: 'direct', sentAt, read: false, linkUrl: link,
-    });
+    // Write in-app notification to all recipients
+    await Promise.all(recipientIds.map(uid =>
+      db.collection('users').doc(uid).collection('notifications').add({
+        title, body, type: 'message', sentAt, read: false, linkUrl: link,
+      })
+    ));
 
-    // FCM push to recipient's tokens
-    const tokensSnap = await db.collection('users').doc(recipientId).collection('fcmTokens').get();
-    const tokenDocs  = tokensSnap.docs.filter(d => d.data().token);
-    if (!tokenDocs.length) return;
+    // Collect FCM tokens from all recipients
+    const tokenSnapshots = await Promise.all(
+      recipientIds.map(uid => db.collection('users').doc(uid).collection('fcmTokens').get())
+    );
+    const allTokenDocs = tokenSnapshots.flatMap(s => s.docs.filter(d => d.data().token));
+    if (!allTokenDocs.length) return;
 
     const result = await admin.messaging().sendEachForMulticast({
-      tokens: tokenDocs.map(d => d.data().token),
+      tokens: allTokenDocs.map(d => d.data().token),
       notification: { title, body },
       webpush: {
         notification: { title, body, icon: '/assets/images/icons/icon-192.png', badge: '/assets/images/icons/icon-72.png', data: { linkUrl: link } },
@@ -635,7 +641,7 @@ exports.onNewMessage = functions.firestore
       data: { linkUrl: link },
     });
 
-    // Delete tokens FCM reports as invalid so they stop causing duplicate sends
+    // Delete tokens FCM reports as invalid
     if (result.failureCount > 0) {
       const batch = db.batch();
       result.responses.forEach((resp, idx) => {
@@ -643,13 +649,38 @@ exports.onNewMessage = functions.firestore
           const code = resp.error?.code;
           if (code === 'messaging/registration-token-not-registered' ||
               code === 'messaging/invalid-registration-token') {
-            batch.delete(tokenDocs[idx].ref);
+            batch.delete(allTokenDocs[idx].ref);
           }
         }
       });
       await batch.commit().catch(e => console.warn('onNewMessage token cleanup:', e));
     }
   });
+
+// ── purgeDirectMessages ───────────────────────────────────────────────────────
+// One-time callable (superadmin only) — deletes all conversation docs that are
+// NOT type:'group' or type:'team', including their /messages subcollections.
+// Run once after deploying the group/team-only messaging redesign.
+
+exports.purgeDirectMessages = functions.https.onCall(async (data, context) => {
+  if (!context.auth?.token?.superadmin) {
+    throw new functions.https.HttpsError('permission-denied', 'Superadmin only.');
+  }
+
+  const snap = await db.collection('conversations').get();
+  const toDelete = snap.docs.filter(d => {
+    const type = d.data().type;
+    return type !== 'group' && type !== 'team';
+  });
+
+  let deleted = 0;
+  for (const doc of toDelete) {
+    await db.recursiveDelete(doc.ref);
+    deleted++;
+  }
+
+  return { deleted, message: `Deleted ${deleted} direct message conversation(s).` };
+});
 
 // ── deleteUserAccount ─────────────────────────────────────────────────────────
 // Callable from /profile.html.

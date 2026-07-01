@@ -29,7 +29,7 @@ maintainable, and expandable by non-developers over time.
 | CI/CD         | GitHub Actions — PR preview, security rules tests, link/cache checks |
 | Source ctrl   | GitHub — `main` is protected production branch                       |
 | Notifications | Firebase Cloud Messaging (FCM)                                       |
-| Functions     | Firebase Cloud Functions v1 (broadcasts, DM push, alerts)            |
+| Functions     | Firebase Cloud Functions v1 (broadcasts, group/team push, alerts)    |
 | Environment   | No build step — plain static files                                   |
 
 ---
@@ -365,24 +365,28 @@ Workflow files:
 - Notification bell in nav updates instantly without refresh
 - Unread count badge driven by Firestore `read: false` documents
 
-### Direct Messaging (member to member)
+### Group & Team Messaging (member to group / team)
 
-- One-to-one only (current scope) — `participants` array supports two UIDs
+- Group chats (`type: 'group'`) started from `/members/groups.html` — all group members + leaders are participants
+- Team chats (`type: 'team'`) started from `/members/serving-teams.html` — all team members + leaders are participants
+- No 1-to-1 direct messaging — messaging is broadcast within a group or team only
 - Firestore real-time listeners on `/conversations/{conversationId}/messages/`
 - Conversation list and message thread both update live
-- New message triggers a Cloud Function that pushes FCM to recipient
+- New message triggers `onNewMessage` Cloud Function that fans out FCM + in-app notifications to **all** participants except the sender
+- `purgeDirectMessages` callable (superadmin) — one-time migration that deletes all conversation docs where `type !== 'group'` and `type !== 'team'`
 
 ### Broadcast Types
 
-| Type                 | Audience    | Delivery                    |
-| -------------------- | ----------- | --------------------------- |
-| Service reminder     | All members | FCM push + in-app           |
-| Public event notice  | All members | FCM push + in-app           |
-| Emergency notice     | All members | FCM push + in-app           |
-| Weekly digest        | All members | FCM push (Sunday scheduled) |
-| Direct message       | Individual  | FCM push + in-app           |
-| Prayer request alert | All members | In-app only                 |
-| Connect form alert   | Admins      | In-app only                 |
+| Type                 | Audience       | Delivery                    |
+| -------------------- | -------------- | --------------------------- |
+| Service reminder     | All members    | FCM push + in-app           |
+| Public event notice  | All members    | FCM push + in-app           |
+| Emergency notice     | All members    | FCM push + in-app           |
+| Weekly digest        | All members    | FCM push (Sunday scheduled) |
+| Group message        | Group members  | FCM push + in-app           |
+| Team message         | Team members   | FCM push + in-app           |
+| Prayer request alert | All members    | In-app only                 |
+| Connect form alert   | Admins         | In-app only                 |
 
 ---
 
@@ -400,7 +404,7 @@ Functions are organised by trigger type:
 
 ### Firestore Triggers
 
-- `onNewMessage` — trigger: `/conversations/{conversationId}/messages/{messageId}` created — pushes FCM to recipient (with `webpush.notification.data: { linkUrl: '/members/messages.html?conv={convId}' }` for `notificationclick` tap navigation) and writes in-app notification
+- `onNewMessage` — trigger: `/conversations/{conversationId}/messages/{messageId}` created — fans out FCM push + in-app notification to **all** participants except the sender; title includes `groupName` for group/team conversations
 - `onNewPrayerRequest` — trigger: `/prayerRequests/{requestId}` created — if `isPrivate: false`, writes in-app notification to all members; if `isPrivate: true`, writes in-app notification to admins only
 - `onNewConnectForm` — trigger: `/connectForms/{submissionId}` created — writes in-app notification to all admins
 - `onServingSlotReleased` — trigger: `/servingTeams/{teamId}/slots/{slotId}` updated — fires when `assignedUid` changes from set to null (member released their slot); sends FCM push + in-app notification to all team leaders so they can arrange a replacement. Deep link: `?team={teamId}&slot={slotId}` on `/members/serving-teams.html`.
@@ -430,6 +434,7 @@ Functions are organised by trigger type:
 - `welcomeNewMember` — trigger: `/users/{uid}` write — when `membership` changes to `"member"`, writes a welcome in-app notification pointing the user to the members area.
 - `syncUserNotificationEligibility` — trigger: `/users/{uid}` write — if `membership` drops from `member` to anything else, deletes all docs in `/users/{uid}/fcmTokens` subcollection so the user stops receiving push notifications.
 - `cleanupNonMemberTokens` — callable (superadmin only) — one-time migration: deletes FCM token subcollections for all users where `membership !== 'member'`. Already run on production.
+- `purgeDirectMessages` — callable (superadmin only) — one-time migration: deletes all `/conversations` docs where `type` is not `'group'` or `'team'` (i.e. removes old 1-to-1 DMs). Run once after deploying the group/team messaging redesign: `firebase.functions().httpsCallable('purgeDirectMessages')()`.
 
 ### Cottage Meetings
 
@@ -945,7 +950,7 @@ Storage rules enforce file size and type per path (see `storage.rules`):
 - Member directory privacy is opt-out for visibility, opt-in for contact details — protects member contact info by default
 - Group join policy is per-group, not a global setting — different groups have different needs
 - Group leaders manage their own group from `/members/groups.html`, not `/admin/` — keeps admin guard simple
-- Direct messaging is 1-on-1 initially but `participants` is an array so group chat is possible later without schema change
+- Messaging is group/team broadcast only — no 1-to-1 direct messaging; `participants` is an array covering all group or team members
 - `/team` entries are independent of `/users` — team members are content records, not user accounts
 - Auth guards (`admin-auth.js`, `member-auth.js`) must wait for both `firebase` AND `firebase.firestore` to be ready before running — otherwise they redirect before Firestore is initialised
 - **Media Library** (`/admin/media.html`) aggregates files from every content collection into one browsable/searchable view, but **only lets you delete a file from the "General Uploads" (siteMedia) and "Orphaned" tabs** — never a file actively referenced by a gallery, sermon, music track, etc. Deleting those stays on that feature's own admin page, where the Storage delete and the Firestore reference removal happen together; deleting straight from the aggregator would leave a dangling reference (e.g. a gallery doc whose `imageUrls[]` still points at a file that no longer exists). The "Manage" link on every non-general row goes to the right admin page instead.
