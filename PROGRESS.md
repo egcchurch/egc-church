@@ -10,7 +10,20 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-01
-**Current milestone:** Session 156 complete — Notification cleanup: scheduled auto-prune (30 days) + "Clear all" button in notification panel. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 156 complete — Notification cleanup: scheduled auto-prune (30 days) + "Clear all" button (PR #254, #255). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: fix — Clear all notifications deletes full collection (Session 156b)
+
+**Date:** 2026-07-01
+**PR:** #255
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`js/notifications.js`** — `clearAllNotifications` now does a one-shot `get()` on the full `/users/{uid}/notifications` collection and batch-deletes in chunks of 450. Previously only deleted the 20 docs loaded by the `onSnapshot` limit, causing the next 20 to reload immediately after clearing. Button shows "Clearing…" and disables during the operation.
+- **`service-worker.js`** — bumped cache to v77.
 
 ---
 
