@@ -216,16 +216,21 @@
           return;
         }
 
-        // Check for existing group conversation for this group
+        // Check for existing group conversation — query by participants (aligns with
+        // the read rule: request.auth.uid in resource.data.participants) then filter
+        // client-side for groupId/type to avoid a permission-denied error on the query.
         const existingSnap = await db.collection('conversations')
-          .where('groupId', '==', groupId)
-          .where('type', '==', 'group')
-          .limit(1)
+          .where('participants', 'array-contains', currentUser.uid)
           .get();
 
+        const existingDoc = existingSnap.docs.find(d => {
+          const c = d.data();
+          return c.type === 'group' && c.groupId === groupId;
+        });
+
         let convId;
-        if (!existingSnap.empty) {
-          convId = existingSnap.docs[0].id;
+        if (existingDoc) {
+          convId = existingDoc.id;
         } else {
           const meSnap = await db.collection('users').doc(currentUser.uid).get();
           const myName = meSnap.data()?.displayName || 'Leader';
