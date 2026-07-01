@@ -511,7 +511,7 @@ Functions are organised by trigger type:
 /blog/{postId}
   title, body, author
   imageUrl (nullable — Firebase Storage)
-  kind: "announcement" | "article"    ← Phase 7 — announcements surface on home feed; articles on /blog only; defaults to "article"
+  kind: "announcement" | "article" | "story"    ← announcements surface on home feed; articles on /blog only; stories link to /story.html detail page; defaults to "article"
   publishedAt, published: true | false
 
 /team/{memberId}

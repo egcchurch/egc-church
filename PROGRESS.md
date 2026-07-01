@@ -10,7 +10,24 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-01
-**Current milestone:** Session 150 complete — Auth flash fix + Tailwind pre-built CSS + preconnect hints. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 151 — Events + blog UX improvements. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: fix — Events and blog UX improvements (Session 151)
+
+**Date:** 2026-07-01
+**PR:** pending
+**Status:** In progress
+
+### What was done
+
+- **`js/events.js`** — show start time on public event cards (inline with date, `•` separator; midnight times suppressed); filter members-only events (`audience: "members"`) from the public `/events` page for non-members.
+- **`admin/events.html`** — replaced the raw image URL field with a file upload + preview (same pattern as blog story cover). Adds Firebase Storage SDK and `storage-upload.js`; compresses image to 1920px/85% before upload to `events/{id}/cover`.
+- **`js/blog.js`** — article and announcement cards now link to a new `/post.html?id=` detail page (whole card is an `<a>`, hover shadow + title colour change, "Read more" link); body preview trimmed from 4-line to 3-line clamp.
+- **`post.html`** — new detail page for articles and announcements. Fetches the Firestore doc, renders plain-text body as paragraphs, shows cover image if present, displays kind badge (Announcement / Article), date, author. Stories (`kind === "story"`) are explicitly rejected and redirect to `/blog.html`.
+- **`service-worker.js`** — added `/post.html` to PRECACHE_URLS; bumped cache to v71.
+- **`CLAUDE.md`** — corrected `/blog` schema note: `kind` is `"announcement" | "article" | "story"` (was missing `"story"`).
 
 ---
 

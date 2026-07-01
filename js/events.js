@@ -86,8 +86,10 @@ function render() {
     ? allEvents
     : allEvents.filter((e) => e.category === activeCategory);
 
-  const upcoming = filtered.filter((e) => toDate(e.startDate) >= now);
-  const past = filtered.filter((e) => toDate(e.startDate) < now);
+  const visible = filtered.filter((e) => e.audience !== 'members' || userIsMember);
+
+  const upcoming = visible.filter((e) => toDate(e.startDate) >= now);
+  const past = visible.filter((e) => toDate(e.startDate) < now);
 
   renderGrid('upcoming-grid', upcoming);
   renderGrid('past-grid', past);
@@ -121,6 +123,7 @@ function buildCard(event) {
   const isPast = start < (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
 
   const dateStr = formatDateRange(start, end);
+  const timeStr = formatTime(start);
   const categoryBadge = CATEGORY_LABELS[event.category] || event.category || '';
   const badgeClass = CATEGORY_COLORS[event.category] || 'bg-gray-100 text-gray-600';
 
@@ -172,7 +175,7 @@ function buildCard(event) {
         <h3 class="text-lg font-bold text-[#0A3D62] mb-2 leading-snug">${escHtml(event.title)}</h3>
         <div class="flex items-center gap-2 text-sm text-gray-500 mb-1">
           <i class="fas fa-calendar text-amber-500 w-4"></i>
-          <span>${dateStr}</span>
+          <span>${dateStr}${timeStr ? ` &bull; ${timeStr}` : ''}</span>
         </div>
         ${event.location ? `
         <div class="flex items-center gap-2 text-sm text-gray-500 mb-3">
@@ -224,6 +227,12 @@ function toDate(value) {
   if (!value) return new Date(0);
   if (typeof value.toDate === 'function') return value.toDate();
   return new Date(value);
+}
+
+function formatTime(date) {
+  const h = date.getHours(), m = date.getMinutes();
+  if (h === 0 && m === 0) return '';
+  return date.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
 }
 
 function formatDateRange(start, end) {
