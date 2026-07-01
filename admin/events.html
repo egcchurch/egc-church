@@ -15,6 +15,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
 </head>
 <body class="bg-zinc-50 font-sans overflow-x-hidden">
 
@@ -112,11 +113,18 @@
           </select>
         </div>
 
-        <!-- Image URL -->
+        <!-- Cover Image -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Image URL (optional)</label>
-          <input id="f-image-url" type="text" placeholder="https://..."
-                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Cover Image (optional)</label>
+          <div id="cover-preview" class="hidden mb-3">
+            <img id="cover-preview-img" src="" alt="Cover preview" class="h-36 w-full object-cover rounded-xl">
+            <button type="button" onclick="removeCover()"
+                    class="mt-1 text-xs text-red-500 hover:underline">Remove photo</button>
+          </div>
+          <label class="flex items-center gap-2 cursor-pointer bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-sm px-4 py-2.5 rounded-xl transition w-fit">
+            <i class="fas fa-image"></i> Choose Cover Photo
+            <input id="cover-file-input" type="file" accept="image/*" class="hidden" onchange="onCoverFileSelected(event)">
+          </label>
         </div>
 
         <!-- Published toggle -->
@@ -157,11 +165,14 @@
   <script src="/firebase-config.js"></script>
   <script src="/js/nav.js"></script>
   <script src="/js/main.js"></script>
+  <script src="/js/storage-upload.js"></script>
   <script src="/js/permissions.js"></script>
   <script src="/js/admin-auth.js" data-require-perm="events.manage"></script>
   <script>
     const db = firebase.firestore();
     let editingId = null;
+    let stagedCoverFile = null;
+    let existingCoverUrl = null;
     const eventsCache = {};
 
     // ─── Toast ───────────────────────────────────────────────────────────────────
@@ -176,6 +187,7 @@
     // ─── Form ─────────────────────────────────────────────────────────────────
     function openForm(id) {
       editingId = id || null;
+      stagedCoverFile = null;
       const event = id ? eventsCache[id] : null;
 
       document.getElementById('form-title').textContent = id ? 'Edit Event' : 'Add New Event';
@@ -184,8 +196,17 @@
       document.getElementById('f-location').value     = event?.location     || '';
       document.getElementById('f-category').value     = event?.category     || 'service';
       document.getElementById('f-audience').value     = event?.audience     || 'public';
-      document.getElementById('f-image-url').value    = event?.imageUrl     || '';
       document.getElementById('f-published').checked  = event?.published    ?? true;
+
+      existingCoverUrl = event?.imageUrl || null;
+      if (existingCoverUrl) {
+        document.getElementById('cover-preview-img').src = existingCoverUrl;
+        document.getElementById('cover-preview').classList.remove('hidden');
+      } else {
+        document.getElementById('cover-preview').classList.add('hidden');
+        document.getElementById('cover-preview-img').src = '';
+      }
+      document.getElementById('cover-file-input').value = '';
 
       const { date: sd, time: st } = splitTimestamp(event?.startDate);
       const { date: ed, time: et } = splitTimestamp(event?.endDate);
@@ -200,10 +221,28 @@
 
     function closeForm() {
       editingId = null;
+      stagedCoverFile = null;
+      existingCoverUrl = null;
       document.getElementById('event-form').classList.add('hidden');
     }
 
-    function saveEvent() {
+    function onCoverFileSelected(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      stagedCoverFile = file;
+      document.getElementById('cover-preview-img').src = URL.createObjectURL(file);
+      document.getElementById('cover-preview').classList.remove('hidden');
+    }
+
+    function removeCover() {
+      stagedCoverFile = null;
+      existingCoverUrl = null;
+      document.getElementById('cover-preview').classList.add('hidden');
+      document.getElementById('cover-preview-img').src = '';
+      document.getElementById('cover-file-input').value = '';
+    }
+
+    async function saveEvent() {
       const title     = document.getElementById('f-title').value.trim();
       const startDate = document.getElementById('f-start-date').value;
 
@@ -212,13 +251,28 @@
         return;
       }
 
+      const ref = editingId
+        ? db.collection('events').doc(editingId)
+        : db.collection('events').doc();
+
+      let imageUrl = existingCoverUrl || null;
+      if (stagedCoverFile) {
+        try {
+          const blob = await compressImage(stagedCoverFile);
+          imageUrl = await uploadMedia(`events/${ref.id}/cover`, blob);
+        } catch (err) {
+          showToast('Error uploading image: ' + err.message, 'error');
+          return;
+        }
+      }
+
       const data = {
         title,
         description : document.getElementById('f-description').value.trim(),
         location    : document.getElementById('f-location').value.trim(),
         category    : document.getElementById('f-category').value,
         audience    : document.getElementById('f-audience').value,
-        imageUrl    : document.getElementById('f-image-url').value.trim() || null,
+        imageUrl,
         published   : document.getElementById('f-published').checked,
         startDate   : buildTimestamp(startDate, document.getElementById('f-start-time').value),
         updatedAt   : firebase.firestore.FieldValue.serverTimestamp(),
@@ -228,10 +282,6 @@
       data.endDate = endDateVal
         ? buildTimestamp(endDateVal, document.getElementById('f-end-time').value)
         : null;
-
-      const ref = editingId
-        ? db.collection('events').doc(editingId)
-        : db.collection('events').doc();
 
       if (!editingId) {
         data.createdAt = firebase.firestore.FieldValue.serverTimestamp();

@@ -92,7 +92,8 @@ function buildStandardCard(post) {
        </div>`;
 
   return `
-    <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100 flex flex-col">
+    <a href="/post.html?id=${post.id}"
+       class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100 flex flex-col group hover:shadow-md transition-shadow">
       ${imageHtml}
       <div class="p-6 flex flex-col flex-1">
         <div class="flex items-center gap-2 text-xs text-gray-500 mb-3">
@@ -101,10 +102,11 @@ function buildStandardCard(post) {
           ${post.author ? `<span class="text-gray-300">&bull;</span><span>${escHtml(post.author)}</span>` : ''}
         </div>
         ${kindBadge ? `<div class="mb-2">${kindBadge}</div>` : ''}
-        <h3 class="text-lg font-bold text-[#0A3D62] mb-2 leading-snug">${escHtml(post.title)}</h3>
-        ${post.body ? `<p class="text-sm text-gray-600 leading-relaxed line-clamp-4 flex-1">${escHtml(post.body)}</p>` : ''}
+        <h3 class="text-lg font-bold text-[#0A3D62] mb-2 leading-snug group-hover:text-amber-600 transition-colors">${escHtml(post.title)}</h3>
+        ${post.body ? `<p class="text-sm text-gray-600 leading-relaxed line-clamp-3 flex-1">${escHtml(post.body)}</p>` : ''}
+        <span class="mt-3 text-sm font-medium text-amber-600 group-hover:underline">Read more <i class="fas fa-arrow-right text-xs ml-1"></i></span>
       </div>
-    </div>`;
+    </a>`;
 }
 
 // Story card — rich image + gallery/video indicators + Read Story link
