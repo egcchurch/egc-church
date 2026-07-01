@@ -9,8 +9,20 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-07-01
-**Current milestone:** Session 157 complete — Notices page rebuilt as monthly grid calendar (PR #259). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Last worked on:** 2026-07-02
+**Current milestone:** Session 157 complete — Notices page rebuilt as monthly grid calendar (PR #259); mobile grid fix (PR #260). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: fix — Calendar grid collapses to list on mobile (Session 157b)
+
+**Date:** 2026-07-02
+**PR:** #260
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`events.html`** — replaced `class="grid grid-cols-7"` with `style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr))"` on the day-header row and `#cal-grid` container; replaced `class="grid grid-cols-1 sm:grid-cols-2 gap-4"` on `#day-events` with inline `auto-fill` grid. `grid-cols-7` was never used in the project before PR #259 so it was absent from the committed Tailwind CSS — mobile devices saw a vertical list instead of a calendar.
 
 ---
 
