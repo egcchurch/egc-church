@@ -10,7 +10,25 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-01
-**Current milestone:** Session 152 complete — Events redesigned as tiered notice board. Naming for events + blog pages under review (Session 153). Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 153 complete — Events renamed to Notices, blog renamed to Reports. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: refactor — Rename events to Notices, blog to Reports (Session 153)
+
+**Date:** 2026-07-01
+**PR:** #245
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`events.html`** — page title and H1 changed from "What's On" to "Notices"; subtitle updated to "Current and upcoming events for the congregation".
+- **`blog.html`** — page title and H1 changed from "Notice Board" to "Reports"; subtitle updated to "Stories and reports from church life".
+- **`nav.html`** — desktop and mobile nav links updated: WHAT'S ON → NOTICES, BLOG → REPORTS.
+- **`admin-nav.html`** — admin nav link updated: BLOG → REPORTS.
+- **`post.html`**, **`story.html`** — all "Back to Notice Board" back-links updated to "Back to Reports".
+- **`js/homepage.js`** — homepage announcement feed section heading updated from "Notice Board" to "Reports".
+- **`service-worker.js`** — bumped cache to v73 (nav.html, blog.html, events.html, post.html, story.html, js/homepage.js all modified).
 
 ---
 
