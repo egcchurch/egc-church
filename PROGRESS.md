@@ -10,7 +10,30 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-01
-**Current milestone:** Session 155 complete — Group/team-only messaging redesign (PR #251). Removed 1-to-1 DMs; added serving team chat; updated Cloud Function to fan out to all participants. Functions deployed and old DMs purged. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 156 complete — Notification cleanup: scheduled auto-prune (30 days) + "Clear all" button in notification panel. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: feat — Notification auto-prune + "Clear all" button (Session 156)
+
+**Date:** 2026-07-01
+**PR:** #254
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`functions/index.js`** — added `pruneOldNotifications` scheduled function (nightly, 02:00 SAST). Queries `collectionGroup('notifications')` for docs older than 30 days and batch-deletes them across all users.
+- **`nav.html`** — added "Clear all" button (`#notif-clear-btn`) to the notification panel header; hidden until the panel has at least one notification.
+- **`js/notifications.js`** — wired up "Clear all" button: binds click handler in `setupBell()`, shows/hides button in `renderPanel()`, added `clearAllNotifications()` which deletes all current notification docs for the user.
+- **`firestore.indexes.json`** — added a fieldOverride enabling `COLLECTION_GROUP` scope for `sentAt` on the `notifications` collection group (required for the scheduled prune query).
+- **`service-worker.js`** — bumped cache to v76.
+
+### Deploy note
+Cloud Functions and Firestore indexes changed — after this PR merges, run:
+```
+firebase deploy --only functions
+firebase deploy --only firestore:indexes
+```
 
 ---
 

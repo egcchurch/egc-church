@@ -86,6 +86,14 @@
       });
     }
 
+    const clearBtn = document.getElementById('notif-clear-btn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        clearAllNotifications(uid, currentItems);
+      });
+    }
+
     document.addEventListener('click', handleOutsideClick);
   }
 
@@ -107,8 +115,11 @@
   // ── Panel rendering ──────────────────────────────────────────────────────────
 
   function renderPanel(panel, items, uid) {
-    const content = panel.querySelector('#notif-panel-content');
+    const content  = panel.querySelector('#notif-panel-content');
+    const clearBtn = document.getElementById('notif-clear-btn');
     if (!content) return;
+
+    if (clearBtn) clearBtn.classList.toggle('hidden', items.length === 0);
 
     if (!items.length) {
       content.innerHTML = '<p class="text-sm text-gray-400 text-center py-8 px-4">No notifications yet</p>';
@@ -147,6 +158,16 @@
         .collection('users').doc(uid)
         .collection('notifications').doc(n.id)
         .update({ read: true }).catch(() => {});
+    });
+  }
+
+  function clearAllNotifications(uid, items) {
+    if (!items.length) return;
+    items.forEach(n => {
+      firebase.firestore()
+        .collection('users').doc(uid)
+        .collection('notifications').doc(n.id)
+        .delete().catch(() => {});
     });
   }
 
