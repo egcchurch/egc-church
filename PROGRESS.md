@@ -10,21 +10,21 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-01
-**Current milestone:** Session 152 — Events redesign as "What's On" notice board. Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 152 complete — Events redesigned as tiered notice board. Naming for events + blog pages under review (Session 153). Pending: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
 
 ---
 
 ## Session: feat — Events page redesigned as "What's On" notice board (Session 152)
 
 **Date:** 2026-07-01
-**PR:** pending
-**Status:** In progress
+**PR:** #243
+**Status:** Merged, deployed to production
 
 ### What was done
 
 - **`events.html`** — complete page restructure: removed Upcoming/Past split; added hero card slot (next upcoming event) above the category filter; replaced content area with Today / This Week / Coming Up sections plus an empty state.
 - **`js/events.js`** — full rewrite of render logic: upcoming events only (past hidden); first/soonest event rendered as a large hero card with "Next Up" badge; remaining events split into Today (today's date), This Week (next 7 days), and Coming Up (beyond); RSVP system preserved and works for both hero and grid cards; `toggleRsvp` now calls `render()` instead of surgically replacing a single card so hero+grid stay in sync.
-- **`nav.html`** — renamed "EVENTS" to "WHAT'S ON" in both desktop and mobile nav (avoids naming conflict with blog's existing "Notice Board" page title).
+- **`nav.html`** — renamed "EVENTS" to "WHAT'S ON" in both desktop and mobile nav (avoids naming conflict with blog's existing "Notice Board" page title). Name subject to change — see Session 153.
 - **`service-worker.js`** — bumped cache to v72 (events.html, js/events.js, nav.html all modified).
 
 ---
