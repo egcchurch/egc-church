@@ -10,7 +10,22 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-02
-**Current milestone:** Session 161 complete — Storage rules per-feature permissions (PR #273). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 162 complete — Remove Member ID / UID display (PR #275). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: fix — Remove Member ID / UID display (Session 162)
+
+**Date:** 2026-07-02
+**PR:** #275
+**Status:** Merged
+
+### What was done
+
+- **`profile.html`** — removed "Member ID" field (read-only UID input, copy button, helper text "Share this with a team leader if they ask you to join a serving team"), the `f-uid` value assignment in `loadProfile()`, and the `copyMemberUid()` function
+- **`admin/users.html`** — removed the monospace UID span and "Copy UID" button from each user card, and the `copyUid()` utility function
+
+The UID was exposed so members could share it with team leaders for manual lookup. All add-leader and add-member flows (groups, serving teams) now use name-based autocomplete search, making manual UID sharing redundant.
 
 ---
 
