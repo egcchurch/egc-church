@@ -129,9 +129,16 @@ service cloud.firestore {
 
     // ── Prayer Requests ───────────────────────────────────────────────────────
     match /prayer/{id} {
-      allow read: if isMember();
-      // Author UID must match the signed-in member — prevents authorship spoofing
-      allow create: if isMember() && request.resource.data.uid == request.auth.uid;
+      // Moderators see everything.
+      // Members see approved public requests (for community feed queries).
+      // Members see their own requests at any approval state (for "My Requests" queries).
+      allow read: if hasPermission('prayer.moderate')
+                  || (isMember() && resource.data.approved == true && resource.data.isPrivate == false)
+                  || (isMember() && resource.data.uid == request.auth.uid);
+      // Author UID must match the signed-in member; new requests must start unapproved.
+      allow create: if isMember()
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.approved == false;
       // Author may update status/testimony/prayedFor; any member may toggle only
       // the prayedFor field (the "Praying" button); moderators may update any field.
       allow update: if hasPermission('prayer.moderate')
@@ -139,6 +146,7 @@ service cloud.firestore {
                         && request.resource.data.diff(resource.data).affectedKeys()
                             .hasOnly(['status', 'testimony', 'prayedFor']))
                     || (isMember()
+                        && resource.data.approved == true
                         && request.resource.data.diff(resource.data).affectedKeys()
                             .hasOnly(['prayedFor']));
       // Moderators delete any request; authors may delete their own.

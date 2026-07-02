@@ -298,6 +298,8 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
       directoryVisible: true,
       directoryShowEmail: false,
       directoryShowPhone: false,
+      notifyWhatsApp: false,
+      prayerNotifications: true,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -407,40 +409,75 @@ exports.sendBroadcast = functions.https.onCall(async (data, context) => {
 
 // ── onNewPrayerRequest ────────────────────────────────────────────────────────
 // Triggered when a prayer request is created.
-// Private → notify admins only.  Public → notify all members.
+// Notifies moderators/superadmins so they can review and approve.
+// Member-facing notifications fire only after approval (see onPrayerRequestApproved).
 
 exports.onNewPrayerRequest = functions.firestore
   .document('prayer/{requestId}')
   .onCreate(async (snap) => {
     const prayer = snap.data();
     const sentAt = admin.firestore.FieldValue.serverTimestamp();
-    const isPrivate = prayer.isPrivate === true;
-
-    const title = prayer.isAnonymous ? 'New Prayer Request' : `Prayer request from ${prayer.authorName || 'a member'}`;
+    const authorLabel = prayer.isAnonymous ? 'Anonymous' : (prayer.authorName || 'a member');
+    const title = `New prayer request from ${authorLabel} (pending approval)`;
     const body  = (prayer.body || '').substring(0, 120);
-    const link  = isPrivate ? '/admin/prayer.html' : '/members/prayer.html';
 
-    let usersSnap;
-    if (isPrivate) {
-      const allSnap = await db.collection('users').get();
-      const adminDocs = allSnap.docs.filter((d) => {
-        const u = d.data();
-        return u.isSuperadmin === true ||
-               (Array.isArray(u.roles) && u.roles.length > 0) ||
-               (Array.isArray(u.extraPermissions) && u.extraPermissions.length > 0);
-      });
-      usersSnap = { docs: adminDocs, empty: adminDocs.length === 0 };
-    } else {
-      usersSnap = await db.collection('users').where('membership', '==', 'member').get();
-    }
-    if (usersSnap.empty) return;
+    // Notify moderators and superadmins
+    const allSnap = await db.collection('users').get();
+    const moderators = allSnap.docs.filter((d) => {
+      const u = d.data();
+      return u.isSuperadmin === true ||
+             (Array.isArray(u.extraPermissions) && u.extraPermissions.includes('prayer.moderate')) ||
+             (Array.isArray(u.roles) && u.roles.length > 0);
+    });
+    if (!moderators.length) return;
 
     const batch = db.batch();
-    usersSnap.docs.forEach((userDoc) => {
+    moderators.forEach((userDoc) => {
       const ref = db.collection('users').doc(userDoc.id).collection('notifications').doc();
-      batch.set(ref, { title, body, type: 'prayer', sentAt, read: false, linkUrl: link });
+      batch.set(ref, { title, body, type: 'prayer_pending', sentAt, read: false, linkUrl: '/admin/prayer.html' });
     });
     await batch.commit();
+  });
+
+// ── onPrayerRequestApproved ───────────────────────────────────────────────────
+// Triggered when a prayer request is updated.
+// When approved flips to true and the request is public, notify all members
+// who have prayerNotifications enabled (default true).
+
+exports.onPrayerRequestApproved = functions.firestore
+  .document('prayer/{requestId}')
+  .onUpdate(async (change) => {
+    const before = change.before.data();
+    const after  = change.after.data();
+
+    // Only act when approved transitions false → true
+    if (before.approved === true || after.approved !== true) return;
+    // Private requests stay within the admin view — no member notification
+    if (after.isPrivate === true) return;
+
+    const sentAt = admin.firestore.FieldValue.serverTimestamp();
+    const title  = after.isAnonymous ? 'New Prayer Request' : `Prayer request from ${after.authorName || 'a member'}`;
+    const body   = (after.body || '').substring(0, 120);
+    const link   = '/members/prayer.html';
+
+    const usersSnap = await db.collection('users').where('membership', '==', 'member').get();
+    if (usersSnap.empty) return;
+
+    const docs = usersSnap.docs.filter((d) => {
+      const u = d.data();
+      return d.id !== after.uid && u.prayerNotifications !== false;
+    });
+    if (!docs.length) return;
+
+    // Batch in chunks of 450 to stay under the 500-write limit
+    for (let i = 0; i < docs.length; i += 450) {
+      const batch = db.batch();
+      docs.slice(i, i + 450).forEach((userDoc) => {
+        const ref = db.collection('users').doc(userDoc.id).collection('notifications').doc();
+        batch.set(ref, { title, body, type: 'prayer', sentAt, read: false, linkUrl: link });
+      });
+      await batch.commit();
+    }
   });
 
 // ── onNewConnectForm ──────────────────────────────────────────────────────────
