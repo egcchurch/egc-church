@@ -152,6 +152,13 @@
             <p class="text-xs text-gray-400">Announcements, reminders and event confirmations, sent to your mobile number above.</p>
           </div>
         </label>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input id="f-prayer-notif" type="checkbox" class="w-4 h-4 accent-amber-500" checked>
+          <div>
+            <p class="text-sm font-medium text-gray-700"><i class="fas fa-hands-praying text-purple-500 mr-1"></i>Prayer request notifications</p>
+            <p class="text-xs text-gray-400">Receive an in-app notification when a new prayer request is approved and shared with the congregation.</p>
+          </div>
+        </label>
       </div>
 
       <button onclick="saveNotifications()"
@@ -240,6 +247,7 @@
         document.getElementById('f-show-email').checked = d.directoryShowEmail ?? false;
         document.getElementById('f-show-phone').checked = d.directoryShowPhone ?? false;
         document.getElementById('f-whatsapp').checked = d.notifyWhatsApp ?? false;
+        document.getElementById('f-prayer-notif').checked = d.prayerNotifications !== false;
 
         if (d.membership === 'pending') {
           document.getElementById('pending-banner').classList.remove('hidden');
@@ -327,6 +335,7 @@
       }
       db.collection('users').doc(currentUser.uid).update({
         notifyWhatsApp: wantsWhatsApp,
+        prayerNotifications: document.getElementById('f-prayer-notif').checked,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       })
         .then(() => alert('Notification settings saved.'))
