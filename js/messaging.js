@@ -14,6 +14,10 @@
   let msgBodyCache   = {};   // msgId → raw body string, refreshed on each snapshot
   let msgMineCache   = {};   // msgId → boolean (did current user send it)
 
+  // On touch-only devices (phones/tablets) hover events don't fire reliably,
+  // so action buttons are always visible instead of reveal-on-hover.
+  const canHover = window.matchMedia('(hover: hover)').matches;
+
   // ── Entry point ──────────────────────────────────────────────────────────────
 
   function waitForFirebase(cb) {
@@ -246,17 +250,27 @@
 
           const canEdit   = mine;
           const canDelete = mine || isLeader;
+          // On hover-capable devices (desktop) buttons start hidden, reveal on mouseenter.
+          // On touch-only devices (phone/tablet) hover events don't fire reliably on tap,
+          // so buttons are always visible at a slightly larger touch target.
+          const actsStyle = canHover
+            ? 'display:inline-flex;gap:2px;opacity:0;transition:opacity 0.15s;vertical-align:middle;margin-left:4px;'
+            : 'display:inline-flex;gap:2px;vertical-align:middle;margin-left:6px;';
+          const btnPad = canHover ? '0 3px' : '0 5px';
           const actionBtns = (canEdit || canDelete) ? `
-            <span class="msg-acts" style="display:inline-flex;gap:2px;opacity:0;transition:opacity 0.15s;vertical-align:middle;margin-left:4px;">
-              ${canEdit   ? `<button data-action="edit"   data-msg-id="${d.id}" style="background:none;border:none;cursor:pointer;color:#a1a1aa;padding:0 3px;font-size:11px;" title="Edit message"><i class="fas fa-pencil-alt"></i></button>` : ''}
-              ${canDelete ? `<button data-action="delete" data-msg-id="${d.id}" style="background:none;border:none;cursor:pointer;color:#a1a1aa;padding:0 3px;font-size:11px;" title="Delete message"><i class="fas fa-trash-alt"></i></button>` : ''}
+            <span class="msg-acts" style="${actsStyle}">
+              ${canEdit   ? `<button data-action="edit"   data-msg-id="${d.id}" style="background:none;border:none;cursor:pointer;color:#a1a1aa;padding:${btnPad};font-size:11px;" title="Edit message"><i class="fas fa-pencil-alt"></i></button>` : ''}
+              ${canDelete ? `<button data-action="delete" data-msg-id="${d.id}" style="background:none;border:none;cursor:pointer;color:#a1a1aa;padding:${btnPad};font-size:11px;" title="Delete message"><i class="fas fa-trash-alt"></i></button>` : ''}
             </span>` : '';
+
+          const hoverAttrs = canHover
+            ? `onmouseenter="this.querySelector('.msg-acts')&&(this.querySelector('.msg-acts').style.opacity='1')" onmouseleave="this.querySelector('.msg-acts')&&(this.querySelector('.msg-acts').style.opacity='0')"`
+            : '';
 
           return `
             <div data-msg-id="${d.id}" data-mine="${mine ? '1' : '0'}"
                  class="flex ${mine ? 'justify-end' : 'justify-start'} items-end gap-1.5 mb-2"
-                 onmouseenter="this.querySelector('.msg-acts')&&(this.querySelector('.msg-acts').style.opacity='1')"
-                 onmouseleave="this.querySelector('.msg-acts')&&(this.querySelector('.msg-acts').style.opacity='0')">
+                 ${hoverAttrs}>
               ${avatarHtml}
               <div class="max-w-[75%]">
                 ${senderLabel}
