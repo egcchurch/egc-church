@@ -10,7 +10,31 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-02
-**Current milestone:** Session 165 complete — Leaders-only group chat mode (PR #280). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 166 complete — Message edit and delete for group chat (PR #282). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: feat — Message edit and delete for group chat (Session 166)
+
+**Date:** 2026-07-02
+**PR:** #282
+**Status:** Merged
+
+### What was done
+
+Added inline message editing and deletion to the group/team chat in `js/messaging.js`.
+
+**Edit** — any sender can fix their own message. A pencil icon appears on hover beside the timestamp. Clicking it replaces the bubble with an inline textarea (amber border, amber Save button) pre-populated with the current body. Save updates Firestore (`body` + `editedAt` serverTimestamp); the onSnapshot re-renders the bubble with a "· edited" label. Cancel/Escape/Ctrl+Enter are all handled. The snapshot handler skips re-rendering while an edit is in-progress so new messages don't clobber the textarea.
+
+**Delete** — sender can delete their own message; group leaders can delete any message (moderation). The trash icon turns red on first click ("click again to confirm") and reverts after 3 s if not confirmed. Second click deletes the Firestore doc; the onSnapshot removes it from the feed in real time.
+
+**Firestore rules** — two new rules on `/conversations/{convId}/messages/{msgId}`:
+- `allow update` — sender only, `affectedKeys()` must be `['body', 'editedAt']`
+- `allow delete` — sender OR group leader (new `isGroupLeaderOfConversation(convId)` helper reads the conversation doc then the group's `leaders` array)
+
+Six new rules tests added (sender edit, bad field edit blocked, non-sender edit blocked, sender delete, leader delete of other's message, non-leader blocked). 195 tests total, all passing.
+
+**No Cloud Function changes** — no manual `firebase deploy --only functions` needed.
 
 ---
 
