@@ -1108,6 +1108,12 @@ describe('Firestore Security Rules', () => {
       await assertSucceeds(updateDoc(doc(db, 'users', 'target-uid'), { roles: ['deacon'], extraPermissions: [] }));
     });
 
+    it('users.assign_roles holder cannot assign roles to themselves', async () => {
+      await seedUser('assignroles-uid', { membership: 'member', roles: [], extraPermissions: [] });
+      const db = assignRolesUser().firestore();
+      await assertFails(updateDoc(doc(db, 'users', 'assignroles-uid'), { roles: ['administrator'] }));
+    });
+
     it('users.assign_roles holder cannot set membership on another user', async () => {
       await seedUser('assignroles-uid', { membership: 'member' });
       await seedUser('target-uid', { membership: 'pending', isSuperadmin: false, roles: [], extraPermissions: [] });
@@ -1120,6 +1126,32 @@ describe('Firestore Security Rules', () => {
       await seedUser('target-uid', { membership: 'member', isSuperadmin: false, roles: [], extraPermissions: [] });
       const db = assignRolesUser().firestore();
       await assertFails(updateDoc(doc(db, 'users', 'target-uid'), { isSuperadmin: true }));
+    });
+
+    it('users.approve holder cannot approve themselves', async () => {
+      await seedUser('approve-uid', { membership: 'pending' });
+      const db = approveOnlyUser().firestore();
+      await assertFails(updateDoc(doc(db, 'users', 'approve-uid'), { membership: 'member' }));
+    });
+
+    it('member cannot update their own roles via self-update', async () => {
+      await seedUser('member-uid', { membership: 'member', roles: [], extraPermissions: [] });
+      const db = memberUser().firestore();
+      await assertFails(updateDoc(doc(db, 'users', 'member-uid'), { roles: ['administrator'] }));
+    });
+
+    it('member cannot update their own membership via self-update', async () => {
+      await seedUser('member-uid', { membership: 'pending', roles: [], extraPermissions: [] });
+      const db = memberUser().firestore();
+      await assertFails(updateDoc(doc(db, 'users', 'member-uid'), { membership: 'member' }));
+    });
+
+    it('member can update their own safe profile fields', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      const db = memberUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'users', 'member-uid'), {
+        displayName: 'New Name', phone: '0821234567', directoryVisible: false,
+      }));
     });
   });
 
