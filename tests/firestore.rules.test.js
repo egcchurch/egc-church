@@ -617,7 +617,7 @@ describe('Firestore Security Rules', () => {
       await seedUser('member-uid', { membership: 'member' });
       const db = memberUser().firestore();
       await assertSucceeds(setDoc(doc(db, 'prayer', 'p1'), {
-        uid: 'member-uid', body: 'Please pray for me', isAnonymous: false, isPrivate: false, prayedFor: []
+        uid: 'member-uid', body: 'Please pray for me', isAnonymous: false, isPrivate: false, approved: false, prayedFor: []
       }));
     });
 
@@ -629,10 +629,28 @@ describe('Firestore Security Rules', () => {
       await assertFails(getDoc(doc(db, 'prayer', 'p1')));
     });
 
-    it('member can read prayer requests', async () => {
+    it('member can read approved public prayer requests', async () => {
       await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
-        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), { uid: 'other-uid', body: 'Prayer', isPrivate: false });
+        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), { uid: 'other-uid', body: 'Prayer', isPrivate: false, approved: true });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'prayer', 'p1')));
+    });
+
+    it('member cannot read unapproved prayer request from another member', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), { uid: 'other-uid', body: 'Prayer', isPrivate: false, approved: false });
+      });
+      const db = memberUser().firestore();
+      await assertFails(getDoc(doc(db, 'prayer', 'p1')));
+    });
+
+    it('member can read own unapproved prayer request', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), { uid: 'member-uid', body: 'Prayer', isPrivate: false, approved: false });
       });
       const db = memberUser().firestore();
       await assertSucceeds(getDoc(doc(db, 'prayer', 'p1')));
@@ -682,22 +700,33 @@ describe('Firestore Security Rules', () => {
       await assertSucceeds(updateDoc(doc(db, 'prayer', 'p1'), { status: 'answered' }));
     });
 
-    it('any member can toggle prayedFor on someone else\'s request', async () => {
+    it('any member can toggle prayedFor on someone else\'s approved request', async () => {
       await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), {
-          uid: 'other-uid', body: 'Pray for me', isAnonymous: false, isPrivate: false, prayedFor: [], status: 'active'
+          uid: 'other-uid', body: 'Pray for me', isAnonymous: false, isPrivate: false, approved: true, prayedFor: [], status: 'active'
         });
       });
       const db = memberUser().firestore();
       await assertSucceeds(updateDoc(doc(db, 'prayer', 'p1'), { prayedFor: ['member-uid'] }));
     });
 
+    it('member cannot toggle prayedFor on an unapproved request', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), {
+          uid: 'other-uid', body: 'Pray for me', isAnonymous: false, isPrivate: false, approved: false, prayedFor: [], status: 'active'
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(updateDoc(doc(db, 'prayer', 'p1'), { prayedFor: ['member-uid'] }));
+    });
+
     it('member cannot piggyback other fields onto a prayedFor update', async () => {
       await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'prayer', 'p1'), {
-          uid: 'other-uid', body: 'Pray for me', isAnonymous: false, isPrivate: false, prayedFor: [], status: 'active'
+          uid: 'other-uid', body: 'Pray for me', isAnonymous: false, isPrivate: false, approved: true, prayedFor: [], status: 'active'
         });
       });
       const db = memberUser().firestore();
@@ -708,7 +737,15 @@ describe('Firestore Security Rules', () => {
       await seedUser('member-uid', { membership: 'member' });
       const db = memberUser().firestore();
       await assertFails(setDoc(doc(db, 'prayer', 'p1'), {
-        uid: 'other-uid', body: 'Not mine', isAnonymous: false, isPrivate: false, prayedFor: []
+        uid: 'other-uid', body: 'Not mine', isAnonymous: false, isPrivate: false, approved: false, prayedFor: []
+      }));
+    });
+
+    it('member cannot create a prayer request with approved:true', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      const db = memberUser().firestore();
+      await assertFails(setDoc(doc(db, 'prayer', 'p1'), {
+        uid: 'member-uid', body: 'Please pray for me', isAnonymous: false, isPrivate: false, approved: true, prayedFor: []
       }));
     });
 
