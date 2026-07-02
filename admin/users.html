@@ -307,10 +307,6 @@
                 <p class="font-semibold text-gray-900">${escHtml(u.displayName || '(no name)')}</p>
                 <p class="text-sm text-gray-500">${escHtml(u.email || '')}</p>
                 <p class="text-xs text-gray-400 mt-1">Joined ${joined}</p>
-                <button onclick="copyUid('${uid}', this)" title="Copy UID"
-                        class="mt-1 inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-amber-600 font-mono transition-colors">
-                  <i class="fas fa-copy"></i><span>${uid}</span>
-                </button>
               </div>
             </div>
 
@@ -456,20 +452,6 @@
     }
 
     // ── Utility ───────────────────────────────────────────────────────────────
-
-    function copyUid(uid, btn) {
-      navigator.clipboard.writeText(uid).then(() => {
-        const icon = btn.querySelector('i');
-        const label = btn.querySelector('span');
-        const originalIconClass = icon.className;
-        icon.className = 'fas fa-check';
-        label.textContent = 'Copied!';
-        setTimeout(() => {
-          icon.className = originalIconClass;
-          label.textContent = uid;
-        }, 1500);
-      });
-    }
 
     function escHtml(str) {
       return String(str || '')
