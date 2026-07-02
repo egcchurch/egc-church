@@ -83,6 +83,13 @@
                  class="hidden absolute z-20 top-full mt-1 left-0 right-0 bg-white border border-zinc-200 rounded-xl shadow-lg max-h-48 overflow-y-auto"></div>
           </div>
         </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Chat Mode</label>
+          <select id="f-chat-mode" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+            <option value="open">Open — all members can post</option>
+            <option value="leaders_only">Leaders only — members can view but not reply</option>
+          </select>
+        </div>
         <div class="flex items-center gap-2">
           <input type="checkbox" id="f-public" class="w-4 h-4 accent-amber-500" checked>
           <label for="f-public" class="text-sm text-zinc-700">Visible to members</label>
@@ -135,6 +142,7 @@
       document.getElementById('f-time').value = group?.meetingTime || '';
       document.getElementById('f-location').value = group?.location || '';
       document.getElementById('f-public').checked = group ? group.isPublic !== false : true;
+      document.getElementById('f-chat-mode').value = group?.chatMode || 'open';
       document.getElementById('form-msg').classList.add('hidden');
 
       formLeaders = [];
@@ -252,6 +260,7 @@
         location: document.getElementById('f-location').value.trim() || null,
         leaders,
         isPublic: document.getElementById('f-public').checked,
+        chatMode: document.getElementById('f-chat-mode').value,
       };
 
       try {
@@ -310,6 +319,7 @@
                 <h2 class="font-bold text-lg text-[#0A3D62]">${escapeHtml(g.name)}</h2>
                 <span class="text-xs font-medium px-2 py-0.5 rounded-full ${p.cls}">${p.text}</span>
                 ${!g.isPublic ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500">Hidden</span>' : ''}
+                ${g.chatMode === 'leaders_only' ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">Leaders-only chat</span>' : ''}
               </div>
               ${g.description ? `<p class="text-sm text-zinc-600 mb-2">${escapeHtml(g.description)}</p>` : ''}
               <div class="flex flex-wrap gap-4 text-xs text-zinc-400">

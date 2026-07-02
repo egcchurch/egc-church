@@ -922,6 +922,71 @@ describe('Firestore Security Rules', () => {
       const db = memberUser().firestore();
       await assertFails(getDoc(doc(db, 'conversations', 'conv1', 'messages', 'msg1')));
     });
+
+    it('member can post to an open group chat (chatMode: open)', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'groups', 'group1'), {
+          name: 'Youth', leaders: ['leader-uid'], members: ['member-uid'], chatMode: 'open'
+        });
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          type: 'group', groupId: 'group1', participants: ['member-uid', 'leader-uid']
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(setDoc(doc(db, 'conversations', 'conv1', 'messages', 'msg1'), {
+        senderId: 'member-uid', body: 'Hello', sentAt: null
+      }));
+    });
+
+    it('member cannot post to a leaders-only group chat', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'groups', 'group1'), {
+          name: 'Youth', leaders: ['leader-uid'], members: ['member-uid'], chatMode: 'leaders_only'
+        });
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          type: 'group', groupId: 'group1', participants: ['member-uid', 'leader-uid']
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(setDoc(doc(db, 'conversations', 'conv1', 'messages', 'msg1'), {
+        senderId: 'member-uid', body: 'Hello', sentAt: null
+      }));
+    });
+
+    it('leader can post to a leaders-only group chat', async () => {
+      await seedUser('leader-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'groups', 'group1'), {
+          name: 'Youth', leaders: ['leader-uid'], members: ['member-uid'], chatMode: 'leaders_only'
+        });
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          type: 'group', groupId: 'group1', participants: ['member-uid', 'leader-uid']
+        });
+      });
+      const db = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      await assertSucceeds(setDoc(doc(db, 'conversations', 'conv1', 'messages', 'msg1'), {
+        senderId: 'leader-uid', body: 'Announcement', sentAt: null
+      }));
+    });
+
+    it('group without chatMode field defaults to open (no regression)', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'groups', 'group1'), {
+          name: 'Youth', leaders: ['leader-uid'], members: ['member-uid']
+          // chatMode deliberately absent — legacy group
+        });
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          type: 'group', groupId: 'group1', participants: ['member-uid', 'leader-uid']
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(setDoc(doc(db, 'conversations', 'conv1', 'messages', 'msg1'), {
+        senderId: 'member-uid', body: 'Hello', sentAt: null
+      }));
+    });
   });
 
   describe('User notifications subcollection', () => {
