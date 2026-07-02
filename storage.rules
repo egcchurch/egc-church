@@ -12,10 +12,10 @@ service firebase.storage {
         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.membership == 'member';
     }
 
-    function isAdminUser() {
+    function hasPermission(p) {
       return isSignedIn() &&
         (request.auth.token.superadmin == true ||
-         (request.auth.token.perms is list && request.auth.token.perms.size() > 0));
+         (request.auth.token.perms is list && p in request.auth.token.perms));
     }
 
     function isOwner(uid) {
@@ -59,8 +59,8 @@ service firebase.storage {
     // ── Sermon audio (single file at this level) ───────────────────────────
     match /sermons/{sermonId}/{fileName} {
       allow read: if true;
-      allow create, update: if isAdminUser() && (isValidAudio() || isValidDocument());
-      allow delete: if isAdminUser();
+      allow create, update: if hasPermission('sermons.manage') && (isValidAudio() || isValidDocument());
+      allow delete: if hasPermission('sermons.manage');
     }
 
     // ── Sermon notes/materials (multiple files, nested under materials/) ───
@@ -68,62 +68,62 @@ service firebase.storage {
     // level deeper (sermons/{id}/materials/{file}) need their own match block.
     match /sermons/{sermonId}/materials/{fileName} {
       allow read: if true;
-      allow create, update: if isAdminUser() && isValidDocument();
-      allow delete: if isAdminUser();
+      allow create, update: if hasPermission('sermons.manage') && isValidDocument();
+      allow delete: if hasPermission('sermons.manage');
     }
 
     // ── Gallery images ────────────────────────────────────────────────────
     match /gallery/{galleryId}/{fileName} {
       allow read: if true; // Audience check handled in Firestore
-      allow create, update: if isAdminUser() && isValidImage();
-      allow delete: if isAdminUser();
+      allow create, update: if hasPermission('gallery.manage') && isValidImage();
+      allow delete: if hasPermission('gallery.manage');
     }
 
     // ── Sermon series cover images ────────────────────────────────────────
     match /series/{seriesId}/{fileName} {
       allow read: if true;
-      allow create, update: if isAdminUser() && isValidImage();
-      allow delete: if isAdminUser();
+      allow create, update: if hasPermission('sermons.manage') && isValidImage();
+      allow delete: if hasPermission('sermons.manage');
     }
 
     // ── Music ─────────────────────────────────────────────────────────────
     match /music/{fileName} {
       allow read: if true;
-      allow create, update: if isAdminUser() && isValidAudio();
-      allow delete: if isAdminUser();
+      allow create, update: if hasPermission('music.manage') && isValidAudio();
+      allow delete: if hasPermission('music.manage');
     }
 
     match /music/covers/{fileName} {
       allow read: if true;
-      allow create, update: if isAdminUser() && isValidImage();
-      allow delete: if isAdminUser();
+      allow create, update: if hasPermission('music.manage') && isValidImage();
+      allow delete: if hasPermission('music.manage');
     }
 
     // ── Blog & Events images ──────────────────────────────────────────────
     match /blog/{fileName} {
       allow read: if true;
-      allow create, update: if isAdminUser() && isValidImage();
-      allow delete: if isAdminUser();
+      allow create, update: if hasPermission('blog.manage') && isValidImage();
+      allow delete: if hasPermission('blog.manage');
     }
 
     // Story cover and gallery images (nested under blog/{postId}/)
     match /blog/{postId}/{allPaths=**} {
       allow read: if true;
-      allow create, update: if isAdminUser() && isValidImage();
-      allow delete: if isAdminUser();
+      allow create, update: if hasPermission('blog.manage') && isValidImage();
+      allow delete: if hasPermission('blog.manage');
     }
 
     match /events/{fileName} {
       allow read: if true;
-      allow create, update: if isAdminUser() && isValidImage();
-      allow delete: if isAdminUser();
+      allow create, update: if hasPermission('events.manage') && isValidImage();
+      allow delete: if hasPermission('events.manage');
     }
 
     // ── Team photos ───────────────────────────────────────────────────────
     match /team/{fileName} {
       allow read: if true;
-      allow create, update: if isAdminUser() && isValidImage();
-      allow delete: if isAdminUser();
+      allow create, update: if hasPermission('team.manage') && isValidImage();
+      allow delete: if hasPermission('team.manage');
     }
 
     // ── Site branding (logo) ──────────────────────────────────────────────
