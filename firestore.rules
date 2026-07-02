@@ -31,13 +31,17 @@ service cloud.firestore {
     // Returns true if the current user is allowed to post a message to convId.
     // Participant check is included so the caller only needs this one call.
     // For group chats with chatMode == "leaders_only", restricts posting to leaders.
+    // Uses || short-circuit: group doc is only read when the conversation is a
+    // group chat with a groupId. Firestore memoizes get() per request, so the
+    // two references to the group doc below cost at most one read.
     function canPostToConversation(convId) {
       let conv = get(/databases/$(database)/documents/conversations/$(convId)).data;
-      if (!(request.auth.uid in conv.participants)) return false;
-      if (conv.type != 'group' || !('groupId' in conv) || conv.groupId == null) return true;
-      let group = get(/databases/$(database)/documents/groups/$(conv.groupId)).data;
-      if (!('chatMode' in group) || group.chatMode != 'leaders_only') return true;
-      return request.auth.uid in group.leaders;
+      return (request.auth.uid in conv.participants) &&
+        (conv.type != 'group' ||
+         !('groupId' in conv) ||
+         conv.groupId == null ||
+         get(/databases/$(database)/documents/groups/$(conv.groupId)).data.get('chatMode', 'open') != 'leaders_only' ||
+         request.auth.uid in get(/databases/$(database)/documents/groups/$(conv.groupId)).data.get('leaders', []));
     }
 
     // ── Users ─────────────────────────────────────────────────────────────────
