@@ -10,7 +10,19 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-02
-**Current milestone:** Session 159 complete — Role self-assignment privilege escalation fix (PR #266). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 160 complete — UI guard for own-account permissions panel (PR #268). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: fix — UI guard for own-account permissions panel (Session 160)
+
+**Date:** 2026-07-02
+**PR:** #268
+**Status:** Merged
+
+### What was done
+
+- **`admin/users.html`** — added a UI guard so an admin cannot use the Permissions panel to modify their own roles or extra permissions. When the expandable panel is opened on the current user's own row, it shows a lock notice ("You cannot modify your own roles or permissions. Ask another administrator to make changes to your account.") instead of the editable checkboxes and Save button. The superadmin toggle was already guarded with `uid !== currentUid`; refactored to use the shared `isSelf` variable for consistency. Defence-in-depth complement to the Firestore rules fix in PR #266.
 
 ---
 
