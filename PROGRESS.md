@@ -10,7 +10,37 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-02
-**Current milestone:** Session 157 complete — Notices page rebuilt as monthly grid calendar (PR #259); mobile grid fix (PR #260); legend dots fix (PR #262). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 158 complete — Prayer request approval workflow + notification opt-out (PR #264). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: feat — Prayer request approval workflow + notification opt-out (Session 158)
+
+**Date:** 2026-07-02
+**PR:** #264
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`members/prayer.html`** — new requests include `approved: false` on create; submit success message updated to say "awaiting moderator review". Page now uses two Firestore queries (approved public requests + own requests) merged client-side. "My Requests" tab shows all own requests including pending ones with an amber "Pending approval" badge. Community tabs (All / Active / Answered) show only approved public requests. "Praying" button hidden on pending requests.
+- **`admin/prayer.html`** — page opens on a new **Pending** tab. Header badge shows the count of pending requests. Each pending card has **Approve** (one click) and **Edit & Approve** (inline text editor) actions. Trash icon relabelled "Reject / Delete". Approved requests retain the existing Active / Answered workflow.
+- **`profile.html`** — new "Prayer request notifications" checkbox in the Notifications section (default on). Loads `prayerNotifications` from the user doc; saves it alongside `notifyWhatsApp`.
+- **`functions/index.js`**:
+  - `onUserCreate` — now sets `prayerNotifications: true` on new user docs.
+  - `onNewPrayerRequest` — changed to notify moderators/superadmins only (not members) so they know a request needs review.
+  - `onPrayerRequestApproved` (new update trigger) — fires when `approved` flips `false → true` on a public request; fans out in-app notifications to all members, skipping the author and anyone with `prayerNotifications === false`.
+- **`firestore.rules`** — prayer read rule: members can read `approved == true && isPrivate == false` OR their own requests. Create enforces `approved == false`. `prayedFor` toggle now only allowed on approved requests.
+- **`firestore.indexes.json`** — two new composite indexes: `prayer(approved, isPrivate, submittedAt)` and `prayer(uid, submittedAt)`.
+- **`tests/firestore.rules.test.js`** — updated all prayer tests to include `approved` field; added tests for unapproved read denial, own-unapproved read permission, prayedFor toggle denied on unapproved, and member cannot self-approve.
+- **`service-worker.js`** — bumped cache to v79.
+
+### Deploy note
+Required after merge (already done):
+```
+firebase deploy --only functions
+firebase deploy --only firestore:rules
+firebase deploy --only firestore:indexes
+```
 
 ---
 
