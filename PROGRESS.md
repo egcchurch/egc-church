@@ -10,7 +10,42 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-02
-**Current milestone:** Session 158 complete — Prayer request approval workflow + notification opt-out (PR #264). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 160 complete — UI guard for own-account permissions panel (PR #268). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: fix — UI guard for own-account permissions panel (Session 160)
+
+**Date:** 2026-07-02
+**PR:** #268
+**Status:** Merged
+
+### What was done
+
+- **`admin/users.html`** — added a UI guard so an admin cannot use the Permissions panel to modify their own roles or extra permissions. When the expandable panel is opened on the current user's own row, it shows a lock notice ("You cannot modify your own roles or permissions. Ask another administrator to make changes to your account.") instead of the editable checkboxes and Save button. The superadmin toggle was already guarded with `uid !== currentUid`; refactored to use the shared `isSelf` variable for consistency. Defence-in-depth complement to the Firestore rules fix in PR #266.
+
+---
+
+## Session: fix — Role self-assignment privilege escalation (Session 159)
+
+**Date:** 2026-07-02
+**PR:** #266
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`firestore.rules`** — closed privilege escalation on `/users/{uid}` update:
+  - `isOwner` branch restricted to safe self-service fields only (`displayName`, `photoURL`, `phone`, directory prefs, notification prefs). Previously unrestricted, allowing any user to write `roles`, `extraPermissions`, or `isSuperadmin` to their own doc.
+  - `users.approve` branch now requires `!isOwner(uid)` — a user cannot approve themselves.
+  - `users.assign_roles` branch now requires `!isOwner(uid)` — a user cannot assign roles to themselves even if they hold that permission.
+  - Superadmin retains unrestricted update access.
+- **`tests/firestore.rules.test.js`** — five new tests: `users.assign_roles` holder cannot self-assign; `users.approve` holder cannot self-approve; member cannot escalate own roles or membership; member can still update safe profile fields.
+
+### Deploy note
+Required after merge (already done):
+```
+firebase deploy --only firestore:rules
+```
 
 ---
 
