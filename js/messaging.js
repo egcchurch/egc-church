@@ -6,6 +6,7 @@
   let currentUser    = null;
   let currentConvId  = null;
   let currentConvData = null; // cached conversation doc data
+  let currentGroupData = null; // cached group doc for group conversations
   let unsubMessages  = null;
   let unsubConvs     = null;
   let pendingConvId  = null; // conv to open once the list has loaded (from ?conv= URL param)
@@ -110,12 +111,22 @@
 
   async function openConversation(convId) {
     currentConvId = convId;
+    currentGroupData = null;
     // Cache conversation metadata for group chat sender name display
     try {
       const snap = await firebase.firestore().collection('conversations').doc(convId).get();
       currentConvData = snap.exists ? snap.data() : null;
     } catch (_) {
       currentConvData = null;
+    }
+    // For group conversations, fetch the group doc so we can enforce chatMode
+    if (currentConvData?.type === 'group' && currentConvData?.groupId) {
+      try {
+        const gSnap = await firebase.firestore().collection('groups').doc(currentConvData.groupId).get();
+        currentGroupData = gSnap.exists ? gSnap.data() : null;
+      } catch (_) {
+        currentGroupData = null;
+      }
     }
 
     // Highlight in list
@@ -145,8 +156,37 @@
       unreadBy: firebase.firestore.FieldValue.arrayRemove(currentUser.uid),
     }).catch(() => {});
 
+    // Show/hide compose box based on group chatMode
+    updateComposeBox();
+
     // Load messages
     loadMessages(convId);
+  }
+
+  // Show the send form for leaders/open chats; replace with a notice for
+  // members in a leaders_only group chat.
+  function updateComposeBox() {
+    const composeArea = document.getElementById('send-form')?.parentElement;
+    if (!composeArea) return;
+
+    const isLeadersOnly = currentGroupData?.chatMode === 'leaders_only';
+    const isLeader = isLeadersOnly &&
+      (currentGroupData?.leaders || []).includes(currentUser?.uid);
+
+    // Remove any existing read-only notice
+    const existing = document.getElementById('chat-readonly-notice');
+    if (existing) existing.remove();
+
+    if (isLeadersOnly && !isLeader) {
+      document.getElementById('send-form').style.display = 'none';
+      const notice = document.createElement('p');
+      notice.id = 'chat-readonly-notice';
+      notice.style.cssText = 'text-align:center;font-size:0.75rem;color:#a1a1aa;padding:0.75rem 1rem;';
+      notice.textContent = 'Only group leaders can post in this channel.';
+      composeArea.appendChild(notice);
+    } else {
+      document.getElementById('send-form').style.display = '';
+    }
   }
 
   function loadMessages(convId) {

@@ -554,6 +554,7 @@ Functions are organised by trigger type:
   pendingMembers: [uid array]   ← for "approval" joinPolicy
   isPublic: true | false
   joinPolicy: "open" | "approval" | "invite-only"
+  chatMode: "open" | "leaders_only"              ← default "open"; "leaders_only" restricts posting to leaders; members can still read
 
 /devotionals/{devotionalId}
   title, body, scripture, scriptureText
