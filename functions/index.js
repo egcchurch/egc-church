@@ -1404,6 +1404,44 @@ exports.onServingSlotReleased = functions.firestore
     return null;
   });
 
+// ── onGroupMemberAdded ────────────────────────────────────────────────────────
+// Triggered when a /groups/{groupId} document is updated.
+// When new UIDs appear in the members array, notifies each added member.
+// Distinguishes between two paths:
+//   - UID was in pendingMembers before → request was approved
+//   - UID was not in pendingMembers    → leader added them directly (invite-only or otherwise)
+
+exports.onGroupMemberAdded = functions.firestore
+  .document('groups/{groupId}')
+  .onUpdate(async (change) => {
+    const before = change.before.data();
+    const after  = change.after.data();
+
+    const beforeMembers = new Set(before.members || []);
+    const afterMembers  = new Set(after.members  || []);
+    const beforePending = new Set(before.pendingMembers || []);
+
+    const added = [...afterMembers].filter(uid => !beforeMembers.has(uid));
+    if (!added.length) return null;
+
+    const groupName = after.name || 'a group';
+
+    await Promise.allSettled(added.map(uid => {
+      const wasRequesting = beforePending.has(uid);
+      return sendUserNotification(uid, {
+        title: wasRequesting ? `You're in — ${groupName}` : `Added to ${groupName}`,
+        body:  wasRequesting
+          ? `Your request to join ${groupName} has been approved.`
+          : `You've been added to ${groupName} by a group leader.`,
+        type:    'group_added',
+        linkUrl: '/members/groups.html',
+      });
+    }));
+
+    console.log(`onGroupMemberAdded: notified ${added.length} new member(s) for group "${after.name}"`);
+    return null;
+  });
+
 // Normalise a SA mobile number to international digits (no +): 0XXXXXXXXX -> 27XXXXXXXXX.
 function normaliseSaNumber(raw) {
   const d = String(raw || '').replace(/[^0-9]/g, '');
