@@ -28,6 +28,17 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    // Returns true if the current user is a leader of the group linked to convId.
+    // Used to gate leader-only delete on group chat messages.
+    function isGroupLeaderOfConversation(convId) {
+      let conv = get(/databases/$(database)/documents/conversations/$(convId)).data;
+      return conv.type == 'group' &&
+        'groupId' in conv &&
+        conv.groupId != null &&
+        request.auth.uid in
+          get(/databases/$(database)/documents/groups/$(conv.groupId)).data.get('leaders', []);
+    }
+
     // Returns true if the current user is allowed to post a message to convId.
     // Participant check is included so the caller only needs this one call.
     // For group chats with chatMode == "leaders_only", restricts posting to leaders.
@@ -400,8 +411,15 @@ service cloud.firestore {
         // For group chats with chatMode == "leaders_only", only leaders may post.
         // canPostToConversation() reads the conversation once and the group once (if needed).
         allow create: if isMember() && canPostToConversation(convId);
-        allow update: if false;
-        allow delete: if false;
+        // Sender can correct their own message — body field only, adds editedAt timestamp.
+        allow update: if isMember() &&
+          request.auth.uid == resource.data.senderId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['body', 'editedAt']);
+        // Sender can delete their own message; group leaders can delete any message.
+        allow delete: if isMember() && (
+          request.auth.uid == resource.data.senderId ||
+          isGroupLeaderOfConversation(convId)
+        );
       }
     }
   }

@@ -5,11 +5,14 @@
 (function () {
   let currentUser    = null;
   let currentConvId  = null;
-  let currentConvData = null; // cached conversation doc data
-  let currentGroupData = null; // cached group doc for group conversations
+  let currentConvData  = null;
+  let currentGroupData = null;
   let unsubMessages  = null;
   let unsubConvs     = null;
-  let pendingConvId  = null; // conv to open once the list has loaded (from ?conv= URL param)
+  let pendingConvId  = null;
+  let editingMsgId   = null; // message currently being edited (blocks snapshot re-render)
+  let msgBodyCache   = {};   // msgId → raw body string, refreshed on each snapshot
+  let msgMineCache   = {};   // msgId → boolean (did current user send it)
 
   // ── Entry point ──────────────────────────────────────────────────────────────
 
@@ -110,8 +113,11 @@
   // ── Open a conversation ──────────────────────────────────────────────────────
 
   async function openConversation(convId) {
-    currentConvId = convId;
+    currentConvId    = convId;
     currentGroupData = null;
+    editingMsgId     = null;
+    msgBodyCache     = {};
+    msgMineCache     = {};
     // Cache conversation metadata for group chat sender name display
     try {
       const snap = await firebase.firestore().collection('conversations').doc(convId).get();
@@ -195,17 +201,33 @@
     const feed = document.getElementById('msg-feed');
     if (!feed) return;
 
+    feed.onclick = handleFeedClick;
+
     unsubMessages = firebase.firestore()
       .collection('conversations').doc(convId)
       .collection('messages')
       .orderBy('sentAt', 'asc')
       .onSnapshot((snap) => {
+        // Don't clobber an active inline edit — the save/cancel will clear editingMsgId
+        // and the next snapshot (triggered by the Firestore write) will re-render cleanly.
+        if (editingMsgId) return;
+
         if (snap.empty) {
           feed.innerHTML = '<p class="text-xs text-gray-400 text-center py-8">No messages yet. Say hello!</p>';
+          msgBodyCache = {};
+          msgMineCache = {};
           return;
         }
 
-        const isGroup = currentConvData?.type === 'group' || currentConvData?.type === 'team';
+        const isGroup  = currentConvData?.type === 'group' || currentConvData?.type === 'team';
+        const isLeader = (currentGroupData?.leaders || []).includes(currentUser?.uid);
+
+        // Refresh per-message caches used by startEdit / cancelEdit
+        snap.docs.forEach(d => {
+          msgBodyCache[d.id] = d.data().body || '';
+          msgMineCache[d.id] = d.data().senderId === currentUser?.uid;
+        });
+
         feed.innerHTML = snap.docs.map(d => {
           const m    = d.data();
           const mine = m.senderId === currentUser.uid;
@@ -213,7 +235,6 @@
             ? m.sentAt.toDate().toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })
             : '';
 
-          // Show sender name + avatar for others in group conversations
           const senderLabel = isGroup && !mine && m.senderName
             ? `<p class="text-[10px] font-semibold text-indigo-600 mb-0.5 pl-1">${esc(m.senderName)}</p>`
             : '';
@@ -223,25 +244,145 @@
                </div>`
             : '';
 
+          const canEdit   = mine;
+          const canDelete = mine || isLeader;
+          const actionBtns = (canEdit || canDelete) ? `
+            <span class="msg-acts" style="display:inline-flex;gap:2px;opacity:0;transition:opacity 0.15s;vertical-align:middle;margin-left:4px;">
+              ${canEdit   ? `<button data-action="edit"   data-msg-id="${d.id}" style="background:none;border:none;cursor:pointer;color:#a1a1aa;padding:0 3px;font-size:11px;" title="Edit message"><i class="fas fa-pencil-alt"></i></button>` : ''}
+              ${canDelete ? `<button data-action="delete" data-msg-id="${d.id}" style="background:none;border:none;cursor:pointer;color:#a1a1aa;padding:0 3px;font-size:11px;" title="Delete message"><i class="fas fa-trash-alt"></i></button>` : ''}
+            </span>` : '';
+
           return `
-            <div class="flex ${mine ? 'justify-end' : 'justify-start'} items-end gap-1.5 mb-2">
+            <div data-msg-id="${d.id}" data-mine="${mine ? '1' : '0'}"
+                 class="flex ${mine ? 'justify-end' : 'justify-start'} items-end gap-1.5 mb-2"
+                 onmouseenter="this.querySelector('.msg-acts')&&(this.querySelector('.msg-acts').style.opacity='1')"
+                 onmouseleave="this.querySelector('.msg-acts')&&(this.querySelector('.msg-acts').style.opacity='0')">
               ${avatarHtml}
               <div class="max-w-[75%]">
                 ${senderLabel}
-                <div class="px-3.5 py-2 rounded-2xl text-sm leading-relaxed
+                <div data-msg-body class="px-3.5 py-2 rounded-2xl text-sm leading-relaxed
                             ${mine
                               ? 'bg-[#0A3D62] text-white rounded-br-sm'
                               : 'bg-white border border-zinc-200 text-gray-800 rounded-bl-sm'}">
                   ${esc(m.body || '')}
                 </div>
-                <p class="text-[10px] text-gray-400 mt-0.5 ${mine ? 'text-right' : 'text-left'}">${time}</p>
+                <p class="text-[10px] text-gray-400 mt-0.5 ${mine ? 'text-right' : 'text-left'}">
+                  ${time}${m.editedAt ? ' · edited' : ''}${actionBtns}
+                </p>
               </div>
             </div>`;
         }).join('');
 
-        // Scroll to bottom
         feed.scrollTop = feed.scrollHeight;
       }, err => console.warn('Message feed error:', err));
+  }
+
+  // ── Message actions (edit / delete) ─────────────────────────────────────────
+
+  function handleFeedClick(e) {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, msgId } = btn.dataset;
+    if (action === 'edit')   startEdit(msgId);
+    if (action === 'delete') deleteMessage(btn, msgId);
+  }
+
+  function startEdit(msgId) {
+    if (editingMsgId) cancelEdit(editingMsgId);
+    editingMsgId = msgId;
+
+    const wrapper = document.querySelector(`[data-msg-id="${msgId}"]`);
+    if (!wrapper) return;
+    const bodyEl = wrapper.querySelector('[data-msg-body]');
+    if (!bodyEl) return;
+
+    const body = msgBodyCache[msgId] || '';
+
+    const editWrap = document.createElement('div');
+    editWrap.innerHTML = `
+      <textarea id="edit-ta-${msgId}"
+                maxlength="2000"
+                style="width:100%;padding:8px 12px;border-radius:12px;border:2px solid #f59e0b;font-size:14px;line-height:1.5;resize:none;outline:none;box-sizing:border-box;min-height:52px;color:#111827;background:#fff;">${esc(body)}</textarea>
+      <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;">
+        <button data-edit-cancel style="font-size:12px;padding:4px 12px;border-radius:999px;border:1px solid #d4d4d8;background:#fff;cursor:pointer;color:#52525b;">Cancel</button>
+        <button data-edit-save  style="font-size:12px;padding:4px 12px;border-radius:999px;background:#f59e0b;border:none;cursor:pointer;color:#fff;font-weight:600;">Save</button>
+      </div>`;
+
+    bodyEl.replaceWith(editWrap);
+
+    const ta = editWrap.querySelector('textarea');
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = ta.value.length;
+
+    editWrap.querySelector('[data-edit-save]').addEventListener('click', () => {
+      const newBody = ta.value.trim();
+      if (newBody) saveEdit(msgId, newBody); else cancelEdit(msgId);
+    });
+    editWrap.querySelector('[data-edit-cancel]').addEventListener('click', () => cancelEdit(msgId));
+    ta.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        const newBody = ta.value.trim();
+        if (newBody) saveEdit(msgId, newBody);
+      }
+      if (e.key === 'Escape') cancelEdit(msgId);
+    });
+  }
+
+  function cancelEdit(msgId) {
+    editingMsgId = null;
+    const wrapper = document.querySelector(`[data-msg-id="${msgId}"]`);
+    if (!wrapper) return;
+    const editWrap = wrapper.querySelector(`#edit-ta-${msgId}`)?.closest('div');
+    if (!editWrap) return;
+
+    const mine = wrapper.dataset.mine === '1';
+    const bodyDiv = document.createElement('div');
+    bodyDiv.setAttribute('data-msg-body', '');
+    bodyDiv.className = `px-3.5 py-2 rounded-2xl text-sm leading-relaxed ${mine
+      ? 'bg-[#0A3D62] text-white rounded-br-sm'
+      : 'bg-white border border-zinc-200 text-gray-800 rounded-bl-sm'}`;
+    bodyDiv.innerHTML = esc(msgBodyCache[msgId] || '');
+    editWrap.replaceWith(bodyDiv);
+  }
+
+  async function saveEdit(msgId, newBody) {
+    editingMsgId = null; // allow snapshot to re-render after the write
+    try {
+      await firebase.firestore()
+        .collection('conversations').doc(currentConvId)
+        .collection('messages').doc(msgId)
+        .update({ body: newBody, editedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    } catch (err) {
+      console.error('Edit failed:', err);
+      cancelEdit(msgId);
+    }
+  }
+
+  async function deleteMessage(btn, msgId) {
+    // Two-click confirmation: first click turns the icon red; second click deletes.
+    if (!btn.dataset.confirming) {
+      btn.dataset.confirming = '1';
+      btn.style.color = '#ef4444';
+      btn.title = 'Click again to confirm delete';
+      setTimeout(() => {
+        if (btn.isConnected && btn.dataset.confirming) {
+          delete btn.dataset.confirming;
+          btn.style.color = '#a1a1aa';
+          btn.title = 'Delete message';
+        }
+      }, 3000);
+      return;
+    }
+    try {
+      await firebase.firestore()
+        .collection('conversations').doc(currentConvId)
+        .collection('messages').doc(msgId)
+        .delete();
+    } catch (err) {
+      console.error('Delete failed:', err);
+    }
   }
 
   // ── Send message ─────────────────────────────────────────────────────────────
