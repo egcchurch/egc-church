@@ -10,7 +10,26 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-02
-**Current milestone:** Session 164 complete — Private group visibility fix (PR #278). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 165 complete — Leaders-only group chat mode (PR #280). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: feat — Leaders-only group chat mode (Session 165)
+
+**Date:** 2026-07-02
+**PR:** #280
+**Status:** Merged
+
+### What was done
+
+Added `chatMode: "open" | "leaders_only"` field to group docs. In `leaders_only` mode, group members can read the chat but not post — the compose box is replaced with a notice; only leaders see the send form.
+
+Enforced at three layers:
+- **`admin/groups.html`** — "Chat Mode" dropdown in the create/edit form; "Leaders-only chat" badge on the admin group card
+- **`js/messaging.js`** — fetches the group doc when opening a group conversation; hides the compose box for non-leaders and shows "Only group leaders can post in this channel." Leaders see the form as normal
+- **`firestore.rules`** — new `canPostToConversation(convId)` helper reads the conversation doc (participant check) and, for group chats, the group doc (`chatMode` + `leaders` check). Uses `||` short-circuit so the group doc is only fetched for group-type conversations. Firestore memoizes `get()` per request so the two group doc references cost at most one read
+
+CI failure on first push: Firestore Rules do not support `if/else` inside functions — rewrote as a single boolean expression. Four new rules tests added (open chat, leaders-only deny, leaders-only allow, legacy group without chatMode defaults to open). 189 tests total, all passing.
 
 ---
 
