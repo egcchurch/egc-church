@@ -56,6 +56,10 @@
             <span class="text-sm text-zinc-600">Private (admins only)</span>
           </label>
         </div>
+        <p class="text-xs text-zinc-400">
+          <i class="fas fa-info-circle mr-1"></i>
+          Your request will be reviewed by a moderator before being shared with the congregation.
+        </p>
         <div class="flex gap-3">
           <button onclick="submitPrayer()"
                   class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
@@ -112,7 +116,9 @@
     const db = firebase.firestore();
     let currentUser = null;
     let currentFilter = 'all';
-    let allRequests = [];
+    let communityRequests = []; // approved public requests from others (and self if approved)
+    let ownRequests = [];       // all own requests (any approval state)
+    let loadedCount = 0;
 
     auth.onAuthStateChanged((user) => { currentUser = user; });
 
@@ -144,11 +150,14 @@
       const empty = document.getElementById('empty');
       list.innerHTML = '';
 
-      let filtered = allRequests.filter((r) => !r.isPrivate);
-      if (currentFilter === 'active')   filtered = filtered.filter((r) => (r.status || 'active') === 'active');
-      if (currentFilter === 'answered') filtered = filtered.filter((r) => r.status === 'answered');
-      if (currentFilter === 'mine' && currentUser) {
-        filtered = allRequests.filter((r) => r.uid === currentUser.uid);
+      let filtered;
+      if (currentFilter === 'mine') {
+        filtered = ownRequests.slice();
+      } else {
+        // Community feed: approved public requests (own or others)
+        filtered = communityRequests.filter((r) => !r.isPrivate);
+        if (currentFilter === 'active')   filtered = filtered.filter((r) => (r.status || 'active') === 'active');
+        if (currentFilter === 'answered') filtered = filtered.filter((r) => r.status === 'answered');
       }
 
       if (filtered.length === 0) {
@@ -158,13 +167,18 @@
       empty.classList.add('hidden');
 
       filtered.forEach((r) => {
+        const isOwn        = currentUser && r.uid === currentUser.uid;
+        const isPending    = !r.approved;
         const isAnswered   = r.status === 'answered';
         const hasPrayed    = currentUser && (r.prayedFor || []).includes(currentUser.uid);
         const prayCount    = (r.prayedFor || []).length;
-        const isOwn        = currentUser && r.uid === currentUser.uid;
         const authorDisplay = r.isAnonymous ? 'Anonymous' : (r.authorName || 'Member');
         const date = r.submittedAt?.toDate
           ? r.submittedAt.toDate().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+          : '';
+
+        const pendingBadge = isPending
+          ? '<span class="inline-flex items-center gap-1 bg-amber-50 text-amber-600 border border-amber-200 text-xs font-medium px-2.5 py-0.5 rounded-full"><i class="fas fa-clock text-xs"></i>Pending approval</span>'
           : '';
 
         const answeredBadge = isAnswered
@@ -178,9 +192,8 @@
              </div>`
           : '';
 
-        // Controls for the request author
         let ownerControls = '';
-        if (isOwn) {
+        if (isOwn && !isPending) {
           if (!isAnswered) {
             ownerControls = `
               <button onclick="showTestimonyForm('${r.id}')"
@@ -196,13 +209,25 @@
           }
         }
 
+        const prayBtn = (!isPending)
+          ? `<button onclick="togglePray('${r.id}', ${hasPrayed})"
+                    class="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${hasPrayed ? 'bg-purple-50 border-purple-200 text-purple-600' : 'border-zinc-200 text-zinc-500 hover:border-purple-200 hover:text-purple-600'}">
+              <i class="fas fa-hands-praying"></i>
+              <span>Praying${prayCount > 0 ? ' (' + prayCount + ')' : ''}</span>
+            </button>`
+          : '';
+
+        const borderClass = isPending
+          ? 'border-amber-200 bg-amber-50/30'
+          : isAnswered ? 'border-green-200' : 'border-zinc-200';
+
         const card = document.createElement('div');
-        card.className = `bg-white rounded-2xl border shadow-sm p-6 ${isAnswered ? 'border-green-200' : 'border-zinc-200'}`;
+        card.className = `bg-white rounded-2xl border shadow-sm p-6 ${borderClass}`;
         card.id = 'card-' + r.id;
         card.innerHTML = `
           <div class="flex justify-between items-start gap-4">
             <div class="flex-1 min-w-0">
-              <div class="flex flex-wrap gap-2 mb-2">${answeredBadge}</div>
+              <div class="flex flex-wrap gap-2 mb-2">${pendingBadge}${answeredBadge}</div>
               <p class="text-zinc-700 leading-relaxed whitespace-pre-wrap">${escapeHtml(r.body)}</p>
               ${testimonyHtml}
               <div class="mt-3 flex flex-wrap items-center gap-3 text-xs text-zinc-400">
@@ -214,7 +239,6 @@
             ${isOwn ? `<button onclick="deleteRequest('${r.id}')" title="Delete" class="text-zinc-300 hover:text-red-400 transition-colors flex-shrink-0"><i class="fas fa-trash text-sm"></i></button>` : ''}
           </div>
 
-          <!-- Testimony form (hidden until Mark as Answered clicked) -->
           <div id="testimony-form-${r.id}" class="hidden mt-4 space-y-3">
             <textarea id="testimony-text-${r.id}" rows="3"
                       placeholder="Share how God answered this prayer (optional)..."
@@ -231,14 +255,11 @@
             </div>
           </div>
 
+          ${(prayBtn || ownerControls) ? `
           <div class="mt-4 flex flex-wrap items-center gap-2">
-            <button onclick="togglePray('${r.id}', ${hasPrayed})"
-                    class="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${hasPrayed ? 'bg-purple-50 border-purple-200 text-purple-600' : 'border-zinc-200 text-zinc-500 hover:border-purple-200 hover:text-purple-600'}">
-              <i class="fas fa-hands-praying"></i>
-              <span>Praying${prayCount > 0 ? ' (' + prayCount + ')' : ''}</span>
-            </button>
+            ${prayBtn}
             ${ownerControls}
-          </div>
+          </div>` : ''}
         `;
         list.appendChild(card);
       });
@@ -295,6 +316,7 @@
           body,
           isAnonymous,
           isPrivate,
+          approved: false,
           status: 'active',
           testimony: null,
           prayedFor: [],
@@ -303,10 +325,10 @@
         document.getElementById('prayer-body').value = '';
         document.getElementById('is-anonymous').checked = false;
         document.getElementById('is-private').checked  = false;
-        msg.textContent = 'Prayer request submitted. Thank you.';
+        msg.textContent = 'Request submitted — a moderator will review it before it is shared.';
         msg.className = 'text-sm font-medium text-green-600';
         msg.classList.remove('hidden');
-        setTimeout(() => toggleForm(), 1500);
+        setTimeout(() => toggleForm(), 2500);
       } catch (err) {
         console.error('Submit failed:', err);
         msg.textContent = 'Failed to submit. Please try again.';
@@ -337,21 +359,47 @@
       }
     }
 
+    function onBothLoaded() {
+      loadedCount++;
+      if (loadedCount < 2) return;
+      document.getElementById('loading').classList.add('hidden');
+      renderList();
+    }
+
     function loadPrayer() {
+      if (!currentUser) return;
+
+      // Query 1: approved public requests (visible to all members)
       db.collection('prayer')
+        .where('approved', '==', true)
+        .where('isPrivate', '==', false)
         .orderBy('submittedAt', 'desc')
         .onSnapshot((snap) => {
-          document.getElementById('loading').classList.add('hidden');
-          allRequests = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-          renderList();
+          communityRequests = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          onBothLoaded();
+          if (loadedCount >= 2) renderList();
         }, (err) => {
-          console.error('Prayer load failed:', err);
-          document.getElementById('loading').innerHTML =
-            '<p class="text-red-500">Failed to load prayer requests.</p>';
+          console.error('Community prayer load failed:', err);
+        });
+
+      // Query 2: own requests at any approval state
+      db.collection('prayer')
+        .where('uid', '==', currentUser.uid)
+        .orderBy('submittedAt', 'desc')
+        .onSnapshot((snap) => {
+          ownRequests = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          onBothLoaded();
+          if (loadedCount >= 2) renderList();
+        }, (err) => {
+          console.error('Own prayer load failed:', err);
         });
     }
 
-    document.addEventListener('nav-loaded', loadPrayer);
+    document.addEventListener('nav-loaded', () => {
+      auth.onAuthStateChanged((user) => {
+        if (user) { currentUser = user; loadPrayer(); }
+      });
+    });
   </script>
 </body>
 </html>
