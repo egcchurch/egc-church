@@ -971,6 +971,102 @@ describe('Firestore Security Rules', () => {
       }));
     });
 
+    it('sender can edit their own message (body + editedAt only)', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          type: 'group', groupId: 'group1', participants: ['member-uid', 'other-uid']
+        });
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1', 'messages', 'msg1'), {
+          senderId: 'member-uid', body: 'Hello', sentAt: null
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'conversations', 'conv1', 'messages', 'msg1'), {
+        body: 'Hello (edited)', editedAt: null
+      }));
+    });
+
+    it('sender cannot edit fields other than body/editedAt', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          participants: ['member-uid', 'other-uid']
+        });
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1', 'messages', 'msg1'), {
+          senderId: 'member-uid', body: 'Hello', sentAt: null
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(updateDoc(doc(db, 'conversations', 'conv1', 'messages', 'msg1'), {
+        body: 'Edited', senderId: 'hacked-uid'
+      }));
+    });
+
+    it('non-sender cannot edit someone else message', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          participants: ['member-uid', 'other-uid']
+        });
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1', 'messages', 'msg1'), {
+          senderId: 'other-uid', body: 'Hello', sentAt: null
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(updateDoc(doc(db, 'conversations', 'conv1', 'messages', 'msg1'), {
+        body: 'Tampered', editedAt: null
+      }));
+    });
+
+    it('sender can delete their own message', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          participants: ['member-uid', 'other-uid']
+        });
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1', 'messages', 'msg1'), {
+          senderId: 'member-uid', body: 'Hello', sentAt: null
+        });
+      });
+      const db = memberUser().firestore();
+      await assertSucceeds(deleteDoc(doc(db, 'conversations', 'conv1', 'messages', 'msg1')));
+    });
+
+    it('group leader can delete any message in their group chat', async () => {
+      await seedUser('leader-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'groups', 'group1'), {
+          name: 'Youth', leaders: ['leader-uid'], members: ['member-uid']
+        });
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          type: 'group', groupId: 'group1', participants: ['leader-uid', 'member-uid']
+        });
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1', 'messages', 'msg1'), {
+          senderId: 'member-uid', body: 'Oops', sentAt: null
+        });
+      });
+      const db = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      await assertSucceeds(deleteDoc(doc(db, 'conversations', 'conv1', 'messages', 'msg1')));
+    });
+
+    it('non-leader cannot delete someone else message', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'groups', 'group1'), {
+          name: 'Youth', leaders: ['leader-uid'], members: ['member-uid']
+        });
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1'), {
+          type: 'group', groupId: 'group1', participants: ['leader-uid', 'member-uid']
+        });
+        await setDoc(doc(ctx.firestore(), 'conversations', 'conv1', 'messages', 'msg1'), {
+          senderId: 'leader-uid', body: 'Hello', sentAt: null
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(deleteDoc(doc(db, 'conversations', 'conv1', 'messages', 'msg1')));
+    });
+
     it('group without chatMode field defaults to open (no regression)', async () => {
       await seedUser('member-uid', { membership: 'member' });
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
