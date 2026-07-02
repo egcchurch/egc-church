@@ -84,18 +84,6 @@
           <input id="f-email" type="email" disabled
                  class="w-full border border-gray-100 bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-500 cursor-not-allowed">
         </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Member ID</label>
-          <div class="flex items-center gap-2">
-            <input id="f-uid" type="text" disabled readonly
-                   class="w-full border border-gray-100 bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-500 font-mono cursor-not-allowed">
-            <button onclick="copyMemberUid()" title="Copy Member ID"
-                    class="flex-shrink-0 border border-gray-200 hover:border-amber-300 text-gray-500 hover:text-amber-600 px-4 py-3 rounded-xl text-sm transition-colors">
-              <i class="fas fa-copy"></i>
-            </button>
-          </div>
-          <p id="uid-copy-status" class="text-xs text-gray-400 mt-1">Share this with a team leader if they ask you to join a serving team.</p>
-        </div>
       </div>
 
       <button onclick="saveProfile()"
@@ -231,7 +219,6 @@
 
     function loadProfile(user) {
       document.getElementById('f-email').value = user.email;
-      document.getElementById('f-uid').value = user.uid;
 
       if (!user.emailVerified) {
         document.getElementById('verify-banner').classList.remove('hidden');
@@ -280,15 +267,6 @@
             <p class="text-sm text-gray-700 font-medium">You are a member${sinceStr ? ` &mdash; joined ${sinceStr}` : ''}.</p>
           </div>`;
         }
-      });
-    }
-
-    function copyMemberUid() {
-      const statusEl = document.getElementById('uid-copy-status');
-      const original = statusEl.textContent;
-      navigator.clipboard.writeText(currentUser.uid).then(() => {
-        statusEl.textContent = 'Copied!';
-        setTimeout(() => { statusEl.textContent = original; }, 1500);
       });
     }
 
