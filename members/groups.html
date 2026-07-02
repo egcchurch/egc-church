@@ -462,21 +462,60 @@
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    // Three buckets kept separate so each onSnapshot can update its own slice
+    // without resetting the others. mergeGroups() deduplicates by id.
+    let publicGroupsData = [];
+    let leaderGroupsData = [];
+    let memberGroupsData = [];
+    let groupsFirstLoad  = false;
+
+    function mergeGroups() {
+      const seen = new Set();
+      const merged = [];
+      [...publicGroupsData, ...leaderGroupsData, ...memberGroupsData].forEach(g => {
+        if (!seen.has(g.id)) { seen.add(g.id); merged.push(g); }
+      });
+      allGroups = merged.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      if (!groupsFirstLoad) {
+        groupsFirstLoad = true;
+        document.getElementById('loading').classList.add('hidden');
+      }
+      renderGroups(allGroups);
+      populateLeaderSections(allGroups);
+    }
+
     function loadGroups() {
+      const uid = currentUser?.uid;
+
+      // 1. All public groups — visible to every member
       db.collection('groups')
         .where('isPublic', '==', true)
         .onSnapshot((snap) => {
-          document.getElementById('loading').classList.add('hidden');
-          allGroups = snap.docs
-            .map((d) => ({ id: d.id, ...d.data() }))
-            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-          renderGroups(allGroups);
-          populateLeaderSections(allGroups);
+          publicGroupsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          mergeGroups();
         }, (err) => {
           console.error('Groups load failed:', err);
           document.getElementById('loading').innerHTML =
             '<p class="text-red-500">Failed to load groups.</p>';
         });
+
+      if (!uid) return;
+
+      // 2. Any group where this user is a leader (catches private groups too)
+      db.collection('groups')
+        .where('leaders', 'array-contains', uid)
+        .onSnapshot((snap) => {
+          leaderGroupsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          mergeGroups();
+        }, (err) => console.error('Leader groups load failed:', err));
+
+      // 3. Any group where this user is a member (catches private groups too)
+      db.collection('groups')
+        .where('members', 'array-contains', uid)
+        .onSnapshot((snap) => {
+          memberGroupsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          mergeGroups();
+        }, (err) => console.error('Member groups load failed:', err));
     }
 
     document.addEventListener('nav-loaded', loadGroups);
