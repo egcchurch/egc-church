@@ -10,7 +10,23 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-02
-**Current milestone:** Session 166 complete — Message edit and delete for group chat (PR #282). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 167 complete — Cache bump + touch fix for message edit/delete (PR #283). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: fix — Cache bump and touch support for message edit/delete (Session 167)
+
+**Date:** 2026-07-02
+**PR:** #283
+**Status:** Merged
+
+### What was done
+
+Two bugs from PR #282 (message edit/delete):
+
+1. **Service worker cache not bumped** — `messaging.js` is a `.js` file cached by the service worker with a cache-first strategy. The v79 → v80 bump forces all devices to fetch the new file on their next visit. Previously, users who had visited the app before the PR merged were still served the old `messaging.js` from the service worker cache.
+
+2. **Touch-only devices (phones/tablets)** — the edit/delete icons used `onmouseenter`/`onmouseleave` to reveal, which doesn't fire reliably on tap. Added `canHover` detection (`window.matchMedia('(hover: hover)').matches`) at IIFE initialisation. On touch-only devices, the icons are always visible (slightly larger tap target); on hover-capable devices (desktop), the existing reveal-on-hover behaviour is unchanged.
 
 ---
 
