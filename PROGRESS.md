@@ -10,7 +10,39 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-02
-**Current milestone:** Session 162 complete — Remove Member ID / UID display (PR #275). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 164 complete — Private group visibility fix (PR #278). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: fix — Private group visibility (Session 164)
+
+**Date:** 2026-07-02
+**PR:** #278
+**Status:** Merged
+
+### What was done
+
+- **`members/groups.html`** — private groups (`isPublic: false`) were invisible to everyone on the members groups page, including the group's own leaders
+- Replaced the single `where('isPublic', '==', true)` query with three parallel `onSnapshot` listeners: all public groups, any group where the current user is a leader, and any group where the current user is a member
+- Results are merged and deduplicated client-side — public groups a leader also belongs to appear only once
+- Loading spinner is hidden on the first callback to arrive; no regression to the loading UX
+- No new Firestore indexes or rules changes needed — single-field `array-contains` queries use automatic indexes
+
+---
+
+## Session: feat — Notify members when added to a group (Session 163)
+
+**Date:** 2026-07-02
+**PR:** #277
+**Status:** Merged, Cloud Functions deployed
+
+### What was done
+
+- **`functions/index.js`** — added `onGroupMemberAdded` Firestore trigger on `/groups/{groupId}` updates
+- When new UIDs appear in the `members` array, each added member receives an in-app notification and FCM push via the existing `sendUserNotification` helper
+- Two message variants: if the UID was in `pendingMembers` before the update → "Your request to join [group] has been approved"; if added directly by a leader → "You've been added to [group] by a group leader"
+- Covers all three join policies: open join, approval-request approval, and invite-only direct add
+- No client-side changes needed — hooks into existing write paths transparently
 
 ---
 
