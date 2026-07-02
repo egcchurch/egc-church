@@ -407,6 +407,7 @@ Functions are organised by trigger type:
 - `onNewMessage` — trigger: `/conversations/{conversationId}/messages/{messageId}` created — fans out FCM push + in-app notification to **all** participants except the sender; title includes `groupName` for group/team conversations
 - `onNewPrayerRequest` — trigger: `/prayerRequests/{requestId}` created — if `isPrivate: false`, writes in-app notification to all members; if `isPrivate: true`, writes in-app notification to admins only
 - `onNewConnectForm` — trigger: `/connectForms/{submissionId}` created — writes in-app notification to all admins
+- `onGroupMemberAdded` — trigger: `/groups/{groupId}` updated — when new UIDs appear in `members`, sends each added member an in-app + FCM notification; message distinguishes between "request approved" (UID was in `pendingMembers` before) and "added by leader" (direct add)
 - `onServingSlotReleased` — trigger: `/servingTeams/{teamId}/slots/{slotId}` updated — fires when `assignedUid` changes from set to null (member released their slot); sends FCM push + in-app notification to all team leaders so they can arrange a replacement. Deep link: `?team={teamId}&slot={slotId}` on `/members/serving-teams.html`.
 
 ### Scheduled Functions
@@ -864,7 +865,7 @@ Firestore rules for `/groups/{groupId}` updates:
 - Firestore database: `(default)` in nam5 region (production mode)
 - Firebase Storage: in use (audio, sermon notes/materials, images, music, cover art)
 - Cloud Messaging (FCM): deployed — VAPID key configured, token registration in js/notifications.js
-- Cloud Functions: 21 functions deployed — see "Cloud Functions Architecture" below for the full, current list
+- Cloud Functions: 22 functions deployed — see "Cloud Functions Architecture" below for the full, current list
 - Authorised domains: localhost, 127.0.0.1, egcchurch.github.io, egc-church.firebaseapp.com, egc-church.web.app, staging.egc.church, app.egc.church
 - Billing plan: **Blaze (pay-as-you-go)** — required for Cloud Functions; usage stays within free tier at church scale
 - Required composite indexes (defined in `firestore.indexes.json`):
