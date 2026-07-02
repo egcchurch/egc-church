@@ -10,7 +10,19 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-02
-**Current milestone:** Session 157 complete — Notices page rebuilt as monthly grid calendar (PR #259); mobile grid fix (PR #260). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 157 complete — Notices page rebuilt as monthly grid calendar (PR #259); mobile grid fix (PR #260); legend dots fix (PR #262). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: fix — Calendar legend dots invisible on mobile (Session 157c)
+
+**Date:** 2026-07-02
+**PR:** #262
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`events.html`** — replaced Tailwind colour classes (`bg-blue-400`, `bg-green-400`, `bg-amber-400`, `bg-gray-400`) on the legend dot spans with inline styles using the same hex values as the JS dot indicators. Those classes were absent from the committed Tailwind CSS (not used elsewhere in the project) so the dots were invisible on mobile.
 
 ---
 
