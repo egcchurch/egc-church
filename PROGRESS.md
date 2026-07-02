@@ -10,7 +10,44 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-02
-**Current milestone:** Session 160 complete — UI guard for own-account permissions panel (PR #268). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 161 complete — Storage rules per-feature permissions (PR #273). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: security — Scope Storage rules to per-feature permissions (Session 161)
+
+**Date:** 2026-07-02
+**PR:** #273
+**Status:** Merged, deployed to production
+
+### What was done
+
+Full site security audit followed by targeted fix for the highest-priority finding.
+
+**Security audit findings (summary):**
+- **MEDIUM — Fixed (this PR):** Storage rules used a blanket `isAdminUser()` check (any non-empty `perms` array), granting upload access to all Storage paths regardless of which specific permission the user held (e.g. `prayer.moderate` could upload to gallery)
+- **MEDIUM — Open:** Draft/unpublished content (`published: false`) is readable by unauthenticated users via the Firestore API — Firestore rules have `allow read: if true` on sermons, events, blog, music, team; the `published` flag is UI-enforced only
+- **LOW — Open:** Full user document (including `isSuperadmin`, `roles`, `extraPermissions`) is readable by any member when `directoryVisible == true` — Firestore does not support field-level read restrictions
+- **LOW — Open:** Member/youth gallery images are publicly accessible via Storage URL (audience gate is Firestore-only); Storage read is `if true`
+- **LOW — Open:** Any member can create a `/conversations` doc with arbitrary participants (`allow create: if isMember()` with no participant validation)
+- **FUTURE:** `javascript:` URI not stripped from notification `linkUrl` before `window.location.href` assignment — safe today (linkUrl only written by Cloud Functions) but worth hardening
+
+**`storage.rules`:**
+- Removed `isAdminUser()` (any non-empty perms array)
+- Added `hasPermission(p)` helper matching the Firestore rules model (`superadmin` claim OR specific key in `perms` array)
+- Each path now enforces the correct permission: `sermons.manage` (sermons + series + materials), `gallery.manage`, `music.manage`, `blog.manage`, `events.manage`, `team.manage`
+- `/branding/` and `/site-media/` were already superadmin-only — unchanged
+
+**`tests/storage.rules.test.js`:**
+- Replaced single `permsAdmin()` helper with per-role helpers (`sermonsAdmin`, `galleryAdmin`, `musicAdmin`, `blogAdmin`, `eventsAdmin`, `teamAdmin`, `prayerAdmin`)
+- Added cross-permission denial tests for every path
+- 51 tests, all passing
+
+### Deploy note
+Required after merge (already done):
+```
+firebase deploy --only storage
+```
 
 ---
 
