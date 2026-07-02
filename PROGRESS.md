@@ -10,7 +10,30 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-02
-**Current milestone:** Session 158 complete — Prayer request approval workflow + notification opt-out (PR #264). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 159 complete — Role self-assignment privilege escalation fix (PR #266). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+
+---
+
+## Session: fix — Role self-assignment privilege escalation (Session 159)
+
+**Date:** 2026-07-02
+**PR:** #266
+**Status:** Merged, deployed to production
+
+### What was done
+
+- **`firestore.rules`** — closed privilege escalation on `/users/{uid}` update:
+  - `isOwner` branch restricted to safe self-service fields only (`displayName`, `photoURL`, `phone`, directory prefs, notification prefs). Previously unrestricted, allowing any user to write `roles`, `extraPermissions`, or `isSuperadmin` to their own doc.
+  - `users.approve` branch now requires `!isOwner(uid)` — a user cannot approve themselves.
+  - `users.assign_roles` branch now requires `!isOwner(uid)` — a user cannot assign roles to themselves even if they hold that permission.
+  - Superadmin retains unrestricted update access.
+- **`tests/firestore.rules.test.js`** — five new tests: `users.assign_roles` holder cannot self-assign; `users.approve` holder cannot self-approve; member cannot escalate own roles or membership; member can still update safe profile fields.
+
+### Deploy note
+Required after merge (already done):
+```
+firebase deploy --only firestore:rules
+```
 
 ---
 
