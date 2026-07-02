@@ -42,16 +42,22 @@ service cloud.firestore {
                         || request.resource.data.roles.size() == 0)
                     && (!('extraPermissions' in request.resource.data)
                         || request.resource.data.extraPermissions.size() == 0);
-      // isOwner: self-service profile fields (name, photo, privacy)
-      // users.approve: set membership tier and membershipRequestedAt only
-      // users.assign_roles: set roles/extraPermissions only (not isSuperadmin)
-      // isSuperadmin: unrestricted
-      allow update: if isOwner(uid)
-                    || isSuperadmin()
-                    || (hasPermission('users.approve')
+      // isOwner: safe self-service fields only — no membership, roles, or isSuperadmin.
+      // users.approve: membership tier on OTHER users only (not self).
+      // users.assign_roles: roles/extraPermissions on OTHER users only (not self, not isSuperadmin).
+      // isSuperadmin: unrestricted on any user.
+      allow update: if isSuperadmin()
+                    || (isOwner(uid)
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['displayName', 'photoURL', 'phone',
+                                      'directoryVisible', 'directoryShowEmail', 'directoryShowPhone',
+                                      'notifyWhatsApp', 'prayerNotifications', 'updatedAt']))
+                    || (!isOwner(uid)
+                        && hasPermission('users.approve')
                         && request.resource.data.diff(resource.data).affectedKeys()
                             .hasOnly(['membership', 'membershipRequestedAt', 'updatedAt']))
-                    || (hasPermission('users.assign_roles')
+                    || (!isOwner(uid)
+                        && hasPermission('users.assign_roles')
                         && request.resource.data.diff(resource.data).affectedKeys()
                             .hasOnly(['roles', 'extraPermissions', 'updatedAt']));
       allow delete: if isSuperadmin();
