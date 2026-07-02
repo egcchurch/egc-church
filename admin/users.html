@@ -203,7 +203,8 @@
     }
 
     function renderUserCard(uid, u) {
-      const joined = u.createdAt?.toDate().toLocaleDateString() || 'Unknown';
+      const joined  = u.createdAt?.toDate().toLocaleDateString() || 'Unknown';
+      const isSelf  = uid === currentUid;
 
       const membershipBadge = {
         pending: 'bg-yellow-100 text-yellow-700',
@@ -243,7 +244,7 @@
       }).join('');
 
       // ── Superadmin toggle — visible only to superadmin viewers, hidden on own card ─
-      const superadminSection = (isSuperadmin && uid !== currentUid) ? `
+      const superadminSection = (isSuperadmin && !isSelf) ? `
         <div class="mt-5 pt-4 border-t border-zinc-100 flex items-center justify-between">
           <div>
             <p class="text-sm font-semibold text-gray-700">Superadmin override</p>
@@ -339,6 +340,11 @@
 
           <!-- Expandable permissions section -->
           <div id="perms-${uid}" class="hidden px-6 pb-6">
+            ${isSelf ? `
+            <div class="mt-4 flex items-center gap-3 p-4 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-500">
+              <i class="fas fa-lock text-zinc-400 flex-shrink-0"></i>
+              <span>You cannot modify your own roles or permissions. Ask another administrator to make changes to your account.</span>
+            </div>` : `
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
 
               <!-- Roles -->
@@ -371,7 +377,7 @@
                 Save Permissions
               </button>
               <span id="perm-status-${uid}" class="text-sm hidden"></span>
-            </div>
+            </div>`}
           </div>
 
         </div>`;
