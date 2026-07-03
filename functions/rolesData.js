@@ -55,7 +55,7 @@ const DEFAULT_ROLES = [
   {
     id: 'communications',
     displayName: 'Communications',
-    description: 'Blog, homepage content, notifications, and events',
+    description: 'Reports, homepage content, notifications, and notices',
     permissions: ['blog.manage', 'homepage.manage', 'notifications.send', 'events.manage'],
     isSystem: true,
   },

@@ -130,16 +130,16 @@
       iconBg: 'bg-blue-50 text-blue-600',
     })));
 
-    if (events.length) html += section('Events', events.map(e => ({
-      icon: 'fa-calendar-days', label: 'Event',
+    if (events.length) html += section('Notices', events.map(e => ({
+      icon: 'fa-calendar-days', label: 'Notice',
       title: e.title,
       sub:   e.startDate?.toDate ? e.startDate.toDate().toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
       url:   '/events.html',
       iconBg: 'bg-amber-50 text-amber-600',
     })));
 
-    if (blog.length) html += section('Blog', blog.map(b => ({
-      icon: 'fa-newspaper', label: 'Post',
+    if (blog.length) html += section('Reports', blog.map(b => ({
+      icon: 'fa-newspaper', label: 'Report',
       title: b.title,
       sub:   b.publishedAt?.toDate ? b.publishedAt.toDate().toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
       url:   '/blog.html',
