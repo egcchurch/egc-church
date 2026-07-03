@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-03
-**Current milestone:** Session 172 — CLAUDE.md Site Map note on Notices/Reports labels (PR #290). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 173 — remaining Events/Blog wording standardized to Notices/Reports (PR #292), functions deployed. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -26,6 +26,48 @@
 
 Dropped by decision: Missions page + Youth Calendar (old /missions is itself broken — redirects to a
 Google login) — not required.
+
+### To do — leftover from wording standardization (Session 173)
+
+- **Communications role description on production** — `functions/rolesData.js`'s `DEFAULT_ROLES`
+  only seeds new role docs; this church's `/roles/communications` doc was already seeded by the
+  one-time `migrateRolesV1`, so it still has the old description text ("Blog, homepage content,
+  notifications, and events") even after the functions redeploy. A superadmin can update it directly
+  from `/admin/roles.html` (Edit Communications → update description → Save) — confirmed no
+  `isSystem` restriction blocks editing the description field.
+- **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
+  around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
+  code — low priority, flagged but not fixed.
+
+---
+
+## Session: fix — Standardize remaining Events/Blog wording to Notices/Reports (Session 173)
+
+**Date:** 2026-07-03
+**PR:** #292
+**Status:** Merged, deployed (including Cloud Functions)
+
+### What was done
+
+Follow-up sweep after Sessions 170-172 caught five more spots still saying "Events"/"Blog" instead
+of "Notices"/"Reports":
+
+- `js/search.js` — ⌘K search overlay section headers and per-item badges ("Event"/"Post" →
+  "Notice"/"Report", matching the existing singular-badge convention like "Sermon").
+- `admin/roles.html` and `admin/users.html` — permission checkbox display-name mappings for
+  `events.manage`/`blog.manage` (duplicated in both files).
+- `admin/media.html` — Media Library tab label and per-item source labels ("Event: {title}" /
+  "Blog: {title}" → "Notice: {title}" / "Report: {title}").
+- `functions/rolesData.js` — the "Communications" default role's description sentence.
+
+No permission keys, collection names, URLs, or filenames changed — labels only.
+
+### Deploy
+
+`functions/rolesData.js` changed → ran `firebase deploy --only functions` after merge (all 27
+functions updated successfully). Note: this only updates the *template* `seedRoles.js`/
+`migrateRolesV1` use for future seeds — the live `/roles/communications` doc on this project was
+already seeded and needs a manual description edit via `/admin/roles.html` (see to-do list above).
 
 ---
 
