@@ -22,20 +22,53 @@
    - `/admin/homepage.html` → add service time "Sunday School — Sunday — 09:15 AM" (old site lists it).
    - `/admin/team.html` → leadership photos (all five about-page cards show placeholder avatars).
 2. ~~**Branded 404 page + old-URL redirects**~~ — done (this session's first PR).
-3. **Homepage identity sections** — port the old homepage's "Our Testimony — God's Prophet for the
-   Last Day" section (Branham photo + text + button to william-branham.html) and the parchment-style
-   sermon quote block (64-0122 "Looking Unto Jesus") to index.html.
+3. ~~**Homepage identity sections**~~ — done (this session's second PR).
 
 Dropped by decision: Missions page + Youth Calendar (old /missions is itself broken — redirects to a
 Google login) — not required.
 
 ---
 
-## Session: fix — Branded 404 page + redirects for old-site/extensionless URLs (Session 168)
+## Session: feat — Homepage "Our Testimony" + sermon quote sections (Session 169)
 
 **Date:** 2026-07-03
 **PR:** pending
 **Status:** Open
+
+### What was done
+
+Ported the two identity sections from the old www.egc.church homepage that had no equivalent on the
+new site (item 3 of the Session 168 to-do list):
+
+- **"Our Testimony — God's Prophet for the Last Day"** — two-column section (text left, the same
+  Branham portrait used on william-branham.html right), with the church's testimony text taken
+  verbatim from the old homepage and an amber "Sermons of the Prophet" button linking to
+  `/fulfillment-of-prophecy.html` (the sermon download library).
+- **Sermon quote card** — parchment-style (`bg-amber-50`) rounded card with the 64-0122
+  *"Looking Unto Jesus"* excerpt and citation, matching the old homepage's quote block.
+
+Both are **fixed sections** (like "A Warm Welcome"), placed between the Join Us service times and
+the composable `data-sections-container` — deliberately NOT added to the Phase 9 composable set,
+since an existing `/config/pages/homepage` doc without the new section id could silently hide it.
+
+No SW cache bump: only `index.html` changed (HTML is network-first, not cache-first), and the
+portrait is an already-committed asset newly referenced (runtime-cached on first fetch). Every
+Tailwind class used was verified present in the committed `assets/css/tailwind.css` (swapped
+`mt-14`/`mt-16` for `mt-10`, which exists) so local dev renders identically to the CI-built CSS.
+
+### Verification
+
+Rendered via a local static server in a real browser: both sections lay out correctly on desktop;
+the portrait, button, quote icon, and citation all render on-brand; section alternation
+(navy → zinc-50 → white) preserved.
+
+---
+
+## Session: fix — Branded 404 page + redirects for old-site/extensionless URLs (Session 168)
+
+**Date:** 2026-07-03
+**PR:** #284
+**Status:** Merged, deployed
 
 ### Context
 
