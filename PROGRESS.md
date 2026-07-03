@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-03
-**Current milestone:** Session 171 — admin nav/dashboard wording standardized to Notices/Reports (PR #288). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 172 — CLAUDE.md Site Map note on Notices/Reports labels (PR #290). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -26,6 +26,28 @@
 
 Dropped by decision: Missions page + Youth Calendar (old /missions is itself broken — redirects to a
 Google login) — not required.
+
+---
+
+## Session: docs — CLAUDE.md Site Map note on Notices/Reports labels (Session 172)
+
+**Date:** 2026-07-03
+**PR:** #290
+**Status:** Merged, deployed (docs-only)
+
+### What was done
+
+After standardizing the visible label of `/events.html`/`/blog.html` to "Notices"/"Reports" across
+the nav bar, footer, and admin section (Sessions 170-171), CLAUDE.md's own Site Map table still
+described those pages as "Events / calendar" and "Blog / announcements" — accurate as a purpose
+description (URLs/filenames/Firestore collections are unchanged) but a likely source of a future
+agent reintroducing the wording mismatch by trusting the table's "Page" column as the visible
+label. Added a note above the Public Pages table clarifying the nav/footer/admin label vs. the
+table's descriptive naming.
+
+### Deploy
+
+Docs-only — no deploy needed.
 
 ---
 
