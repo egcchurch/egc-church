@@ -197,6 +197,12 @@ church-website-pwa/
 
 ### Public Pages (no login required)
 
+> **Nav/footer/admin label note:** the table below describes each page's *purpose* — the
+> visitor-facing nav bar, footer, and admin dashboard label `/events.html` as **"Notices"** and
+> `/blog.html` as **"Reports"** (standardized in Sessions 170-171), not "Events"/"Blog". URLs,
+> filenames, and Firestore collections are still `events`/`blog` throughout — only the on-screen
+> label changed. Don't assume the visible page name matches this table's "Page" column.
+
 | Page                 | URL      |
 | -------------------- | -------- |
 | Homepage             | /        |
