@@ -21,6 +21,22 @@
         "package.json",
         "package-lock.json"
       ],
+      "redirects": [
+        { "source": "/sermons", "destination": "/sermons.html", "type": 301 },
+        { "source": "/events", "destination": "/events.html", "type": 301 },
+        { "source": "/blog", "destination": "/blog.html", "type": 301 },
+        { "source": "/about", "destination": "/about.html", "type": 301 },
+        { "source": "/william-branham", "destination": "/william-branham.html", "type": 301 },
+        { "source": "/fulfillment-of-prophecy", "destination": "/fulfillment-of-prophecy.html", "type": 301 },
+        { "source": "/connect", "destination": "/connect.html", "type": 301 },
+        { "source": "/gallery", "destination": "/gallery.html", "type": 301 },
+        { "source": "/music", "destination": "/music.html", "type": 301 },
+        { "source": "/login", "destination": "/login.html", "type": 301 },
+        { "source": "/profile", "destination": "/profile.html", "type": 301 },
+        { "source": "/contact", "destination": "/connect.html", "type": 301 },
+        { "source": "/notice-board", "destination": "/events.html", "type": 301 },
+        { "source": "/live-stream", "destination": "/members/live.html", "type": 301 }
+      ],
       "rewrites": [
         { "source": "/feed.xml", "function": "podcastFeed" }
       ],
@@ -75,6 +91,22 @@
         "tests/**",
         "package.json",
         "package-lock.json"
+      ],
+      "redirects": [
+        { "source": "/sermons", "destination": "/sermons.html", "type": 301 },
+        { "source": "/events", "destination": "/events.html", "type": 301 },
+        { "source": "/blog", "destination": "/blog.html", "type": 301 },
+        { "source": "/about", "destination": "/about.html", "type": 301 },
+        { "source": "/william-branham", "destination": "/william-branham.html", "type": 301 },
+        { "source": "/fulfillment-of-prophecy", "destination": "/fulfillment-of-prophecy.html", "type": 301 },
+        { "source": "/connect", "destination": "/connect.html", "type": 301 },
+        { "source": "/gallery", "destination": "/gallery.html", "type": 301 },
+        { "source": "/music", "destination": "/music.html", "type": 301 },
+        { "source": "/login", "destination": "/login.html", "type": 301 },
+        { "source": "/profile", "destination": "/profile.html", "type": 301 },
+        { "source": "/contact", "destination": "/connect.html", "type": 301 },
+        { "source": "/notice-board", "destination": "/events.html", "type": 301 },
+        { "source": "/live-stream", "destination": "/members/live.html", "type": 301 }
       ],
       "rewrites": [
         { "source": "/feed.xml", "function": "podcastFeed" }
