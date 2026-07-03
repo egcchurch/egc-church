@@ -71,7 +71,7 @@
       </div>
 
       <div id="tab-bar" class="flex flex-wrap gap-2 mb-6 text-sm">
-        <!-- Populated by JS: All / General Uploads / Gallery / Music / Sermons / Events & Blog / Team / Orphaned -->
+        <!-- Populated by JS: All / General Uploads / Gallery / Music / Sermons / Notices & Reports / Team / Orphaned -->
       </div>
 
       <!-- Orphan scan controls — only shown on the Orphaned tab -->
@@ -124,7 +124,7 @@
       { key: 'gallery',  label: 'Gallery' },
       { key: 'music',    label: 'Music' },
       { key: 'sermons',  label: 'Sermons' },
-      { key: 'events',   label: 'Events & Blog' },
+      { key: 'events',   label: 'Notices & Reports' },
       { key: 'team',     label: 'Team' },
       { key: 'orphaned', label: 'Orphaned' },
     ];
@@ -332,12 +332,12 @@
 
       eventsSnap.forEach(doc => {
         const e = doc.data();
-        if (e.imageUrl) items.push({ id: `events-${doc.id}`, source: 'events', sourceLabel: `Event: ${e.title || 'Untitled'}`, name: `${e.title || 'Untitled'} (cover)`, url: e.imageUrl, manageUrl: '/admin/events.html' });
+        if (e.imageUrl) items.push({ id: `events-${doc.id}`, source: 'events', sourceLabel: `Notice: ${e.title || 'Untitled'}`, name: `${e.title || 'Untitled'} (cover)`, url: e.imageUrl, manageUrl: '/admin/events.html' });
       });
 
       blogSnap.forEach(doc => {
         const b = doc.data();
-        const label = `Blog: ${b.title || 'Untitled'}`;
+        const label = `Report: ${b.title || 'Untitled'}`;
         if (b.imageUrl) items.push({ id: `blog-${doc.id}-cover`, source: 'events', sourceLabel: label, name: `${b.title || 'Untitled'} (cover)`, url: b.imageUrl, manageUrl: '/admin/blog.html' });
         (b.galleryUrls || []).forEach((url, i) => {
           items.push({ id: `blog-${doc.id}-gal${i}`, source: 'events', sourceLabel: label, name: `${b.title || 'Untitled'} (image ${i + 1})`, url, manageUrl: '/admin/blog.html' });
