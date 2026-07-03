@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-03
-**Current milestone:** Session 170 — footer/nav wording standardized to Notices/Reports (PR #286). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 171 — admin nav/dashboard wording standardized to Notices/Reports (PR #288). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -26,6 +26,31 @@
 
 Dropped by decision: Missions page + Youth Calendar (old /missions is itself broken — redirects to a
 Google login) — not required.
+
+---
+
+## Session: fix — Standardize admin nav/dashboard wording to Notices/Reports (Session 171)
+
+**Date:** 2026-07-03
+**PR:** #288
+**Status:** Merged, deployed (hosting-only — no rules change)
+
+### What was done
+
+User caught the same wording mismatch inside the admin section after PR #286 (public footer):
+`admin-nav.html`'s desktop ADMIN dropdown said "Events"/"Blog", its own mobile menu said
+"EVENTS"/"REPORTS" (already inconsistent with itself), and `admin/index.html`'s two dashboard
+cards were titled "Events" and "Blog". All four now read "Notices"/"Reports", matching the public
+nav bar.
+
+Deliberately left unchanged: `admin/events.html` / `admin/blog.html`'s own page titles and `<h1>`s
+("Event Management" / "Blog Management") — these describe the management function rather than
+duplicate the content label — and `index.html`'s separate homepage "Explore" icon grid (distinct
+from the footer's Explore column), since neither was flagged as inconsistent.
+
+### Deploy
+
+Hosting-only — no rules/functions change, auto-deployed on merge.
 
 ---
 
