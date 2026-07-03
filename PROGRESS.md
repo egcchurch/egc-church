@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-03
-**Current milestone:** Session 168 — old-site comparison follow-ups (see to-do list below). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Current milestone:** Session 170 — footer/nav wording standardized to Notices/Reports (PR #286). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -29,11 +29,34 @@ Google login) — not required.
 
 ---
 
+## Session: fix — Standardize footer wording to Notices/Reports (Session 170)
+
+**Date:** 2026-07-03
+**PR:** #286
+**Status:** Merged, deployed (hosting-only — no rules change)
+
+### What was done
+
+User caught a wording mismatch: the footer's Explore column labeled the `/events.html` and
+`/blog.html` links "Events" and "Blog", while the nav bar (top of every page) labels the same two
+links "NOTICES" and "REPORTS". Standardized the footer to match the nav bar's existing wording
+(the user's explicit choice — an initial pass in the other direction, toward "Events"/"Blog"
+site-wide, was corrected and reverted before committing anything).
+
+`footer.html` only — two link labels changed, no href/behavior changes. Verified via a local
+static server that the nav bar was untouched and the footer now reads "Notices"/"Reports".
+
+### Deploy
+
+Hosting-only — no rules/functions change, auto-deployed on merge.
+
+---
+
 ## Session: feat — Homepage "Our Testimony" + sermon quote sections (Session 169)
 
 **Date:** 2026-07-03
-**PR:** pending
-**Status:** Open
+**PR:** #285
+**Status:** Merged, deployed
 
 ### What was done
 
