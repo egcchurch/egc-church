@@ -77,6 +77,48 @@ lose track of a commitment they still need to fulfil or release. Leaders/admins 
 filtered — they need full visibility to manage the roster regardless of their own
 function assignments.
 
+### Member availability (day/time, on top of functions — Phase 1.7)
+A member can be limited to specific services — "Sound, but only Sunday mornings." An
+availability entry is a list of `"dayOfWeek|label"` keys (e.g. `"0|Morning"`, `"3|"`)
+matching the (day, label) service combos that actually exist on the team's current slots
+— the edit modal derives its checkbox list from real slots (same trick the member-
+functions modal uses for functions), so people tick "Sunday — Morning", not abstract
+day/time pickers.
+
+**Default is unrestricted, not locked out — the opposite of functions, deliberately.**
+No `memberAvailability` entry for a uid = available for everything. Availability is a
+restriction you opt into, so shipping it changed nothing for existing members and
+leaders didn't need a setup pass. Ticking every box in the modal stores an *absent* key
+rather than a full list, so services added to the roster later are automatically
+included too.
+
+**Who edits it:** the member themselves (self-service "My Availability" button on their
+roster view — it's their life schedule to declare) *and* their leaders (clock icon on
+the member chips). Firestore rules let a team member write only their **own** key in the
+map; leaders can write anyone's.
+
+**Soft enforcement only.** Availability filters the member's roster view (alongside the
+function filter) and gates the auto-assign pool — but unlike function eligibility it is
+*not* enforced on claims in Firestore rules, and it never blocks a leader manually
+assigning someone. It's a self-declared preference, not a security boundary. As with
+functions, a member always still sees any slot they're personally on.
+
+### Auto-assign rotation (Phase 1.7)
+A per-schedule toggle (`autoAssign`, persisted on the schedule doc, set in the schedule
+modal). When on, generate/regenerate — including the standalone "Regenerate" button —
+fills each generated slot's lead position instead of leaving everything open. The
+rotation walks slots chronologically and picks, for each slot, from the pool of
+**qualified-tier** members who have **all** of that slot's functions assigned and are
+**available** for its day/label — whoever has the fewest assignments so far in the run
+(name as tiebreak, so regeneration is deterministic). It avoids giving one person two
+slots at the same service unless nobody else is eligible, and slots with no eligible
+candidate simply stay open. Trainee positions never auto-fill (generated slots always
+have `trainingEnabled: false`; trainees keep self-claiming, and a leader can still
+manually assign anyone anywhere). The confirm dialog reports how many slots will be
+auto-assigned vs left open before anything is written. Auto-assigned members aren't
+push-notified (deliberate — same "check the roster" posture as claiming); the existing
+morning-of slot reminder still covers them.
+
 ### Roster slot
 One person's assignment for one date. A slot is **open** (`assignedUid == null`) or
 **filled**. Filling happens either by the leader pre-assigning someone, or by a member
@@ -157,6 +199,11 @@ it's the kind of thing checked from a phone mid-move.
   memberFunctions: { [uid]: [string] }  ← leader-assigned eligibility; absent/empty for a uid
                                           means locked out of claiming and seeing slots until
                                           a leader assigns at least one function
+  memberAvailability: { [uid]: [string] }  ← Phase 1.7 — "dayOfWeek|label" keys (e.g. "0|Morning",
+                                          "3|") for the services this member can make; ABSENT
+                                          key = no restriction (opposite default from
+                                          memberFunctions). Member edits own key, leader any.
+                                          Soft: filters roster view + auto-assign pool only
   functions: [string]                 ← this team's own grown autocomplete list
   joinPolicy: "open" | "approval" | "invite-only"
   pendingMembers: [uid]                ← for "approval" joinPolicy, mirrors /groups
@@ -167,6 +214,8 @@ it's the kind of thing checked from a phone mid-move.
   patterns: [{ id, dayOfWeek: 0-6, label: string|null, functions: [string] }]
                                         ← dayOfWeek matches Date#getDay() (0=Sunday)
   startDate, endDate: string (YYYY-MM-DD)   ← persisted so Edit/Regenerate know what to recreate
+  autoAssign: boolean                  ← Phase 1.7 — generate/regenerate fills lead positions by
+                                          rotating through qualified + eligible + available members
   createdAt, updatedAt, createdBy
 
 /servingTeams/{teamId}/slots/{slotId}
@@ -230,10 +279,12 @@ Group leaders manage their own group today.
   member's roster view to only their assigned functions. Locked out by default (no
   functions assigned = sees/claims nothing) rather than open-by-default, so this doesn't
   silently change behavior for existing members the moment it ships.
-- **Phase 1.7 (planned next):** Day/time availability on top of function eligibility
-  (e.g. "Sound, but only Sunday mornings") and an auto-assign rotation option on a
-  schedule's generate/regenerate that fills slots from the available+eligible pool
-  instead of leaving everything open.
+- **Phase 1.7 (delivered):** Day/time availability on top of function eligibility
+  (`memberAvailability` — self-service + leader-editable, unrestricted by default,
+  soft enforcement) and a per-schedule `autoAssign` toggle that fills generated slots'
+  lead positions by rotating through qualified + eligible + available members — fewest
+  assignments first, avoiding double-booking within one service, leaving unfillable
+  slots open. See the two Phase 1.7 sections above for the full behavior.
 - **Phase 2 (future):** Equipment Register + Moves, scoped to the Equipment Team.
 - **Explicitly deferred / not in scope yet:** push notifications when a slot opens up
   (claiming is currently "check the roster," not pushed); a personal "my upcoming slots

@@ -236,11 +236,22 @@ service cloud.firestore {
       allow create: if hasPermission('servingTeams.manage');
       allow update: if hasPermission('servingTeams.manage') ||
         // Leaders manage their own team's membership, tiers, function list, and
-        // each member's function eligibility (roster patterns now live on named
-        // /schedules docs, not this field)
+        // each member's function eligibility and availability (roster patterns
+        // now live on named /schedules docs, not this field)
         (isSignedIn() && request.auth.uid in resource.data.leaders &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['members', 'pendingMembers', 'memberTiers', 'functions', 'memberFunctions', 'updatedAt'])) ||
+            .hasOnly(['members', 'pendingMembers', 'memberTiers', 'functions', 'memberFunctions', 'memberAvailability', 'updatedAt'])) ||
+        // A team member can set their OWN availability (their life schedule is
+        // theirs to declare) — but only their own key in the map, nobody else's.
+        // Unlike memberFunctions (leader-only, an eligibility judgment), this is
+        // self-service. get(..., {}) because older team docs lack the field.
+        (isSignedIn() &&
+          (request.auth.uid in resource.data.members || request.auth.uid in resource.data.leaders) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['memberAvailability', 'updatedAt']) &&
+          request.resource.data.get('memberAvailability', {})
+            .diff(resource.data.get('memberAvailability', {}))
+            .affectedKeys().hasOnly([request.auth.uid])) ||
         // Members can join/leave (add/remove their own UID) — same pattern as /groups
         (isMember() &&
           request.resource.data.diff(resource.data).affectedKeys()

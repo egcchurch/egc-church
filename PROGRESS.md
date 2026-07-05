@@ -9,8 +9,8 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-07-03
-**Current milestone:** Session 173 — remaining Events/Blog wording standardized to Notices/Reports (PR #292), functions deployed. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 1.7 (not started).
+**Last worked on:** 2026-07-05
+**Current milestone:** Session 174 — Serving Teams Phase 1.7 delivered (member availability + auto-assign rotation). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,50 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: feat — Serving Teams Phase 1.7: member availability + auto-assign rotation (Session 174)
+
+**Date:** 2026-07-05
+**PR:** #294
+**Status:** Open
+
+### What was done
+
+Serving Teams Phase 1.7 (`docs/SERVING_TEAMS.md`), both halves:
+
+**Member availability** — new `memberAvailability: { [uid]: ["dayOfWeek|label"] }` map on the team
+doc (e.g. `"0|Morning"`, `"3|"`). The edit modal derives its checkbox list from the (day, label)
+combos on the team's actual slots, so people tick "Sunday — Morning", not abstract pickers. Absent
+key = no restriction (opposite default from `memberFunctions`, deliberately — availability is an
+opt-in restriction, so nothing changed for existing members); ticking every box stores an absent
+key via `FieldValue.delete()` so later-added services stay included. Members edit their own via a
+"My Availability" button on their roster view; leaders edit anyone's via a clock icon on member
+chips. Firestore rules let a team member write only their own key in the map (MapDiff check).
+Enforcement is soft: filters the member's roster view (alongside the function filter) and the
+auto-assign pool — never blocks claims or leader assignment.
+
+**Auto-assign rotation** — per-schedule `autoAssign` toggle (persisted on the schedule doc, set in
+the schedule modal). Generate/regenerate (incl. standalone "Regenerate") fills each generated
+slot's lead position from qualified-tier members with ALL the slot's functions + availability for
+its day/label — fewest assignments in the run first, name tiebreak (deterministic), avoiding
+double-booking one person within a service unless nobody else is eligible; unfillable slots stay
+open. Confirm dialogs report assigned/open counts before writing. `batchCreateSlots` spread order
+changed so def-provided assignment fields win over the open defaults. Schedule rows show
+"Auto-assign on". Trainee positions never auto-fill; no push notification on auto-assignment
+(deliberate — existing morning-of reminders cover it).
+
+### Tests
+
+4 new rules tests (own-key write + deleteField, other's key denied, leader any key, non-team
+member denied) — 199 passing against the emulator.
+
+### Deploy notes
+
+`firestore.rules` changed — deploy.yml only deploys hosting, so after merge run
+`firebase deploy --only firestore:rules` manually. No Cloud Functions changes. No cache bump
+needed (HTML is network-first; no precached JS/CSS touched).
 
 ---
 
