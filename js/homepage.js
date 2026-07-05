@@ -168,10 +168,28 @@
     if (el) el.innerHTML = html;
   }
 
+  // Live stream banner — top-level, not part of the adaptive section, so it's
+  // always the first thing after the hero (Session 178) regardless of what
+  // else that auth state needs to fetch. Pending users get nothing here (same
+  // as before this section existed — a waiting-approval card is all they see).
+  // Non-members (visitor/public) get the compact teaser only while a stream
+  // is actually live; members get the full banner, which also shows a
+  // "next service" fallback when nothing is live.
+  function renderLiveBannerSection(content, membership) {
+    const el = document.getElementById('live-banner-section');
+    if (!el) return;
+    if (membership === 'pending') {
+      el.innerHTML = '';
+      return;
+    }
+    el.innerHTML = membership === 'member'
+      ? buildLiveBanner(content.liveStream, content.serviceTimes)
+      : buildLiveTeaser(content.liveStream, false);
+  }
+
   // Visitor — not logged in
   function renderVisitor(content, announcements) {
     setAdaptive(
-      buildLiveTeaser(content.liveStream, false) +
       buildAnnouncementsFeed(announcements) +
       `<section class="bg-[#0A3D62] py-14 px-6">
         <div class="max-w-4xl mx-auto text-center">
@@ -222,7 +240,6 @@
   // Public — logged in, approved but not yet member
   function renderPublic(user, content, announcements) {
     setAdaptive(
-      buildLiveTeaser(content.liveStream, false) +
       buildAnnouncementsFeed(announcements) +
       `<section class="bg-amber-50 border-y border-amber-100 py-12 px-6">
         <div class="max-w-4xl mx-auto">
@@ -247,7 +264,6 @@
   // Member — full dashboard (+ optional admin shortcuts strip)
   function renderMember(user, content, announcements, devotional, events, adminCounts) {
     setAdaptive(
-      buildLiveBanner(content.liveStream, content.serviceTimes) +
       buildQuickLinks() +
       buildAdminShortcutsStrip(adminCounts) +
       buildNoticeBoardFeed(announcements) +
@@ -258,7 +274,8 @@
 
   // ── Component builders ────────────────────────────────────────────────────
 
-  // Live stream teaser for visitor/public — compact bar
+  // Live stream teaser for visitor/public — compact bar. Called from
+  // renderLiveBannerSection, not the adaptive-section renderers directly.
   function buildLiveTeaser(ls, isMember) {
     if (!ls || !ls.active) return '';
     const thumb   = `https://img.youtube.com/vi/${esc(ls.youtubeId)}/hqdefault.jpg`;
@@ -312,7 +329,8 @@
     return next;
   }
 
-  // Full live banner for member state — larger, with next-service fallback
+  // Full live banner for member state — larger, with next-service fallback.
+  // Called from renderLiveBannerSection, not renderMember directly.
   function buildLiveBanner(ls, serviceTimes) {
     if (ls && ls.active) {
       const thumb = `https://img.youtube.com/vi/${esc(ls.youtubeId)}/hqdefault.jpg`;
@@ -597,6 +615,7 @@
     const seq = ++renderSeq;
     try {
       if (!user) {
+        renderLiveBannerSection(content, 'visitor');
         const announcements = await loadAnnouncements(2);
         if (seq !== renderSeq) return;
         renderVisitor(content, announcements);
@@ -606,6 +625,7 @@
       const userSnap = await db.collection('users').doc(user.uid).get();
       const userData  = userSnap.exists ? userSnap.data() : {};
       const membership = userData.membership || 'pending';
+      renderLiveBannerSection(content, membership);
 
       if (membership === 'pending') {
         if (seq !== renderSeq) return;

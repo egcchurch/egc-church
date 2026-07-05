@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-05
-**Current milestone:** Session 177 — fixed checkYoutubeLiveStatus getting stuck showing LIVE when a stream ends after its 3-hour service window closes. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future).
+**Current milestone:** Session 178 — homepage reorder: live stream banner + announcement banner now sit directly below the hero, ahead of the adaptive section, for every auth state. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,47 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: feat — Homepage reorder: live banner + announcement banner below the hero (Session 178)
+
+**Date:** 2026-07-05
+**PR:** #302
+**Status:** Open
+
+### What was done
+
+User request: move the announcement banner to just below the hero video, with the live stream
+banner (if a stream is active) above it — so both are the first thing after the hero, regardless
+of auth state.
+
+Previously the live stream banner was baked into the per-auth-state adaptive section (`buildLiveTeaser`
+for visitor/public, `buildLiveBanner` for members) as its first element — already effectively first
+on scroll, but coupled to whatever else that auth state fetches. The standalone admin-set
+"Announcement Banner" (`#announcement-section`, edited on `/admin/homepage.html`) sat much further
+down, after "A Warm Welcome".
+
+- Pulled the live banner out of the adaptive-section renderers into a new top-level
+  `#live-banner-section` div in `index.html`, positioned directly below the hero. `js/homepage.js`
+  gained `renderLiveBannerSection(content, membership)`, called from `renderAdaptive()` as soon as
+  membership is known — before that state's own announcements/devotional/events fetches, so the
+  live banner now appears *faster* than before, not just in the same position. Members still get
+  the full banner (incl. "next service" fallback when nothing's live); visitors/public get the
+  compact teaser only while something's actually live; pending users get nothing (unchanged from
+  before this existed).
+- Moved `#announcement-section` up to sit directly below the new live banner div (both now above
+  `#adaptive-section`), instead of after "A Warm Welcome". No JS logic change — `applyContent()`
+  still populates/shows it the same way, just at a new DOM position.
+- Fixed order for every auth state: Hero → Live banner (if active) → Announcement banner (if
+  visible) → Adaptive section (member dashboard / visitor or public content) → Warm Welcome →
+  Service Times → Our Testimony → composable sections.
+- SW cache bumped to v82 (`js/homepage.js` is a precached, cache-first asset).
+
+### Deploy notes
+
+Hosting-only change (`index.html`, `js/homepage.js`, `service-worker.js`) — deploys via CI on
+merge. No Cloud Functions or rules changes.
 
 ---
 

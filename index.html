@@ -56,6 +56,30 @@
     </div>
   </header>
 
+  <!-- Live stream banner — always the first thing after the hero, ahead of
+       the announcement banner and the adaptive section, so a live service is
+       impossible to miss. Populated by js/homepage.js (renderLiveBannerSection)
+       independently of the adaptive section so it isn't delayed by whatever
+       that auth state needs to fetch (announcements/devotional/events). Empty
+       when nothing is live (and, for non-members, stays empty rather than
+       showing the member-only "next service" fallback). -->
+  <div id="live-banner-section"></div>
+
+  <!-- Announcement — not composable, conditional on Firestore content. Sits
+       directly below the live banner (and hero) so an admin-set announcement
+       is seen before any adaptive/auth-state content (Session 178). -->
+  <div id="announcement-section" class="hidden">
+    <div class="bg-amber-500 text-white py-4 px-6">
+      <div class="max-w-4xl mx-auto flex items-start gap-4">
+        <i class="fas fa-bullhorn flex-shrink-0 mt-0.5"></i>
+        <div>
+          <p id="announcement-title" class="font-bold text-sm"></p>
+          <p id="announcement-body" class="text-amber-100 text-sm mt-0.5"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Adaptive section — auth-state driven, not composable. Placed right after
        the hero so a logged-in member's personalised greeting/quick-links are
        the first thing reached on scroll, ahead of public visitor content. -->
@@ -91,19 +115,6 @@
       </div>
     </div>
   </section>
-
-  <!-- Announcement — not composable, conditional on Firestore content -->
-  <div id="announcement-section" class="hidden">
-    <div class="bg-amber-500 text-white py-4 px-6">
-      <div class="max-w-4xl mx-auto flex items-start gap-4">
-        <i class="fas fa-bullhorn flex-shrink-0 mt-0.5"></i>
-        <div>
-          <p id="announcement-title" class="font-bold text-sm"></p>
-          <p id="announcement-body" class="text-amber-100 text-sm mt-0.5"></p>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- Service Times — composable (toggle), loaded by js/homepage.js -->
   <section data-section="serviceTimes" id="service-times-section" class="hidden bg-[#0A3D62] text-white py-14 px-6">
