@@ -139,6 +139,11 @@
         </div>
       </div>
 
+      <label class="flex items-start gap-2 mb-4 text-sm text-zinc-700 cursor-pointer select-none">
+        <input id="generate-auto-assign" type="checkbox" class="w-4 h-4 mt-0.5 accent-amber-500">
+        <span>Auto-assign volunteers — rotate qualified members with the right functions and availability through the generated slots, instead of leaving them all open</span>
+      </label>
+
       <div class="flex items-center justify-between mb-2">
         <h4 class="text-xs font-semibold text-zinc-500 uppercase">Recurring services</h4>
         <button type="button" onclick="addPatternRow()" class="text-xs text-blue-600 hover:text-blue-700 font-medium border border-blue-200 hover:border-blue-300 px-3 py-1 rounded-full transition-all">
@@ -171,6 +176,22 @@
     </div>
   </div>
 
+  <!-- AVAILABILITY MODAL — which services a member can normally make (self-service + leader) -->
+  <div id="availability-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="text-lg font-bold text-[#0A3D62]">Availability — <span id="availability-name"></span></h3>
+        <button onclick="closeAvailabilityModal()" class="text-zinc-400 hover:text-zinc-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <p class="text-xs text-zinc-400 mb-4">Untick the services this person can't normally make (e.g. away on Sunday evenings). Ticking everything means no restriction at all — including services added later. Availability filters the roster view and auto-assign; it never stops a leader assigning someone manually.</p>
+      <div id="availability-checkboxes" class="space-y-2 max-h-64 overflow-y-auto"></div>
+      <div class="mt-6 flex gap-3">
+        <button onclick="saveAvailability()" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">Save</button>
+        <button onclick="closeAvailabilityModal()" class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-6 py-2.5 rounded-full text-sm font-medium transition-all">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/js/nav.js"></script>
   <script src="/js/main.js"></script>
   <script>
@@ -189,6 +210,8 @@
     let generatePatternRows = []; // [{ id, dayOfWeek, label, functions: [...] }] — staged in the Schedule modal
     let memberFunctionsModalTeamId = null;
     let memberFunctionsModalUid = null;
+    let availabilityModalTeamId = null;
+    let availabilityModalUid = null;
     let addMemberSelected = {};   // teamId -> { uid, name } | null
     let addMemberRoster = null;   // cached list of directory-visible members for search
     let addMemberSearchTimer = null;
@@ -466,13 +489,15 @@
 
       // Leaders/admins manage the whole roster and see everything. A regular
       // member only sees slots matching the functions a leader has assigned them
-      // — plus any slot they're already personally on, so a function change never
-      // hides a commitment they still need to track or release.
+      // AND within their declared availability (day/label) — plus any slot
+      // they're already personally on, so a function or availability change
+      // never hides a commitment they still need to track or release.
       if (!isLeader) {
         const myUid = currentUser?.uid;
         const myFunctions = (team.memberFunctions || {})[myUid] || [];
         upcoming = upcoming.filter((s) =>
-          (s.functions || []).some((f) => myFunctions.includes(f)) ||
+          ((s.functions || []).some((f) => myFunctions.includes(f)) &&
+            isAvailableForSlot(team, myUid, s)) ||
           s.assignedUid === myUid || s.traineeUid === myUid
         );
       }
@@ -496,6 +521,7 @@
                   <span class="text-[10px] px-1.5 py-0.5 rounded-full ${m.tier === 'qualified' ? 'bg-green-200 text-green-800' : 'bg-amber-200 text-amber-800'}">${m.tier === 'qualified' ? 'Qualified' : 'Trainee'}</span>
                   <span class="text-[10px] text-zinc-500" title="Functions this member can claim">${m.functions.length ? escapeHtml(m.functions.join(', ')) : '(none assigned)'}</span>
                   <button onclick="openMemberFunctionsModal('${team.id}', '${m.uid}', ${JSON.stringify(m.name).replace(/"/g, '&quot;')})" title="Edit functions" class="text-zinc-400 hover:text-amber-600"><i class="fas fa-sliders text-[10px]"></i></button>
+                  <button onclick="openAvailabilityModal('${team.id}', '${m.uid}')" title="Availability: ${escapeHtml(availabilitySummary(team, m.uid))}" class="text-zinc-400 hover:text-amber-600"><i class="fas fa-clock text-[10px]"></i></button>
                   <button onclick="toggleTier('${team.id}', '${m.uid}', '${m.tier}')" title="Toggle tier" class="text-zinc-400 hover:text-blue-500"><i class="fas fa-arrows-rotate text-[10px]"></i></button>
                   ${m.uid !== currentUser?.uid ? `<button onclick="removeMember('${team.id}', '${m.uid}')" title="Remove" class="text-zinc-400 hover:text-red-500"><i class="fas fa-times text-[10px]"></i></button>` : ''}
                 </div>
@@ -531,7 +557,19 @@
         `;
       }
 
-      html += `<h4 class="text-xs font-semibold text-zinc-500 uppercase mb-2">${isLeader ? 'Upcoming Slots' : 'My Team’s Upcoming Roster'}</h4>`;
+      if (isLeader) {
+        html += `<h4 class="text-xs font-semibold text-zinc-500 uppercase mb-2">Upcoming Slots</h4>`;
+      } else {
+        // Members declare their own availability from here; leaders edit any
+        // member's via the clock icon on the member chips above.
+        html += `
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-semibold text-zinc-500 uppercase">My Team’s Upcoming Roster</h4>
+            <button onclick="openAvailabilityModal('${team.id}', '${currentUser?.uid}')" class="text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1.5 rounded-full transition-all">
+              <i class="fas fa-clock mr-1"></i>My Availability
+            </button>
+          </div>`;
+      }
       html += `<div id="roster-slots-${team.id}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>`;
 
       container.innerHTML = html;
@@ -713,6 +751,106 @@
       } catch (err) {
         console.error('Save member functions failed:', err);
         alert('Failed to save functions.');
+      }
+    }
+
+    // ── Availability (which services a member can normally make) ──────────────────
+    // Keys are "dayOfWeek|label" strings (e.g. "0|Morning", "3|") matching the
+    // (day, label) service combos that exist on the team's actual slots. NO
+    // memberAvailability entry for a uid = no restriction — the opposite default
+    // from memberFunctions, deliberately: availability is a restriction you opt
+    // into, so nothing changed for existing members when this shipped and
+    // leaders don't need a setup pass. It filters the member's roster view and
+    // the auto-assign pool only — it never blocks a leader's manual assignment,
+    // and (unlike functions) isn't enforced in Firestore rules.
+
+    function slotAvailKey(slot) {
+      return `${new Date(slot.date + 'T00:00:00').getDay()}|${slot.label || ''}`;
+    }
+
+    function isAvailableForSlot(team, uid, slot) {
+      const avail = (team.memberAvailability || {})[uid];
+      if (!Array.isArray(avail)) return true;
+      return avail.includes(slotAvailKey(slot));
+    }
+
+    // Distinct (day, label) service combos across this team's current slots —
+    // derived from slots rather than schedules so manual one-off slots count too,
+    // same trick the member-functions modal uses for its function list.
+    function activeServiceCombos(teamId) {
+      const combos = new Map();
+      (teamSlotsCache[teamId] || []).forEach((s) => {
+        if (!s.date) return;
+        const key = slotAvailKey(s);
+        if (!combos.has(key)) combos.set(key, { key, day: new Date(s.date + 'T00:00:00').getDay(), label: s.label || '' });
+      });
+      return [...combos.values()].sort((a, b) =>
+        a.day - b.day || labelRank(a.label) - labelRank(b.label) || a.label.localeCompare(b.label));
+    }
+
+    function comboDisplayName(combo) {
+      return DAY_NAMES[combo.day] + (combo.label ? ` — ${combo.label}` : '');
+    }
+
+    function availabilitySummary(team, uid) {
+      const avail = (team.memberAvailability || {})[uid];
+      if (!Array.isArray(avail)) return 'any service';
+      if (!avail.length) return 'none set';
+      const named = activeServiceCombos(team.id).filter((c) => avail.includes(c.key)).map(comboDisplayName);
+      return named.length ? named.join(', ') : 'none of the current services';
+    }
+
+    async function openAvailabilityModal(teamId, uid) {
+      availabilityModalTeamId = teamId;
+      availabilityModalUid = uid;
+      document.getElementById('availability-name').textContent =
+        uid === currentUser?.uid ? 'Me' : await fetchDisplayName(uid);
+
+      const team = teamsCache[teamId] || {};
+      const combos = activeServiceCombos(teamId);
+      const avail = (team.memberAvailability || {})[uid];
+      const restricted = Array.isArray(avail);
+
+      const container = document.getElementById('availability-checkboxes');
+      container.innerHTML = combos.length
+        ? combos.map((c) => `
+            <label class="flex items-center gap-2 text-sm text-zinc-700 cursor-pointer select-none">
+              <input type="checkbox" class="availability-checkbox w-4 h-4 accent-amber-500" value="${escapeHtml(c.key)}" ${(!restricted || avail.includes(c.key)) ? 'checked' : ''}>
+              ${escapeHtml(comboDisplayName(c))}
+            </label>
+          `).join('')
+        : '<p class="text-xs text-zinc-400 italic">This team has no slots yet — availability is set against the services that actually exist on the roster.</p>';
+
+      document.getElementById('availability-modal').classList.remove('hidden');
+    }
+
+    function closeAvailabilityModal() {
+      document.getElementById('availability-modal').classList.add('hidden');
+      availabilityModalTeamId = null;
+      availabilityModalUid = null;
+    }
+
+    async function saveAvailability() {
+      const teamId = availabilityModalTeamId;
+      const uid = availabilityModalUid;
+      const boxes = [...document.querySelectorAll('.availability-checkbox')];
+      if (!boxes.length) { closeAvailabilityModal(); return; }
+      const selected = boxes.filter((el) => el.checked).map((el) => el.value);
+      // Everything ticked = no restriction, stored as an ABSENT key rather than
+      // a full list, so services added to the roster later are included too.
+      const value = selected.length === boxes.length
+        ? firebase.firestore.FieldValue.delete()
+        : selected;
+      try {
+        await db.collection('servingTeams').doc(teamId).update({
+          [`memberAvailability.${uid}`]: value,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        closeAvailabilityModal();
+        reloadTeamCard(teamId);
+      } catch (err) {
+        console.error('Save availability failed:', err);
+        alert('Failed to save availability.');
       }
     }
 
@@ -1070,7 +1208,7 @@
             <div class="min-w-0">
               <p class="text-sm font-semibold text-zinc-800">${escapeHtml(schedule.name)}</p>
               <p class="text-xs text-zinc-500 mt-0.5">${patSummary}</p>
-              <p class="text-xs text-zinc-400 mt-0.5">${escapeHtml(schedule.startDate || '')} to ${escapeHtml(schedule.endDate || '')} &middot; ${count} slot${count !== 1 ? 's' : ''}</p>
+              <p class="text-xs text-zinc-400 mt-0.5">${escapeHtml(schedule.startDate || '')} to ${escapeHtml(schedule.endDate || '')} &middot; ${count} slot${count !== 1 ? 's' : ''}${schedule.autoAssign ? ' &middot; Auto-assign on' : ''}</p>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
               <button onclick="openGenerateModal('${teamId}', '${schedule.id}')" title="Edit schedule" class="text-zinc-400 hover:text-blue-500"><i class="fas fa-pen text-xs"></i></button>
@@ -1123,6 +1261,7 @@
 
       document.getElementById('generate-start-date').value = schedule?.startDate || '';
       document.getElementById('generate-end-date').value = schedule?.endDate || '';
+      document.getElementById('generate-auto-assign').checked = !!schedule?.autoAssign;
       document.getElementById('generate-form-msg').classList.add('hidden');
 
       renderGeneratePatternRows();
@@ -1255,6 +1394,55 @@
       return defs;
     }
 
+    // Auto-assign rotation (Phase 1.7): fill each generated slot's lead position
+    // from the pool of qualified-tier team members who have ALL of the slot's
+    // functions assigned and are available for its day/label. Walks the slots
+    // chronologically, always picking whoever has the fewest assignments so far
+    // in this run (name as tiebreak, so the result is deterministic), and avoids
+    // giving one person two slots at the same service unless nobody else is
+    // eligible. Slots with no eligible candidate simply stay open. Mutates the
+    // defs in place; returns how many it assigned. Trainee positions don't exist
+    // on generated slots (trainingEnabled is always false), so only leads fill.
+    async function applyAutoAssign(teamId, slotDefs) {
+      const team = teamsCache[teamId] || {};
+      const tiers = team.memberTiers || {};
+      const memberFns = team.memberFunctions || {};
+      const pool = (team.members || []).filter((uid) =>
+        (tiers[uid] || 'trainee') === 'qualified' && (memberFns[uid] || []).length);
+      if (!pool.length) return 0;
+
+      const names = {};
+      for (const uid of pool) names[uid] = await fetchDisplayName(uid);
+      const counts = {};
+      pool.forEach((uid) => { counts[uid] = 0; });
+
+      const ordered = slotDefs.slice().sort((a, b) =>
+        a.date === b.date
+          ? labelRank(a.label || '') - labelRank(b.label || '') || (a.label || '').localeCompare(b.label || '')
+          : (a.date < b.date ? -1 : 1));
+
+      const perService = {}; // "date|label" -> Set of uids already serving there
+      let assigned = 0;
+      ordered.forEach((def) => {
+        const candidates = pool.filter((uid) =>
+          (def.functions || []).every((f) => memberFns[uid].includes(f)) &&
+          isAvailableForSlot(team, uid, def));
+        if (!candidates.length) return;
+        const svcKey = `${def.date}|${def.label || ''}`;
+        const svc = (perService[svcKey] = perService[svcKey] || new Set());
+        const fresh = candidates.filter((uid) => !svc.has(uid));
+        const pick = (fresh.length ? fresh : candidates)
+          .sort((a, b) => counts[a] - counts[b] || names[a].localeCompare(names[b]))[0];
+        def.assignedUid = pick;
+        def.assignedName = names[pick];
+        def.status = 'filled';
+        counts[pick]++;
+        svc.add(pick);
+        assigned++;
+      });
+      return assigned;
+    }
+
     // Generic chunked batch commit — Firestore caps a batch at 500 writes;
     // chunk at 450 to leave headroom. `ops` is [{ type: 'set'|'delete', ref, data? }].
     async function chunkedCommit(ops) {
@@ -1275,8 +1463,6 @@
         type: 'set',
         ref: slotsRef.doc(),
         data: {
-          ...slot,
-          scheduleId,
           trainingEnabled: false,
           assignedUid: null,
           assignedName: null,
@@ -1284,6 +1470,10 @@
           traineeName: null,
           status: 'open',
           notes: null,
+          // Def fields win over the open defaults above — auto-assign pre-fills
+          // assignedUid/assignedName/status on the defs it managed to fill.
+          ...slot,
+          scheduleId,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           createdBy: currentUser ? currentUser.uid : null,
           updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1344,13 +1534,19 @@
 
       const teamId = generateModalTeamId;
       const scheduleId = generateModalScheduleId;
+      const autoAssign = document.getElementById('generate-auto-assign').checked;
       const patternsToSave = activeRows.map((r) => ({ id: r.id, dayOfWeek: r.dayOfWeek, label: r.label || null, functions: r.functions, repeatEveryWeeks: r.repeatEveryWeeks || 1 }));
-      const scheduleData = { name, patterns: patternsToSave, startDate, endDate };
+      const scheduleData = { name, patterns: patternsToSave, startDate, endDate, autoAssign };
 
       try {
+        const autoAssignedCount = autoAssign ? await applyAutoAssign(teamId, newSlotDefs) : 0;
         if (!scheduleId) {
           // New schedule — simple confirm + create, nothing destructive.
-          if (!confirm(`Create '${name}' with ${newSlotDefs.length} slot${newSlotDefs.length !== 1 ? 's' : ''}?`)) return;
+          let createText = `Create '${name}' with ${newSlotDefs.length} slot${newSlotDefs.length !== 1 ? 's' : ''}?`;
+          if (autoAssign) {
+            createText += ` ${autoAssignedCount} will be auto-assigned, ${newSlotDefs.length - autoAssignedCount} left open.`;
+          }
+          if (!confirm(createText)) return;
           const schedRef = await db.collection('servingTeams').doc(teamId).collection('schedules').add({
             ...scheduleData,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1389,7 +1585,12 @@
       if (assignedCount > 0) {
         warnText += ` (${assignedCount} of which already ${assignedCount === 1 ? 'has' : 'have'} a volunteer assigned)`;
       }
-      warnText += ` and recreate ${newSlotDefs.length} fresh slot${newSlotDefs.length !== 1 ? 's' : ''}. Continue?`;
+      warnText += ` and recreate ${newSlotDefs.length} fresh slot${newSlotDefs.length !== 1 ? 's' : ''}.`;
+      const preAssigned = newSlotDefs.filter((d) => d.assignedUid).length;
+      if (preAssigned > 0) {
+        warnText += ` ${preAssigned} of the new slots will be auto-assigned.`;
+      }
+      warnText += ' Continue?';
       if (!confirm(warnText)) return false;
 
       await chunkedCommit(existing.map((d) => ({ type: 'delete', ref: d.ref })));
@@ -1408,6 +1609,7 @@
       if (!schedule) return;
       const newSlotDefs = buildSlotDefsFromPatterns(schedule.patterns, schedule.startDate, schedule.endDate);
       try {
+        if (schedule.autoAssign) await applyAutoAssign(teamId, newSlotDefs);
         const proceeded = await regenerateSchedule(teamId, scheduleId, {
           name: schedule.name, patterns: schedule.patterns, startDate: schedule.startDate, endDate: schedule.endDate,
         }, newSlotDefs);

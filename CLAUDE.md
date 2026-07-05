@@ -680,6 +680,13 @@ Functions are organised by trigger type:
   memberFunctions: { [uid]: [string array] }  ← leader-assigned function eligibility; absent/empty
                                               for a uid = locked out of claiming/seeing slots until
                                               a leader assigns at least one function (enforced in rules)
+  memberAvailability: { [uid]: [string array] }  ← Phase 1.7 — "dayOfWeek|label" keys (e.g.
+                                              "0|Morning", "3|") for services the member can make;
+                                              ABSENT key = no restriction (opposite default from
+                                              memberFunctions). Member writes own key (rules-
+                                              enforced), leaders write anyone's. Soft — filters the
+                                              member's roster view + auto-assign pool only, never
+                                              blocks claims or leader assignment
   functions: [string array]                  ← growing free-text list of skills/roles used by this team's slots (e.g. "Sound", "Piano", "Food Helper")
   isPublic: true | false
   joinPolicy: "open" | "approval" | "invite-only"
@@ -690,6 +697,9 @@ Functions are organised by trigger type:
   patterns: [{ id, dayOfWeek: 0-6, label: string|null, functions: [string] }]
                                               ← dayOfWeek matches Date#getDay() (0=Sunday)
   startDate, endDate (YYYY-MM-DD)            ← persisted so Edit/Regenerate know what to recreate
+  autoAssign (boolean)                       ← Phase 1.7 — generate/regenerate fills lead positions
+                                                by rotating qualified + eligible + available members
+                                                (fewest assignments first; unfillable slots stay open)
   createdAt, updatedAt, createdBy (uid)
   ← leader/admin only — bulk-creates slots tagged with this schedule's id; editing and saving
     regenerates (deletes its slots, recreates from the corrected definition); deleting cascades
@@ -1125,5 +1135,4 @@ All 9 phases (Foundation through Page Composition) are complete and deployed. De
 
 **Active / pending:**
 - **WhatsApp Stage 2** — blocked on church obtaining a WhatsApp Business sender number (`docs/WHATSAPP.md`)
-- **Serving Teams Phase 1.7** — day/time availability + auto-assign rotation (planned, not started; `docs/SERVING_TEAMS.md`)
 - **Serving Teams Phase 2** — Equipment Register + Moves (future; `docs/SERVING_TEAMS.md`)

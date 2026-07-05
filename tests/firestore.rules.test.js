@@ -1,5 +1,5 @@
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
-const { doc, getDoc, setDoc, updateDoc, deleteDoc } = require('firebase/firestore');
+const { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField } = require('firebase/firestore');
 
 let testEnv;
 
@@ -318,6 +318,60 @@ describe('Firestore Security Rules', () => {
       const db = testEnv.authenticatedContext('member-uid', {}).firestore();
       await assertFails(updateDoc(doc(db, 'servingTeams', 'team1'), {
         memberFunctions: { 'member-uid': ['Sound'] },
+      }));
+    });
+
+    it('team member can set their own availability (their key in memberAvailability only)', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: [], members: ['member-uid'], pendingMembers: [], memberTiers: {}, functions: ['Sound'],
+        });
+      });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      // Team doc predates the memberAvailability field entirely — first write creates it
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1'), {
+        'memberAvailability.member-uid': ['0|Morning'],
+      }));
+      // Ticking everything back stores an absent key (no restriction) via deleteField
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1'), {
+        'memberAvailability.member-uid': deleteField(),
+      }));
+    });
+
+    it('team member cannot set another member\'s availability', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: [], members: ['member-uid', 'other-uid'], pendingMembers: [], memberTiers: {}, functions: ['Sound'],
+        });
+      });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertFails(updateDoc(doc(db, 'servingTeams', 'team1'), {
+        'memberAvailability.other-uid': ['0|Morning'],
+      }));
+    });
+
+    it('team leader can set any member\'s availability', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: ['leader-uid'], members: ['member-uid'], pendingMembers: [], memberTiers: {}, functions: ['Sound'],
+        });
+      });
+      const db = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1'), {
+        memberAvailability: { 'member-uid': ['0|Morning', '3|'] },
+      }));
+    });
+
+    it('a member not on the team cannot write availability at all', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: [], members: ['other-uid'], pendingMembers: [], memberTiers: {}, functions: ['Sound'],
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(updateDoc(doc(db, 'servingTeams', 'team1'), {
+        'memberAvailability.member-uid': ['0|Morning'],
       }));
     });
 
