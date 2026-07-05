@@ -406,7 +406,9 @@ Functions are organised by trigger type:
 
 ### HTTP / Callable Functions
 
-- `sendBroadcast` — called from `/admin/notifications.html` — accepts notification payload and audience, fans out to matching FCM tokens, also writes per-user copies to `/users/{uid}/notifications/`
+- `sendBroadcast` — called from `/admin/notifications.html` — accepts notification payload and audience, fans out to matching FCM tokens, also writes per-user copies to `/users/{uid}/notifications/` (each stamped with `broadcastId` = the `/notifications` log doc ID). Accepts optional `linkUrl` (site-relative only, used for in-app + push tap-through) and `eventId` (records a calendar event created alongside the broadcast — the "also add to calendar" toggle creates the `/events` doc client-side under normal `events.manage` rules, then passes its ID here; the event is independent afterwards)
+- `updateBroadcast` — callable (requires `notifications.send`) — edits a sent broadcast's title/body on the `/notifications` log doc AND on every user's in-app copy (collectionGroup query on `broadcastId`). Cannot change push notifications already delivered to phones. Copies sent before `broadcastId` stamping existed are untouched
+- `deleteBroadcast` — callable (requires `notifications.send`) — retracts a sent broadcast: deletes the log doc and every user's in-app copy (same `broadcastId` collectionGroup query, same legacy caveat)
 
 ### Firestore Triggers
 
@@ -481,6 +483,9 @@ Functions are organised by trigger type:
 /users/{uid}/notifications/{notificationId}
   title, body, type, sentAt, read: false
   linkUrl (nullable — deep link to relevant page)
+  broadcastId (nullable — /notifications log doc ID; lets updateBroadcast/
+               deleteBroadcast find every copy; absent on pre-Session-176 copies
+               and on non-broadcast notifications)
 
 /users/{uid}/fcmTokens/{tokenId}
   token, device, registeredAt
@@ -585,6 +590,9 @@ Functions are organised by trigger type:
   type: "broadcast" | "emergency" | "digest" | "direct"
   audience: "all" | "members" | "admins"
   sentBy (uid), sentAt
+  eventId (nullable — /events doc created alongside via the "also add to
+           calendar" toggle; informational, the event is independent after creation)
+  editedAt, editedBy (nullable — set by updateBroadcast)
 
 /messages/{messageId}
   participants: [uid array]
@@ -882,7 +890,7 @@ Firestore rules for `/groups/{groupId}` updates:
 - Firestore database: `(default)` in nam5 region (production mode)
 - Firebase Storage: in use (audio, sermon notes/materials, images, music, cover art)
 - Cloud Messaging (FCM): deployed — VAPID key configured, token registration in js/notifications.js
-- Cloud Functions: 22 functions deployed — see "Cloud Functions Architecture" below for the full, current list
+- Cloud Functions: deployed — don't trust any hardcoded count (it drifts); see "Cloud Functions Architecture" above for the full, current list
 - Authorised domains: localhost, 127.0.0.1, egcchurch.github.io, egc-church.firebaseapp.com, egc-church.web.app, staging.egc.church, app.egc.church
 - Billing plan: **Blaze (pay-as-you-go)** — required for Cloud Functions; usage stays within free tier at church scale
 - Required composite indexes (defined in `firestore.indexes.json`):

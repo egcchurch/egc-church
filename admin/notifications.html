@@ -83,6 +83,40 @@
               </div>
             </div>
 
+            <!-- Also add to calendar — only shown to admins who also hold events.manage,
+                 since the event doc is created client-side under the normal /events rules. -->
+            <div id="event-toggle-wrap" class="hidden border-t border-zinc-100 pt-4">
+              <label class="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer select-none">
+                <input id="f-add-event" type="checkbox" class="w-4 h-4 accent-amber-500">
+                Also add to calendar as an event
+              </label>
+              <div id="event-fields" class="hidden mt-3 space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Date *</label>
+                    <input id="f-event-date" type="date"
+                           class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Time *</label>
+                    <input id="f-event-time" type="time"
+                           class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Location (optional)</label>
+                  <input id="f-event-location" type="text" maxlength="120"
+                         class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                         placeholder="e.g. EGC Elandsfontein">
+                </div>
+                <p class="text-[11px] text-gray-400 leading-relaxed">
+                  Creates a calendar entry from this notification's title and message — it appears on the
+                  Notices page and the members dashboard. Audience follows the broadcast audience. After
+                  sending, manage it like any other entry under Manage Notices.
+                </p>
+              </div>
+            </div>
+
             <div id="form-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
 
             <button id="send-btn" type="submit"
@@ -122,6 +156,34 @@
     </div>
   </main>
 
+  <!-- EDIT BROADCAST MODAL -->
+  <div id="edit-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="text-lg font-bold text-[#0A3D62]">Edit Broadcast</h3>
+        <button onclick="closeEditModal()" class="text-zinc-400 hover:text-zinc-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <p class="text-xs text-zinc-400 mb-4">Updates the copy in every user's in-app notification list. Push notifications already delivered to phones can't be changed.</p>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Title</label>
+          <input id="edit-title" type="text" maxlength="120"
+                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Message</label>
+          <textarea id="edit-body" rows="4" maxlength="500"
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"></textarea>
+        </div>
+      </div>
+      <div class="mt-6 flex gap-3">
+        <button id="edit-save-btn" onclick="saveEdit()" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">Save</button>
+        <button onclick="closeEditModal()" class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-6 py-2.5 rounded-full text-sm font-medium transition-all">Cancel</button>
+      </div>
+      <p id="edit-error" class="hidden mt-3 text-sm font-medium text-red-500"></p>
+    </div>
+  </div>
+
   <!-- Toast -->
   <div id="toast"
        class="fixed bottom-6 right-6 z-50 hidden bg-[#0A3D62] text-white px-5 py-3 rounded-xl shadow-xl text-sm font-medium max-w-xs">
@@ -131,7 +193,27 @@
   <script src="/js/main.js"></script>
   <script>
     const functions = firebase.functions();
-    const sendBroadcastFn = functions.httpsCallable('sendBroadcast');
+    const sendBroadcastFn   = functions.httpsCallable('sendBroadcast');
+    const updateBroadcastFn = functions.httpsCallable('updateBroadcast');
+    const deleteBroadcastFn = functions.httpsCallable('deleteBroadcast');
+
+    const historyCache = {};   // broadcastId -> doc data (for the edit modal)
+    let editingBroadcastId = null;
+
+    // Reveal the "also add to calendar" toggle only for admins who also hold
+    // events.manage — the event doc is created client-side under /events rules.
+    firebase.auth().onAuthStateChanged((user) => {
+      if (!user) return;
+      Permissions.init(user).then(() => {
+        if (Permissions.hasPermission('events.manage')) {
+          document.getElementById('event-toggle-wrap').classList.remove('hidden');
+        }
+      });
+    });
+
+    document.getElementById('f-add-event').addEventListener('change', (e) => {
+      document.getElementById('event-fields').classList.toggle('hidden', !e.target.checked);
+    });
 
     // ── Toast ──────────────────────────────────────────────────────────────────
     function showToast(msg, isError = false) {
@@ -155,15 +237,58 @@
       const body     = document.getElementById('f-body').value.trim();
       const type     = document.getElementById('f-type').value;
       const audience = document.getElementById('f-audience').value;
+      const addEvent = document.getElementById('f-add-event').checked;
+
+      if (addEvent) {
+        const d = document.getElementById('f-event-date').value;
+        const t = document.getElementById('f-event-time').value;
+        if (!d || !t) {
+          errBox.textContent = 'Event date and time are required when adding to the calendar.';
+          errBox.classList.remove('hidden');
+          return;
+        }
+      }
 
       btn.disabled = true;
       btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Sending…';
 
       try {
-        const result = await sendBroadcastFn({ title, body, type, audience });
+        // Create the calendar event FIRST (client-side, under /events rules) so
+        // the notification can deep-link to it. After creation it's independent
+        // — manage it from Manage Notices like any other entry.
+        let eventId = null;
+        if (addEvent) {
+          const date     = document.getElementById('f-event-date').value;
+          const time     = document.getElementById('f-event-time').value;
+          const location = document.getElementById('f-event-location').value.trim();
+          const eventRef = firebase.firestore().collection('events').doc();
+          await eventRef.set({
+            title,
+            description : body,
+            location,
+            category    : 'service',
+            // Members-only and admins-only broadcasts get a members-only event;
+            // "all approved users" gets a public one.
+            audience    : audience === 'all' ? 'public' : 'members',
+            imageUrl    : null,
+            published   : true,
+            startDate   : firebase.firestore.Timestamp.fromDate(new Date(`${date}T${time}`)),
+            endDate     : null,
+            createdAt   : firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt   : firebase.firestore.FieldValue.serverTimestamp(),
+          });
+          eventId = eventRef.id;
+        }
+
+        const result = await sendBroadcastFn({
+          title, body, type, audience,
+          eventId,
+          linkUrl: eventId ? '/events.html' : null,
+        });
         const { sent, inApp } = result.data;
-        showToast(`Sent — ${inApp} in-app notification${inApp !== 1 ? 's' : ''}, ${sent} push notification${sent !== 1 ? 's' : ''}.`);
+        showToast(`Sent — ${inApp} in-app notification${inApp !== 1 ? 's' : ''}, ${sent} push notification${sent !== 1 ? 's' : ''}${eventId ? ', calendar entry added' : ''}.`);
         document.getElementById('broadcast-form').reset();
+        document.getElementById('event-fields').classList.add('hidden');
       } catch (err) {
         errBox.textContent = err.message || 'Failed to send broadcast. Please try again.';
         errBox.classList.remove('hidden');
@@ -192,6 +317,7 @@
           count.textContent = `${snap.size} sent`;
           list.innerHTML = snap.docs.map(d => {
             const n = d.data();
+            historyCache[d.id] = n;
             const date = n.sentAt?.toDate
               ? n.sentAt.toDate().toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })
               : '—';
@@ -214,7 +340,17 @@
                     <span class="text-[10px] text-gray-400">${esc(audienceLabel)}</span>
                   </div>
                 </div>
-                <p class="text-[10px] text-gray-400 mt-2">${date}</p>
+                <div class="flex items-center justify-between mt-2">
+                  <p class="text-[10px] text-gray-400">
+                    ${date}
+                    ${n.editedAt ? '<span class="italic"> · edited</span>' : ''}
+                    ${n.eventId ? '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold not-italic"><i class="fas fa-calendar-check mr-1"></i>Calendar entry</span>' : ''}
+                  </p>
+                  <div class="flex items-center gap-3">
+                    <button onclick="openEditModal('${d.id}')" title="Edit for all recipients" class="text-zinc-300 hover:text-blue-500"><i class="fas fa-pen text-xs"></i></button>
+                    <button onclick="deleteBroadcast('${d.id}')" title="Delete for all recipients" class="text-zinc-300 hover:text-red-500"><i class="fas fa-trash text-xs"></i></button>
+                  </div>
+                </div>
               </div>`;
           }).join('');
         }, (err) => {
@@ -222,6 +358,64 @@
           list.innerHTML = '<p class="text-sm text-red-500 text-center py-12">Could not load broadcast history.</p>';
           console.error('notifications history onSnapshot error:', err);
         });
+    }
+
+    // ── Edit / delete a sent broadcast ─────────────────────────────────────────
+    // Both fan out to every user's in-app copy via Cloud Functions. Push
+    // notifications already delivered to phones can't be changed. Broadcasts
+    // sent before edit support existed have no broadcastId on the user copies,
+    // so for those only this history list changes.
+
+    function openEditModal(broadcastId) {
+      const n = historyCache[broadcastId];
+      if (!n) return;
+      editingBroadcastId = broadcastId;
+      document.getElementById('edit-title').value = n.title || '';
+      document.getElementById('edit-body').value = n.body || '';
+      document.getElementById('edit-error').classList.add('hidden');
+      document.getElementById('edit-modal').classList.remove('hidden');
+    }
+
+    function closeEditModal() {
+      document.getElementById('edit-modal').classList.add('hidden');
+      editingBroadcastId = null;
+    }
+
+    async function saveEdit() {
+      const title = document.getElementById('edit-title').value.trim();
+      const body  = document.getElementById('edit-body').value.trim();
+      const errEl = document.getElementById('edit-error');
+      errEl.classList.add('hidden');
+      if (!title || !body) {
+        errEl.textContent = 'Title and message are required.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      const btn = document.getElementById('edit-save-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1"></i>Saving…';
+      try {
+        const result = await updateBroadcastFn({ broadcastId: editingBroadcastId, title, body });
+        closeEditModal();
+        showToast(`Updated — ${result.data.updated} in-app cop${result.data.updated === 1 ? 'y' : 'ies'} changed.`);
+      } catch (err) {
+        errEl.textContent = err.message || 'Failed to update broadcast.';
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save';
+      }
+    }
+
+    async function deleteBroadcast(broadcastId) {
+      const n = historyCache[broadcastId] || {};
+      if (!confirm(`Delete "${n.title || 'this broadcast'}" from the history AND from every user's in-app notification list? Push notifications already on phones can't be recalled.`)) return;
+      try {
+        const result = await deleteBroadcastFn({ broadcastId });
+        showToast(`Deleted — ${result.data.removed} in-app cop${result.data.removed === 1 ? 'y' : 'ies'} removed.`);
+      } catch (err) {
+        showToast(err.message || 'Failed to delete broadcast.', true);
+      }
     }
 
     document.addEventListener('nav-loaded', () => {
