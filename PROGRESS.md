@@ -45,7 +45,7 @@ Google login) — not required.
 
 **Date:** 2026-07-05
 **PR:** #294
-**Status:** Open
+**Status:** Merged, deployed (hosting via CI; `firestore:rules` deployed manually)
 
 ### What was done
 
