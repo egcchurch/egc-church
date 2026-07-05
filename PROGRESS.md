@@ -45,7 +45,7 @@ Google login) — not required.
 
 **Date:** 2026-07-05
 **PR:** #296
-**Status:** Open
+**Status:** Merged, deployed (hosting via CI; Cloud Functions deployed manually — 10-min schedule live)
 
 ### Background — why the site "didn't update" during today's stream
 
