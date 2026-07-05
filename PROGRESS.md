@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-05
-**Current milestone:** Session 176 — broadcasts can now be edited/deleted after sending (fans out to every user's in-app copy) and a compose-form toggle also creates a calendar event. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future).
+**Current milestone:** Session 177 — fixed checkYoutubeLiveStatus getting stuck showing LIVE when a stream ends after its 3-hour service window closes. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,41 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: fix — Live stream stuck showing LIVE after stream ends past the service window (Session 177)
+
+**Date:** 2026-07-05
+**PR:** #300
+**Status:** Open
+
+### Background
+
+User reported the site still showed LIVE well after ending a Sunday evening stream on YouTube.
+Diagnosed from function logs + the Firestore doc: `checkYoutubeLiveStatus`'s last real check was
+at 7:27 PM SAST (still live), then every 10-min tick from ~8:00 PM SAST onward logged `outside
+service window, skipping` and did nothing — the service window (30 min before to 3 hours after
+the scheduled 5:00 PM start) had closed at 8:00 PM SAST. Once the window closes, the function
+never checks YouTube again regardless of what's actually happening, so a stream that runs long or
+ends after the window closes gets stuck showing LIVE until the *next* scheduled service's window
+opens — potentially days later. The only fix in the moment was the manual "End Stream" toggle on
+`/admin/homepage.html` (confirmed instant on open pages thanks to Session 175's real-time listeners).
+
+### What was done
+
+`checkYoutubeLiveStatus`'s window gate is now asymmetric: it's still fine to skip *starting* a
+check outside the window (quota-saving, unchanged), but if `/homepage/content.liveStream.active`
+is already `true`, ticks keep polling every 10 minutes **past the window close** until the stream
+is confirmed ended. Capped at 6 hours since `startedAt` (`MAX_ACTIVE_POLL_MS`) so a forgotten
+manual "Set Live" toggle doesn't poll — and burn API quota — forever; past the cap, only the next
+scheduled window or a manual "End Stream" will clear it. Worst-case added quota: ~36 extra calls
+(~3,600 units) if something runs the full 6-hour cap — a rare failure-mode cost, not a routine one.
+
+### Deploy notes
+
+**Cloud Functions changed** (`checkYoutubeLiveStatus`) — after merge run `firebase deploy --only
+functions` manually. No rules changes, no cache bump (functions-only).
 
 ---
 
