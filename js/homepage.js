@@ -51,12 +51,6 @@
 
   // ── Data loaders ──────────────────────────────────────────────────────────
 
-  function loadHomepageContent() {
-    return db.collection('homepage').doc('content').get()
-      .then(doc => doc.exists ? doc.data() : {})
-      .catch(() => ({}));
-  }
-
   function loadAnnouncements(limit) {
     return db.collection('blog')
       .where('published', '==', true)
@@ -580,6 +574,67 @@
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────
+  // The adaptive section depends on BOTH auth state and /homepage/content, and
+  // the content doc is watched with a real-time listener (not a one-time get)
+  // so the live-stream banner appears/disappears the moment
+  // checkYoutubeLiveStatus writes — including on an already-open page or a PWA
+  // resumed from memory. Whichever of the two arrives last triggers the
+  // render; later snapshots re-render with the same auth state. A sequence
+  // counter drops the results of a superseded in-flight render so overlapping
+  // async renders can't finish out of order.
+
+  let latestContent = null;   // null = first snapshot not yet received
+  let authUser = null;
+  let authKnown = false;      // onAuthStateChanged fired at least once
+  let renderSeq = 0;
+
+  function maybeRenderAdaptive() {
+    if (!authKnown || latestContent === null) return;
+    renderAdaptive(authUser, latestContent);
+  }
+
+  async function renderAdaptive(user, content) {
+    const seq = ++renderSeq;
+    try {
+      if (!user) {
+        const announcements = await loadAnnouncements(2);
+        if (seq !== renderSeq) return;
+        renderVisitor(content, announcements);
+        return;
+      }
+
+      const userSnap = await db.collection('users').doc(user.uid).get();
+      const userData  = userSnap.exists ? userSnap.data() : {};
+      const membership = userData.membership || 'pending';
+
+      if (membership === 'pending') {
+        if (seq !== renderSeq) return;
+        renderPending(user);
+      } else if (membership === 'public') {
+        const announcements = await loadAnnouncements(2);
+        if (seq !== renderSeq) return;
+        renderPublic(user, content, announcements);
+      } else {
+        // member
+        await (typeof Permissions !== 'undefined' ? Permissions.init(user) : Promise.resolve());
+        const hasAdminPerm = typeof Permissions !== 'undefined' && (
+          Permissions.hasPermission('users.approve') ||
+          Permissions.hasPermission('connect.view')  ||
+          Permissions.hasPermission('prayer.moderate')
+        );
+        const [announcements, devotional, events, adminCounts] = await Promise.all([
+          loadAnnouncements(5),
+          loadTodaysDevotional(),
+          loadUpcomingEvents(2),
+          hasAdminPerm ? loadAdminCounts() : Promise.resolve(null),
+        ]);
+        if (seq !== renderSeq) return;
+        renderMember(user, content, announcements, devotional, events, adminCounts);
+      }
+    } catch (err) {
+      console.warn('Homepage render error:', err);
+    }
+  }
 
   document.addEventListener('DOMContentLoaded', () => {
     renderServiceTimes([]); // show defaults immediately; Firestore data replaces shortly after
@@ -590,45 +645,21 @@
       // Public sections — load for all visitors regardless of auth state
       loadLatestSermons(3).then(renderLatestSermons);
 
-      firebase.auth().onAuthStateChanged(async (user) => {
-        try {
-          const content = await loadHomepageContent();
-          applyContent(content);
+      db.collection('homepage').doc('content').onSnapshot((doc) => {
+        latestContent = doc.exists ? doc.data() : {};
+        applyContent(latestContent);
+        maybeRenderAdaptive();
+      }, () => {
+        // Listener failed (offline, rules) — render with empty content rather
+        // than leaving the adaptive section blank forever.
+        if (latestContent === null) latestContent = {};
+        maybeRenderAdaptive();
+      });
 
-          if (!user) {
-            const announcements = await loadAnnouncements(2);
-            renderVisitor(content, announcements);
-            return;
-          }
-
-          const userSnap = await db.collection('users').doc(user.uid).get();
-          const userData  = userSnap.exists ? userSnap.data() : {};
-          const membership = userData.membership || 'pending';
-
-          if (membership === 'pending') {
-            renderPending(user);
-          } else if (membership === 'public') {
-            const announcements = await loadAnnouncements(2);
-            renderPublic(user, content, announcements);
-          } else {
-            // member
-            await (typeof Permissions !== 'undefined' ? Permissions.init(user) : Promise.resolve());
-            const hasAdminPerm = typeof Permissions !== 'undefined' && (
-              Permissions.hasPermission('users.approve') ||
-              Permissions.hasPermission('connect.view')  ||
-              Permissions.hasPermission('prayer.moderate')
-            );
-            const [announcements, devotional, events, adminCounts] = await Promise.all([
-              loadAnnouncements(5),
-              loadTodaysDevotional(),
-              loadUpcomingEvents(2),
-              hasAdminPerm ? loadAdminCounts() : Promise.resolve(null),
-            ]);
-            renderMember(user, content, announcements, devotional, events, adminCounts);
-          }
-        } catch (err) {
-          console.warn('Homepage render error:', err);
-        }
+      firebase.auth().onAuthStateChanged((user) => {
+        authUser = user;
+        authKnown = true;
+        maybeRenderAdaptive();
       });
     });
   });

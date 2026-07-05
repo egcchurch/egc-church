@@ -97,23 +97,28 @@ function initNavDropdowns() {
 // ==================== LIVE NAV LINK ====================
 
 function initLiveNavLink() {
-  // Update the pulsing dot when a stream is active
+  // Real-time listener (not a one-time get) so the pulsing dot switches on the
+  // moment a stream is detected AND off again when it ends — including on an
+  // already-open page or a PWA resumed from memory.
   if (typeof firebase !== 'undefined') {
-    firebase.firestore().doc('homepage/content').get().then(doc => {
-      if (!doc.exists || !doc.data().liveStream?.active) return;
+    firebase.firestore().doc('homepage/content').onSnapshot(doc => {
+      const active = !!(doc.exists && doc.data().liveStream?.active);
       ['nav-live-dot', 'mobile-live-dot'].forEach(id => {
         const dot = document.getElementById(id);
         if (!dot) return;
-        dot.classList.remove('bg-white/40');
-        dot.classList.add('bg-red-500', 'animate-pulse');
+        dot.classList.toggle('bg-white/40', !active);
+        dot.classList.toggle('bg-red-500', active);
+        dot.classList.toggle('animate-pulse', active);
       });
       ['nav-live-link', 'mobile-live-link'].forEach(id => {
         const link = document.getElementById(id);
         if (!link) return;
-        link.classList.remove('text-white/70', 'border-white/25');
-        link.classList.add('text-white', 'border-red-500/50');
+        link.classList.toggle('text-white/70', !active);
+        link.classList.toggle('border-white/25', !active);
+        link.classList.toggle('text-white', active);
+        link.classList.toggle('border-red-500/50', active);
       });
-    }).catch(() => {});
+    }, () => {});
   }
 
   // Intercept clicks on public-nav LIVE links (href="#") to check membership.
