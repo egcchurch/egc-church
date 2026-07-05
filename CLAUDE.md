@@ -421,7 +421,7 @@ Functions are organised by trigger type:
 ### Scheduled Functions
 
 - `weeklyDigest` — runs every Sunday morning — compiles recent sermons, events, and announcements, fans out FCM push to all members
-- `sendServingSlotReminders` — runs every morning at 07:00 SAST (05:00 UTC) — queries `collectionGroup('slots')` for today's date; sends each assigned member a FCM push + in-app reminder linking to their specific slot (`?team=X&slot=Y`); sends each team's leaders one aggregated notification listing how many slots are unassigned (avoids per-slot alert fatigue). Single-field collection group queries are handled automatically by Firestore — no manual index entry needed.
+- `sendServingSlotReminders` — runs every morning at 07:00 SAST (05:00 UTC) — queries `collectionGroup('slots')` for today's date; sends each assigned member a FCM push + in-app reminder linking to their specific slot (`?team=X&slot=Y`); sends each team's leaders one aggregated notification listing how many slots are unassigned (avoids per-slot alert fatigue). Requires the `slots`/`date` `fieldOverrides` entry in `firestore.indexes.json` (see the `collectionGroup()` note under Firebase below) — without it this fails silently every run; confirmed broken this way from deployment until fixed in Session 179.
 
 ### Auth Triggers
 
@@ -903,6 +903,21 @@ Firestore rules for `/groups/{groupId}` updates:
   - `conversations`: `participants CONTAINS, lastMessageAt DESC` (messages inbox)
   - `conversations`: `groupId ASC, type ASC` (group chat lookup)
   - `gallery`: `audience IN, published ASC` (members/gallery.html — members + youth galleries)
+- **`collectionGroup()` queries need an explicit field override, always** — despite what a couple of
+  code comments used to claim, Firestore does NOT auto-index a field for `COLLECTION_GROUP` scope
+  just because it's auto-indexed for `COLLECTION` scope; a bare `db.collectionGroup(x).where(field, ...)`
+  with no matching override throws `FAILED_PRECONDITION` at call time — no compile-time or deploy-time
+  warning. Confirmed the hard way in Session 179: `sendServingSlotReminders`'s `collectionGroup('slots')
+  .where('date', ...)` had been silently failing on **every single run since it was deployed** (no slot
+  reminders ever sent), and `updateBroadcast`/`deleteBroadcast`'s new `collectionGroup('notifications')
+  .where('broadcastId', ...)` failed on first real use. `fieldOverrides` in `firestore.indexes.json` fixes
+  this — see the `notifications`/`sentAt` entry (already correct, from `pruneOldNotifications`) and the
+  `notifications`/`broadcastId` and `slots`/`date` entries added in Session 179. **Whenever adding a new
+  `collectionGroup()` query on a field that doesn't already have a `fieldOverrides` entry, add one and
+  deploy it (`firebase deploy --only firestore:indexes`) before relying on the query working.** A field
+  override REPLACES that field's default indexing, not adds to it — always re-list the `COLLECTION`
+  ASCENDING/DESCENDING entries alongside the new `COLLECTION_GROUP` one if anything already queries that
+  field within a single collection (e.g. `slots`/`date`'s existing per-team `orderBy('date','asc')`).
 
 ---
 
