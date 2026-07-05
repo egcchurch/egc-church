@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-05
-**Current milestone:** Session 175 — live stream now updates in real time on open pages (onSnapshot listeners) + 10-min detection + fresh YouTube titles. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future).
+**Current milestone:** Session 176 — broadcasts can now be edited/deleted after sending (fans out to every user's in-app copy) and a compose-form toggle also creates a calendar event. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,51 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: feat — Edit/delete sent broadcasts + notification-to-event toggle (Session 176)
+
+**Date:** 2026-07-05
+**PR:** #298
+**Status:** Open
+
+### What was done
+
+Two admin notification features (user request: edit/delete a notification; send a notification
+that's also listed as an event, e.g. a communion service announcement):
+
+**Edit / delete sent broadcasts** — pencil/trash buttons on the "Sent Notifications" history on
+`/admin/notifications.html`. `sendBroadcast` now stamps every per-user copy with `broadcastId`
+(the `/notifications` log doc ID); new callables `updateBroadcast` / `deleteBroadcast` (both
+require `notifications.send`) use a collectionGroup query on that field to update/delete the
+copy in every user's in-app list, chunked at 400 writes/batch. Known limits, by design: push
+notifications already delivered to phones can't be changed or recalled (edit/delete fix the
+in-app bell list), and broadcasts sent before this shipped have no `broadcastId` on their
+copies — for those only the history log changes. Edited rows show an "edited" marker
+(`editedAt`/`editedBy` on the log doc).
+
+**Notification → calendar event** — an "Also add to calendar as an event" toggle on the compose
+form (date + time required, location optional). The `/events` doc is created client-side under
+the normal `events.manage` rules — the toggle only appears for admins who also hold that
+permission (superadmins always). Title/description come from the notification title/message;
+category `service`; published immediately; audience maps broadcast→event as members/admins →
+`members`, all → `public`. The broadcast deep-links to `/events.html` (in-app `linkUrl` + FCM
+tap-through — `sendBroadcast` gained a site-relative-only `linkUrl` param). After creation the
+event is fully independent — managed from Manage Notices; editing/deleting the broadcast never
+touches it (decided: independent lifecycle, minimal form fields, `events.manage` gate — chosen
+as the recommended options when the design questions timed out awaiting user input).
+
+Also: CLAUDE.md's "22 functions deployed" count was stale — replaced with a pointer to the
+function list instead of a number that drifts.
+
+### Deploy notes
+
+**Cloud Functions changed** (`sendBroadcast` + new `updateBroadcast`/`deleteBroadcast`) — after
+merge run `firebase deploy --only functions` manually. No rules changes (event creation rides on
+existing `/events` rules; the new callables bypass rules via admin SDK). No cache bump (admin
+HTML only — network-first). The `broadcastId` collectionGroup query is single-field —
+auto-indexed, no `firestore.indexes.json` entry needed (same as the `slots` collectionGroup).
 
 ---
 

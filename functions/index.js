@@ -324,15 +324,27 @@ exports.sendBroadcast = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('permission-denied', 'notifications.send permission required.');
   }
 
-  const { title, body, type = 'broadcast', audience = 'all' } = data;
+  const { title, body, type = 'broadcast', audience = 'all', linkUrl = null, eventId = null } = data;
   if (!title || !body) {
     throw new functions.https.HttpsError('invalid-argument', 'title and body are required.');
   }
 
+  // Only site-relative link targets — never an absolute/external URL from the client
+  const safeLink = (typeof linkUrl === 'string' && /^\/[A-Za-z0-9_\-./?=&]*$/.test(linkUrl)) ? linkUrl : null;
+
   const sentAt = admin.firestore.FieldValue.serverTimestamp();
 
-  // Write global notification log
-  await db.collection('notifications').add({ title, body, type, audience, sentBy: context.auth.uid, sentAt });
+  // Write global notification log. Its doc ID is stamped on every per-user copy
+  // as broadcastId so updateBroadcast/deleteBroadcast can find them all later.
+  // eventId records a calendar event created alongside this broadcast (the
+  // "also add to calendar" toggle on admin/notifications.html) — informational
+  // only; the event lives its own life on /admin/events after creation.
+  const logRef = await db.collection('notifications').add({
+    title, body, type, audience,
+    sentBy: context.auth.uid,
+    sentAt,
+    eventId: (typeof eventId === 'string' && eventId) ? eventId : null,
+  });
 
   // Query users matching audience
   let usersSnap;
@@ -361,7 +373,7 @@ exports.sendBroadcast = functions.https.onCall(async (data, context) => {
     const batch = db.batch();
     docs.slice(i, i + BATCH_SIZE).forEach((userDoc) => {
       const ref = db.collection('users').doc(userDoc.id).collection('notifications').doc();
-      batch.set(ref, { title, body, type, sentAt, read: false, linkUrl: null });
+      batch.set(ref, { title, body, type, sentAt, read: false, linkUrl: safeLink, broadcastId: logRef.id });
     });
     await batch.commit();
   }
@@ -381,10 +393,10 @@ exports.sendBroadcast = functions.https.onCall(async (data, context) => {
       tokens: chunk.map(e => e.token),
       notification: { title, body },
       webpush: {
-        notification: { title, body, icon: '/assets/images/icons/icon-192.png', badge: '/assets/images/icons/icon-72.png', data: { linkUrl: '/' } },
-        fcmOptions: { link: '/' },
+        notification: { title, body, icon: '/assets/images/icons/icon-192.png', badge: '/assets/images/icons/icon-72.png', data: { linkUrl: safeLink || '/' } },
+        fcmOptions: { link: safeLink || '/' },
       },
-      data: { linkUrl: '/' },
+      data: { linkUrl: safeLink || '/' },
     });
     sent += result.successCount;
 
@@ -405,6 +417,80 @@ exports.sendBroadcast = functions.https.onCall(async (data, context) => {
 
   console.log(`Broadcast sent: ${sent} push, ${docs.length} in-app`);
   return { sent, inApp: docs.length };
+});
+
+// ── updateBroadcast / deleteBroadcast ─────────────────────────────────────────
+// Callable from /admin/notifications.html history list. Both find every
+// per-user copy via a collectionGroup query on broadcastId (stamped by
+// sendBroadcast since Session 176 — copies sent before then have no
+// broadcastId, so for those only the history log is touched and users keep
+// their existing copies). Push notifications already delivered to phones
+// cannot be edited or recalled — these fix the in-app bell list only.
+// A Cloud Function is required because this touches other users' documents.
+
+function assertCanSendNotifications(context) {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
+  }
+  const token = context.auth.token;
+  if (token.superadmin !== true && !(Array.isArray(token.perms) && token.perms.includes('notifications.send'))) {
+    throw new functions.https.HttpsError('permission-denied', 'notifications.send permission required.');
+  }
+}
+
+// Chunked writes against every per-user copy of one broadcast.
+// op: (batch, docRef) => void
+async function forEachBroadcastCopy(broadcastId, op) {
+  const copies = await db.collectionGroup('notifications')
+    .where('broadcastId', '==', broadcastId)
+    .get();
+  const BATCH_SIZE = 400;
+  for (let i = 0; i < copies.docs.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    copies.docs.slice(i, i + BATCH_SIZE).forEach((d) => op(batch, d.ref));
+    await batch.commit();
+  }
+  return copies.size;
+}
+
+exports.updateBroadcast = functions.https.onCall(async (data, context) => {
+  assertCanSendNotifications(context);
+
+  const { broadcastId, title, body } = data;
+  if (!broadcastId || typeof broadcastId !== 'string' || !title || !body) {
+    throw new functions.https.HttpsError('invalid-argument', 'broadcastId, title, and body are required.');
+  }
+
+  const logRef = db.collection('notifications').doc(broadcastId);
+  const logSnap = await logRef.get();
+  if (!logSnap.exists) {
+    throw new functions.https.HttpsError('not-found', 'Broadcast not found.');
+  }
+
+  await logRef.update({
+    title, body,
+    editedAt: admin.firestore.FieldValue.serverTimestamp(),
+    editedBy: context.auth.uid,
+  });
+  const updated = await forEachBroadcastCopy(broadcastId, (batch, ref) => batch.update(ref, { title, body }));
+
+  console.log(`Broadcast ${broadcastId} edited: ${updated} in-app copies updated`);
+  return { updated };
+});
+
+exports.deleteBroadcast = functions.https.onCall(async (data, context) => {
+  assertCanSendNotifications(context);
+
+  const { broadcastId } = data;
+  if (!broadcastId || typeof broadcastId !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'broadcastId is required.');
+  }
+
+  const removed = await forEachBroadcastCopy(broadcastId, (batch, ref) => batch.delete(ref));
+  await db.collection('notifications').doc(broadcastId).delete();
+
+  console.log(`Broadcast ${broadcastId} deleted: ${removed} in-app copies removed`);
+  return { removed };
 });
 
 // ── onNewPrayerRequest ────────────────────────────────────────────────────────
