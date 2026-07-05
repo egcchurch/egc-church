@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-05
-**Current milestone:** Session 174 — Serving Teams Phase 1.7 delivered (member availability + auto-assign rotation). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future).
+**Current milestone:** Session 175 — live stream now updates in real time on open pages (onSnapshot listeners) + 10-min detection + fresh YouTube titles. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,49 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: fix — Live stream real-time updates + faster detection + fresh titles (Session 175)
+
+**Date:** 2026-07-05
+**PR:** #296
+**Status:** Open
+
+### Background — why the site "didn't update" during today's stream
+
+Diagnosed from function logs + the live Firestore doc: the backend actually worked —
+`checkYoutubeLiveStatus` detected the 10:00 stream at 10:04 SAST (`updatedBy: "system"`,
+`active: true`, correct video ID) and marked it ended at 12:34. The problem was the frontend:
+every consumer of `liveStream` (`members/live.html`, homepage adaptive section, nav LIVE dot)
+did a **one-time `get()` at page load**, so an already-open page never flipped to live — and an
+installed PWA resumes from memory rather than reloading, so even "opening the app" during the
+service showed a view rendered hours earlier. Bonus confusion: the title still said "Wednesday
+Prayermeeting" because the function deliberately preserved the admin-set title.
+
+### What was done
+
+- **Real-time listeners** — all three `liveStream` consumers switched from `get()` to
+  `onSnapshot`: `members/live.html` (banner + player; iframe `src` only touched when the video
+  ID actually changes, so unrelated writes to the doc can't restart playback), homepage adaptive
+  section (`js/homepage.js` init restructured: content snapshot + auth state each trigger a
+  re-render, with a sequence counter dropping superseded in-flight renders), and the nav LIVE
+  dot (`js/main.js`, now also turns *off* when a stream ends). Firestore's reconnect on PWA
+  resume pushes fresh data automatically — no reload needed.
+- **Faster detection** — `checkYoutubeLiveStatus` schedule tightened from every 30 min to every
+  10 min (worst-case detection lag ~10 min). Still window-gated: ~21 calls/window, ~4,200 units
+  on a two-service Sunday, under the 10k/day free quota.
+- **Fresh titles** — the function now requests `part=id,snippet` (same 100-unit cost) and writes
+  the live video's own YouTube title (HTML entities decoded — search.list returns them escaped)
+  when a stream goes live, instead of preserving a stale admin-set title forever.
+- Removed now-unused `loadHomepageContent()`; SW cache bumped (v81) for the js/ edits.
+- Note: the suspected `'\members\live.html'` backslash bug in `buildLiveTeaser` was a false
+  alarm — the file already had forward slashes; the backslashes were a search-output artifact.
+
+### Deploy notes
+
+**Cloud Functions changed** (`checkYoutubeLiveStatus` schedule + title logic) — after merge run
+`firebase deploy --only functions` manually. Hosting deploys via CI. No rules changes.
 
 ---
 

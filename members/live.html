@@ -61,30 +61,36 @@
   <script src="/js/main.js"></script>
   <script>
     const db = firebase.firestore();
+    let currentEmbedId = null;
 
     function loadPage() {
-      db.collection('homepage').doc('content').get()
-        .then((doc) => {
-          const data = doc.exists ? doc.data() : {};
-          renderStream(data.liveStream || {});
-          renderServiceTimes(data.serviceTimes || []);
-        })
-        .catch(() => {});
+      // Real-time listener, not a one-time get — the page flips to live the
+      // moment checkYoutubeLiveStatus (or the admin toggle) writes the doc,
+      // and Firestore's reconnect on PWA resume refreshes a stale open page.
+      db.collection('homepage').doc('content').onSnapshot((doc) => {
+        const data = doc.exists ? doc.data() : {};
+        renderStream(data.liveStream || {});
+        renderServiceTimes(data.serviceTimes || []);
+      }, () => {});
     }
 
     function renderStream(ls) {
-      if (!ls.youtubeId) return;
-
-      if (ls.active) {
-        document.getElementById('live-banner').classList.remove('hidden');
-      }
+      // Re-entrant: runs on every snapshot, so it must handle live→ended too.
+      document.getElementById('live-banner').classList.toggle('hidden', !ls.active);
       if (ls.title) {
         document.getElementById('stream-title').textContent = ls.title;
       }
 
-      const iframe = document.getElementById('stream-iframe');
-      iframe.src = `https://www.youtube.com/embed/${ls.youtubeId}?autoplay=0&rel=0`;
-      iframe.classList.remove('hidden');
+      if (!ls.youtubeId) return;
+
+      // Only touch the iframe src when the video actually changes — resetting
+      // it on an unrelated write to this doc (announcement edit, service time
+      // change) would restart playback mid-watch.
+      if (ls.youtubeId !== currentEmbedId) {
+        currentEmbedId = ls.youtubeId;
+        document.getElementById('stream-iframe').src = `https://www.youtube.com/embed/${ls.youtubeId}?autoplay=0&rel=0`;
+      }
+      document.getElementById('stream-iframe').classList.remove('hidden');
       document.getElementById('stream-placeholder').classList.add('hidden');
     }
 

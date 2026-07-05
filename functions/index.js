@@ -890,7 +890,9 @@ function toRFC822(dateStr) {
 }
 
 // ── checkYoutubeLiveStatus ────────────────────────────────────────────────────
-// Scheduled every 30 minutes.
+// Scheduled every 10 minutes (was 30 — a stream that started mid-window could
+// go undetected for up to half an hour, which reads as "the site didn't
+// update" to anyone checking during the service).
 // Only calls the YouTube Data API during a service window: 30 minutes before
 // a scheduled service through 3 hours after its start time. All other times
 // the function exits immediately — zero API quota used outside service hours.
@@ -903,14 +905,17 @@ function toRFC822(dateStr) {
 //   firebase functions:secrets:set YOUTUBE_APIKEY
 //   firebase functions:secrets:set YOUTUBE_CHANNELID
 //
-// search.list costs 100 quota units per call. Polling is now limited to ~8 calls
-// per service day (30-min ticks across a 3.5-hour window), far below the
-// 10,000 units/day free quota.
+// search.list costs 100 quota units per call regardless of part. Polling is
+// ~21 calls per service window (10-min ticks across 3.5 hours) — a two-service
+// Sunday is ~4,200 units, still under the 10,000 units/day free quota.
 //
 // Skips Firestore write if live status hasn't changed.
-// Preserves the admin-set title — only active and youtubeId are auto-managed.
-// Manual Set Live / End Stream on admin/homepage.html works as an override for
-// one-off or unscheduled streams.
+// When a stream goes live, the title is taken from the YouTube video itself
+// (search.list part=snippet) so it never shows a stale admin-set title from a
+// previous stream (e.g. "Wednesday Prayermeeting" during a Sunday service).
+// When the stream ends, title and youtubeId are preserved so the last stream
+// stays referenced. Manual Set Live / End Stream on admin/homepage.html works
+// as an override for one-off or unscheduled streams between ticks.
 
 function parseTime12(timeStr) {
   if (!timeStr) return null;
@@ -922,6 +927,18 @@ function parseTime12(timeStr) {
   if (ampm === 'PM' && h !== 12) h += 12;
   if (ampm === 'AM' && h === 12) h = 0;
   return h * 60 + min;
+}
+
+// search.list snippet titles come back HTML-escaped from the YouTube API
+// (unlike videos.list) — decode the common entities so the frontend, which
+// escapes on render, doesn't show literal "&amp;#39;".
+function decodeYoutubeTitle(str) {
+  return String(str || '')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
 }
 
 function isInServiceWindow(serviceTimes) {
@@ -942,7 +959,7 @@ function isInServiceWindow(serviceTimes) {
 
 exports.checkYoutubeLiveStatus = functions
   .runWith({ secrets: [youtubeApiKey, youtubeChannelId] })
-  .pubsub.schedule('every 30 minutes')
+  .pubsub.schedule('every 10 minutes')
   .onRun(async () => {
     const apiKey    = youtubeApiKey.value();
     const channelId = youtubeChannelId.value();
@@ -964,7 +981,7 @@ exports.checkYoutubeLiveStatus = functions
     }
 
     try {
-      const url = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${channelId}&eventType=live&type=video&maxResults=1&key=${apiKey}`;
+      const url = `https://www.googleapis.com/youtube/v3/search?part=id,snippet&channelId=${channelId}&eventType=live&type=video&maxResults=1&key=${apiKey}`;
       const resp = await fetch(url);
       const json = await resp.json();
 
@@ -985,7 +1002,9 @@ exports.checkYoutubeLiveStatus = functions
       await homepageRef.set({
         liveStream: {
           active:    isLive,
-          title:     current.title || (isLive ? 'Live Service' : ''),
+          title:     isLive
+            ? (decodeYoutubeTitle(json.items[0].snippet?.title) || current.title || 'Live Service')
+            : (current.title || ''),
           youtubeId: isLive ? youtubeId : (current.youtubeId || ''),
           startedAt: isLive && !current.active
             ? admin.firestore.FieldValue.serverTimestamp()
