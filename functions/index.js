@@ -983,6 +983,16 @@ function toRFC822(dateStr) {
 // a scheduled service through 3 hours after its start time. All other times
 // the function exits immediately — zero API quota used outside service hours.
 //
+// EXCEPT: if the site is currently showing LIVE, ticks keep polling past the
+// window close until the stream is confirmed ended (see stillWithinActiveCap
+// below). Without this, a broadcast that starts late, runs long, or ends
+// after the 3-hour window closes gets stuck showing LIVE until the NEXT
+// scheduled service's window opens — potentially days later (Session 177: a
+// Sunday evening stream ended after 8pm, the window's close time, and nothing
+// ever cleared it). Capped at MAX_ACTIVE_POLL_MS since startedAt so a
+// forgotten "Set Live" toggle doesn't poll — and burn quota — forever; past
+// the cap only the next window or a manual End Stream clears it.
+//
 // Service windows are read dynamically from /homepage/content serviceTimes so
 // they stay in sync with whatever the admin has configured.
 //
@@ -993,7 +1003,10 @@ function toRFC822(dateStr) {
 //
 // search.list costs 100 quota units per call regardless of part. Polling is
 // ~21 calls per service window (10-min ticks across 3.5 hours) — a two-service
-// Sunday is ~4,200 units, still under the 10,000 units/day free quota.
+// Sunday is ~4,200 units, still under the 10,000 units/day free quota. The
+// active-cap extension only adds calls in the failure mode being fixed here
+// (a stream still live past the window) — worst case +36 calls (~3,600 units)
+// if something runs the full 6-hour cap, which is rare by design.
 //
 // Skips Firestore write if live status hasn't changed.
 // When a stream goes live, the title is taken from the YouTube video itself
@@ -1002,6 +1015,8 @@ function toRFC822(dateStr) {
 // When the stream ends, title and youtubeId are preserved so the last stream
 // stays referenced. Manual Set Live / End Stream on admin/homepage.html works
 // as an override for one-off or unscheduled streams between ticks.
+
+const MAX_ACTIVE_POLL_MS = 6 * 60 * 60 * 1000; // 6 hours since startedAt
 
 function parseTime12(timeStr) {
   if (!timeStr) return null;
@@ -1060,10 +1075,18 @@ exports.checkYoutubeLiveStatus = functions
     const homepageSnap = await homepageRef.get();
     const homepageData = homepageSnap.exists ? homepageSnap.data() : {};
     const serviceTimes = homepageData.serviceTimes || [];
+    const current      = homepageData.liveStream || {};
 
-    if (!isInServiceWindow(serviceTimes)) {
+    const startedAtMs = typeof current.startedAt?.toMillis === 'function' ? current.startedAt.toMillis() : null;
+    const stillWithinActiveCap = current.active === true && startedAtMs !== null &&
+      (Date.now() - startedAtMs) < MAX_ACTIVE_POLL_MS;
+
+    if (!isInServiceWindow(serviceTimes) && !stillWithinActiveCap) {
       console.log('checkYoutubeLiveStatus: outside service window, skipping');
       return null;
+    }
+    if (!isInServiceWindow(serviceTimes)) {
+      console.log('checkYoutubeLiveStatus: outside service window but still marked live — polling to confirm end');
     }
 
     try {
@@ -1078,7 +1101,6 @@ exports.checkYoutubeLiveStatus = functions
 
       const isLive    = Array.isArray(json.items) && json.items.length > 0;
       const youtubeId = isLive ? json.items[0].id.videoId : null;
-      const current   = homepageData.liveStream || {};
 
       // Skip write if status unchanged
       if (current.active === isLive && (!isLive || current.youtubeId === youtubeId)) {
