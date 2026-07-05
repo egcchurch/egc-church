@@ -45,7 +45,7 @@ Google login) — not required.
 
 **Date:** 2026-07-05
 **PR:** #302
-**Status:** Open
+**Status:** Merged, deployed (hosting via CI — no functions/rules changes)
 
 ### What was done
 
