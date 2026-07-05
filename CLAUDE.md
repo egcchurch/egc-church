@@ -1040,11 +1040,22 @@ suggestions seen so far — always grep/read first.
 - **Adding the footer to a new public page:** add `<div id="footer-placeholder"></div>` before `</body>`
   — `js/nav.js` handles the rest automatically (and skips injection entirely on `/admin/` and
   `/members/` paths). No other wiring needed.
-- **Homepage section order is partly fixed, partly admin-configurable:** the hero, adaptive section,
-  announcement banner, and service times are fixed HTML order (not configurable). Everything inside
-  `<div data-sections-container="homepage">` (Latest Sermons, Explore, Connect CTA) can be toggled/
-  reordered by a superadmin via `/admin/pages.html` → `/config/pages/homepage` (Phase 9). Check which
-  bucket a section is in before assuming a reorder is a simple HTML edit.
+- **Homepage section order is partly fixed, partly admin-configurable:** the hero, live stream
+  banner, announcement banner, adaptive section, and service times are fixed HTML order (not
+  configurable) — in that order (Session 178: the live banner and announcement banner both sit
+  directly below the hero, ahead of the adaptive section, so neither is delayed by whatever an
+  auth state needs to fetch). Everything inside `<div data-sections-container="homepage">`
+  (Latest Sermons, Explore, Connect CTA) can be toggled/reordered by a superadmin via
+  `/admin/pages.html` → `/config/pages/homepage` (Phase 9). Check which bucket a section is in
+  before assuming a reorder is a simple HTML edit.
+- **The homepage live stream banner is NOT part of the adaptive section** — it's a separate
+  top-level `#live-banner-section` div, populated by `renderLiveBannerSection()` in
+  `js/homepage.js`, called from `renderAdaptive()` as soon as membership is known (before any of
+  that state's own announcements/devotional/events fetches). Members get the full banner
+  (`buildLiveBanner` — also shows a "next service" fallback when nothing is live); visitors/public
+  get the compact teaser (`buildLiveTeaser`) only while something is actually live; pending users
+  get nothing. This split exists so the live banner and the admin-set announcement banner are
+  always the first two things after the hero, regardless of auth state — see Session 178.
 
 ---
 
