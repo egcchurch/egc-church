@@ -45,7 +45,7 @@ Google login) — not required.
 
 **Date:** 2026-07-05
 **PR:** #298
-**Status:** Open
+**Status:** Merged, deployed (hosting via CI; Cloud Functions deployed manually — updateBroadcast/deleteBroadcast live)
 
 ### What was done
 
