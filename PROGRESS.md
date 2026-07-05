@@ -9,8 +9,8 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-07-05
-**Current milestone:** Session 178 — homepage reorder: live stream banner + announcement banner now sit directly below the hero, ahead of the adaptive section, for every auth state. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future).
+**Last worked on:** 2026-07-06
+**Current milestone:** Session 179 — fixed two silently-failing `collectionGroup()` queries (missing Firestore field-override indexes): `deleteBroadcast`/`updateBroadcast` and, discovered in the process, `sendServingSlotReminders` (broken since it shipped — no serving-team member has ever received a morning-of reminder). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,69 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: fix — Missing collectionGroup() field-override indexes (Session 179)
+
+**Date:** 2026-07-06
+**PR:** #304
+**Status:** Deployed to production ahead of merge (index changes are a manual deploy step,
+independent of source review — see Deploy notes); PR open for the docs/audit trail.
+
+### Background
+
+User reported "notification delete not working" with a browser console error:
+`POST .../deleteBroadcast 500 (Internal Server Error)`. Function logs showed the real cause:
+
+```
+Error: 9 FAILED_PRECONDITION: The query requires a COLLECTION_GROUP_ASC index for
+collection notifications and field broadcastId.
+```
+
+`deleteBroadcast`/`updateBroadcast` (Session 176) query `collectionGroup('notifications')
+.where('broadcastId', '==', ...)` to find every user's copy of a sent broadcast. A field being
+auto-indexed for its own collection does **not** mean it's indexed for `COLLECTION_GROUP` scope —
+that requires an explicit `fieldOverrides` entry in `firestore.indexes.json`, which was missing.
+
+While root-causing this, checked whether the same class of bug existed anywhere else and found a
+second, older, and much more serious instance: `sendServingSlotReminders` (`collectionGroup('slots')
+.where('date', ...)`, Session 149) has been throwing the identical error on **every single scheduled
+run since it was deployed** — confirmed in Cloud Functions logs going back to first deploy. No
+serving-team member has ever received a morning-of slot reminder. Worse, PR #234 originally added
+the correct index, but PR #235 removed it after the Firebase CLI rejected it as "not necessary" — a
+misleading message that applies to adding a single-field collection-group index via the composite
+`indexes` array (where it does look redundant against automatic per-collection indexing); the actual
+fix is a `fieldOverrides` entry, a different mechanism the CLI doesn't warn about the same way.
+
+Only two `collectionGroup()` queries exist in the codebase besides these; the third
+(`pruneOldNotifications`, `sentAt`) already had a correct `fieldOverrides` entry and was unaffected.
+
+### What was done
+
+Added two missing `fieldOverrides` entries to `firestore.indexes.json`:
+- `notifications`/`broadcastId` — fixes `updateBroadcast`/`deleteBroadcast`.
+- `slots`/`date` — fixes `sendServingSlotReminders`. Preserved the existing `COLLECTION`-scope
+  ASCENDING/DESCENDING entries in both overrides (a field override *replaces* default indexing for
+  that field, not adds to it) since `slots`/`date` is also used in a plain per-team `orderBy('date',
+  'asc')` query on `members/serving-teams.html`'s roster view — dropping that scope would have broken
+  a working query while fixing a broken one.
+
+Corrected the false "no index needed" claims that caused this, in-place, in CLAUDE.md and in the
+Session 149 and Session 176 PROGRESS.md entries (flagged as corrections rather than silently
+rewritten, so the history of what actually happened — including the #234/#235 mistake — stays
+readable). Added a permanent note under CLAUDE.md's Firebase section spelling out the
+`fieldOverrides` mechanism and the CLI's misleading "not necessary" message, so this doesn't recur
+a third time.
+
+### Deploy notes
+
+**Firestore index changes are a manual, source-independent deploy** (`firebase deploy --only
+firestore:indexes`) — same class of step as functions/rules, not covered by CI. Given this was an
+active, user-facing failure (and a many-day-old silent failure of automated reminders), the index
+fix was deployed directly, ahead of this PR merging, rather than waiting on review. No Cloud
+Functions or rules changes — `functions/index.js` itself is untouched, only `firestore.indexes.json`
+and docs.
 
 ---
 
@@ -157,8 +220,14 @@ function list instead of a number that drifts.
 **Cloud Functions changed** (`sendBroadcast` + new `updateBroadcast`/`deleteBroadcast`) — after
 merge run `firebase deploy --only functions` manually. No rules changes (event creation rides on
 existing `/events` rules; the new callables bypass rules via admin SDK). No cache bump (admin
-HTML only — network-first). The `broadcastId` collectionGroup query is single-field —
-auto-indexed, no `firestore.indexes.json` entry needed (same as the `slots` collectionGroup).
+HTML only — network-first).
+
+> **⚠️ CORRECTION (Session 179, 2026-07-06):** the claim above was wrong — a collection-group query
+> is NOT auto-indexed just because the field is indexed for its own collection. `deleteBroadcast`
+> 500'd on first real use with `FAILED_PRECONDITION`. Fixed by adding a `broadcastId` `fieldOverrides`
+> entry to `firestore.indexes.json` and deploying it. See Session 179's entry and the
+> `collectionGroup()` note in CLAUDE.md's Firebase section — the same wrong assumption had already
+> silently broken `sendServingSlotReminders` since Session 149.
 
 ---
 
@@ -858,6 +927,18 @@ firebase.functions().httpsCallable('purgeDirectMessages')()
 
 After merging, run: `firebase deploy --only functions`
 No Firestore index changes needed — single-field collection group queries are handled automatically.
+
+> **⚠️ CORRECTION (Session 179, 2026-07-06):** the conclusion above was wrong, and it mattered —
+> `sendServingSlotReminders` silently failed with `FAILED_PRECONDITION` on **every single scheduled
+> run since this PR merged** (confirmed in Cloud Functions logs going back to first deploy), meaning
+> no serving-team member ever received a morning-of slot reminder. The PR #234→#235 index removal
+> was the wrong fix for the wrong problem: the CLI's "not necessary" rejection happens when a
+> collection-group single-field index is added to the `indexes` array (composite-index format,
+> where it does look redundant against automatic per-collection indexing) — the correct mechanism is
+> a `fieldOverrides` entry instead, which explicitly adds `COLLECTION_GROUP` scope without touching
+> the field's default per-collection indexing. Re-added correctly in Session 179 alongside the same
+> bug found in the new `updateBroadcast`/`deleteBroadcast` functions (Session 176) — see that
+> session's entry and the `collectionGroup()` note in CLAUDE.md's Firebase section.
 
 ---
 
