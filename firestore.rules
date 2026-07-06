@@ -136,15 +136,22 @@ service cloud.firestore {
                             .hasOnly(['rsvps']));
     }
 
-    // Event Registration (Phase B1, see docs/EVENT_REGISTRATION.md) — written
-    // ONLY by the registerForEvent Cloud Function, which enforces the
-    // public/members audience gate and required-field validation server-side
-    // (a public, possibly-unauthenticated form can't be trusted to self-gate).
-    // Mirrors /cottageRegistrations exactly: create/update always go through
-    // the function; delete is available for admin cleanup.
+    // Event Registration (Phases B1-B3, see docs/EVENT_REGISTRATION.md) —
+    // written ONLY by the registerForEvent / attachRegistrationProof Cloud
+    // Functions, which enforce the public/members audience gate and
+    // required-field validation server-side (a public, possibly-
+    // unauthenticated form can't be trusted to self-gate). Mirrors
+    // /cottageRegistrations exactly: create always goes through a function;
+    // delete is available for admin cleanup. The one direct client write
+    // allowed is an events.manage holder flipping paymentConfirmed after
+    // checking the uploaded proof — a plain boolean toggle with no business
+    // logic to enforce, unlike everything else here.
     match /events/{eventId}/registrations/{id} {
       allow read: if hasPermission('events.manage');
-      allow create, update: if false;
+      allow create: if false;
+      allow update: if hasPermission('events.manage')
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['paymentConfirmed']);
       allow delete: if hasPermission('events.manage');
     }
 

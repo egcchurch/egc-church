@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-06
-**Current milestone:** Session 182 — Event Registration Phase B2 delivered (`docs/EVENT_REGISTRATION.md`): optional per-event capacity limit, transactionally enforced. Phase B3 (proof of payment) next. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
+**Current milestone:** Session 183 — Event Registration Phase B3 delivered (`docs/EVENT_REGISTRATION.md`): proof-of-payment upload + admin "Mark Paid" workflow. Main initiative now complete except Phase B4 (real email), which is blocked. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -41,11 +41,71 @@ Google login) — not required.
 
 ---
 
+## Session: feat — Event Registration Phase B3: proof-of-payment upload (Session 183)
+
+**Date:** 2026-07-06
+**PR:** #308
+**Status:** Open
+
+### What was done
+
+Fourth and final planned phase of `docs/EVENT_REGISTRATION.md` (Phase B4 remains deferred,
+blocked on the church's own comms mailbox). Closes the loop on the original request: "an ability
+to upload a scanned file with proof of payment."
+
+- `storage.rules` — new path `/events/{eventId}/registrations/{registrationId}/{fileName}` —
+  public `create` (size/type validated via the existing `isValidImage()`/`isValidDocument()`
+  helpers, no auth requirement — a registrant may have no account at all), admin-only
+  read/delete. `update` denied (one-shot upload, no overwriting).
+- `firestore.rules` — the registrations subcollection's `update` rule, previously `if false`
+  entirely, now allows an `events.manage` holder to toggle **only** `paymentConfirmed` — a plain
+  boolean flag with no business logic to enforce, unlike everything `registerForEvent` validates.
+  Everything else on a registration doc stays create-only via the Cloud Functions.
+- `functions/index.js` — new `attachRegistrationProof` callable. The registrant uploads the file
+  directly to Storage client-side (via `js/storage-upload.js`, the only module that talks to
+  Storage — added its script tag to `events.html`, which never needed Storage before), then calls
+  this to persist the resulting URL on their registration doc. No auth requirement (same posture
+  as `registerForEvent`); validates the URL's path actually matches that specific registration's
+  own Storage folder, so a submitter can't attach a URL to someone else's registration.
+- `js/event-registration.js` — optional file input in the registration form (same styled-label +
+  hidden-input pattern already used for cover photos, not the untested `file:` Tailwind variant).
+  After a successful registration, if a file was selected, uploads it and calls
+  `attachRegistrationProof` — best-effort; a failed upload shows a warning but never blocks the
+  "you're registered" success screen, since the registration itself already succeeded.
+- `admin/events.html` — registrations list gained a "View proof" link (opens the file) and a
+  "Mark Paid"/"Paid" toggle button (`togglePaymentConfirmed`). Refactored `toggleRegistrationsList`
+  to split out a `loadRegistrationsList` fetch-and-render function so the toggle can refresh the
+  panel in place without touching visibility — caught and fixed a bug in my own first draft that
+  called the visibility-toggle function twice, which would have just flipped it back closed
+  without ever re-fetching.
+- SW cache bumped to v86 (`js/event-registration.js` changed again).
+
+### Tests
+
+7 new Storage rules tests (unauthenticated upload succeeds for image/PDF, disallowed content
+type rejected, cross-registrant read/delete denied, `events.manage` can read/delete) + 3 new
+Firestore rules tests (`events.manage` can toggle `paymentConfirmed` only, not other fields;
+plain member can't toggle it at all) — **215 passing** against the emulator.
+
+### Deploy notes
+
+**Cloud Functions changed** (new `attachRegistrationProof`) — after merge run `firebase deploy
+--only functions` manually. **Firestore rules changed** — after merge run `firebase deploy --only
+firestore:rules`. **Storage rules changed** — after merge run `firebase deploy --only storage`.
+
+### Next up
+
+Event Registration's planned phases (A, B1, B2, B3) are now all delivered. Phase B4 (real email)
+stays deferred until the church's comms mailbox exists post-launch — no further action needed
+until then.
+
+---
+
 ## Session: feat — Event Registration Phase B2: capacity limits (Session 182)
 
 **Date:** 2026-07-06
 **PR:** #307
-**Status:** Open
+**Status:** Merged, deployed (hosting via CI; Cloud Functions deployed manually — registerForEvent capacity check live)
 
 ### What was done
 

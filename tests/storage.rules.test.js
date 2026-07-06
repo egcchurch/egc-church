@@ -273,6 +273,43 @@ describe('Storage Security Rules', () => {
     });
   });
 
+  describe('Event registration proof-of-payment — public upload (Event Registration Phase B3)', () => {
+    it('an unauthenticated visitor can upload a proof-of-payment image (no account required)', async () => {
+      const ref = unauthUser().storage().ref('events/e1/registrations/r1/proof.jpg');
+      await assertSucceeds(ref.put(Buffer.from('img'), { contentType: 'image/jpeg' }));
+    });
+
+    it('an unauthenticated visitor can upload a proof-of-payment PDF', async () => {
+      const ref = unauthUser().storage().ref('events/e1/registrations/r1/proof.pdf');
+      await assertSucceeds(ref.put(Buffer.from('pdf'), { contentType: 'application/pdf' }));
+    });
+
+    it('rejects a disallowed content type (e.g. a video)', async () => {
+      const ref = unauthUser().storage().ref('events/e1/registrations/r1/proof.mp4');
+      await assertFails(ref.put(Buffer.from('vid'), { contentType: 'video/mp4' }));
+    });
+
+    it('a plain member cannot read another registrant\'s proof', async () => {
+      await seedFile('events/e1/registrations/r1/proof.jpg', 'image/jpeg');
+      await assertFails(memberUser().storage().ref('events/e1/registrations/r1/proof.jpg').getDownloadURL());
+    });
+
+    it('events.manage admin can read a proof-of-payment file', async () => {
+      await seedFile('events/e1/registrations/r1/proof.jpg', 'image/jpeg');
+      await assertSucceeds(eventsAdmin().storage().ref('events/e1/registrations/r1/proof.jpg').getDownloadURL());
+    });
+
+    it('events.manage admin can delete a proof-of-payment file', async () => {
+      await seedFile('events/e1/registrations/r1/proof.jpg', 'image/jpeg');
+      await assertSucceeds(eventsAdmin().storage().ref('events/e1/registrations/r1/proof.jpg').delete());
+    });
+
+    it('a plain member cannot delete a proof-of-payment file', async () => {
+      await seedFile('events/e1/registrations/r1/proof.jpg', 'image/jpeg');
+      await assertFails(memberUser().storage().ref('events/e1/registrations/r1/proof.jpg').delete());
+    });
+  });
+
   describe('Sermon series covers — sermons.manage', () => {
     it('sermons.manage admin can upload a series cover', async () => {
       const ref = sermonsAdmin().storage().ref('series/series1/cover.jpg');

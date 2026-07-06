@@ -912,6 +912,37 @@ describe('Firestore Security Rules', () => {
       const db = memberUser().firestore();
       await assertFails(deleteDoc(doc(db, 'events', 'e1', 'registrations', 'r1')));
     });
+
+    it('events.manage holder can toggle paymentConfirmed (Phase B3)', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'events', 'e1', 'registrations', 'r1'), {
+          firstName: 'Jane', lastName: 'Smith', paymentConfirmed: false,
+        });
+      });
+      const db = editorUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'events', 'e1', 'registrations', 'r1'), { paymentConfirmed: true }));
+    });
+
+    it('events.manage holder cannot change other fields via update (only paymentConfirmed)', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'events', 'e1', 'registrations', 'r1'), {
+          firstName: 'Jane', lastName: 'Smith', paymentConfirmed: false,
+        });
+      });
+      const db = editorUser().firestore();
+      await assertFails(updateDoc(doc(db, 'events', 'e1', 'registrations', 'r1'), { firstName: 'Hacked' }));
+    });
+
+    it('a plain member cannot toggle paymentConfirmed', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'events', 'e1', 'registrations', 'r1'), {
+          firstName: 'Jane', lastName: 'Smith', paymentConfirmed: false,
+        });
+      });
+      const db = memberUser().firestore();
+      await assertFails(updateDoc(doc(db, 'events', 'e1', 'registrations', 'r1'), { paymentConfirmed: true }));
+    });
   });
 
   describe('Devotionals collection', () => {

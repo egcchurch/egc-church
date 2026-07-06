@@ -162,9 +162,15 @@ Storage (Phase B3):
   list badge turns red once full, and the public "Register" button is replaced with a
   "Registration full" pill (a courtesy display only — `registerForEvent` is still the actual
   enforcement, since the displayed count can be stale under concurrent registrations).
-- **Phase B3 (proof of payment):** Storage upload path + rules, upload step in the
-  registration flow, `proofOfPaymentUrl` on the submission, admin "mark paid" toggle and a way
-  to view the uploaded file from the registrations list.
+- **Phase B3 (delivered):** Storage path `/events/{eventId}/registrations/{registrationId}/{fileName}`
+  — public create (size/type validated only, no auth requirement), admin-only read/delete. The
+  registrant optionally attaches a proof-of-payment file at submission (uploaded client-side via
+  `js/storage-upload.js`, the only module that talks to Storage) — since a public submitter may
+  have no account, a new `attachRegistrationProof` callable persists the resulting URL on the
+  registration doc afterwards (the collection otherwise denies all client writes). The admin
+  registrations list shows a "View proof" link and a "Mark Paid" toggle (`paymentConfirmed`) —
+  the one field on a registration doc `events.manage` can write directly, since it's a plain
+  boolean with no business logic to enforce, unlike everything `registerForEvent` does.
 - **Phase B4 (deferred — blocked on the church's own domain/mailbox existing post-launch):**
   wire a real email provider (Brevo) into the `sendEmail()` stub added in Phase B1.
 - **Explicitly out of scope for now:** real-time online payment collection (a full payment

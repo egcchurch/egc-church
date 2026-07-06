@@ -577,6 +577,13 @@
         return;
       }
       panel.classList.remove('hidden');
+      await loadRegistrationsList(eventId);
+    }
+
+    // Fetch + render only, no visibility toggling — used both to populate the
+    // panel when it's first opened and to refresh it in place afterwards
+    // (e.g. after togglePaymentConfirmed).
+    async function loadRegistrationsList(eventId) {
       const listEl = document.getElementById('reg-list-' + eventId);
       const fields = (eventsCache[eventId]?.registration?.fields) || [];
       try {
@@ -600,10 +607,31 @@
               </div>
               <p class="text-xs text-gray-500 mt-1">${[r.phone, r.email, r.assembly].filter(Boolean).map(escHtml).join(' · ') || '—'}</p>
               ${answerLines}
+              <div class="flex items-center gap-3 mt-2 pt-2 border-t border-gray-50">
+                ${r.proofOfPaymentUrl ? `<a href="${escAttr(r.proofOfPaymentUrl)}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline"><i class="fas fa-paperclip mr-1"></i>View proof</a>` : '<span class="text-xs text-gray-300">No proof uploaded</span>'}
+                <button onclick="togglePaymentConfirmed('${eventId}', '${d.id}', ${!!r.paymentConfirmed})"
+                        class="text-xs px-2 py-0.5 rounded-full font-medium transition ${r.paymentConfirmed ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}">
+                  <i class="fas ${r.paymentConfirmed ? 'fa-check-circle' : 'fa-circle'} mr-1"></i>${r.paymentConfirmed ? 'Paid' : 'Mark Paid'}
+                </button>
+              </div>
             </div>`;
         }).join('');
       } catch (err) {
         listEl.textContent = 'Failed to load registrations.';
+      }
+    }
+
+    // Toggling paymentConfirmed is a direct client write (Event Registration
+    // Phase B3) — the only field on a registration doc events.manage can
+    // write directly, since it's a plain boolean flag with no business logic
+    // to enforce, unlike everything else the registerForEvent function does.
+    async function togglePaymentConfirmed(eventId, registrationId, currentlyPaid) {
+      try {
+        await db.collection('events').doc(eventId).collection('registrations').doc(registrationId)
+          .update({ paymentConfirmed: !currentlyPaid });
+        await loadRegistrationsList(eventId);
+      } catch (err) {
+        showToast('Failed to update payment status: ' + err.message, 'error');
       }
     }
 

@@ -450,14 +450,14 @@ Functions are organised by trigger type:
 - `registerForCottageMeeting` — callable from `/members/cottage.html` — transactionally reserves seats (no overselling), enforces one active registration per member, writes `/cottageRegistrations/{uid}` (incl. the member's phone, captured at registration), increments the meeting's `seatsTaken`, and sends an in-app + push confirmation with the venue/date/time. **Phase 2:** also sends an **SMS via SMSPortal** (`POST rest.smsportal.com/v3/BulkMessages`, Basic auth) when the member **opts in** (a checkbox on the register form, default off) and a number is available, and the `SMSPORTAL_CLIENT_ID` / `SMSPORTAL_API_SECRET` secrets are set — best-effort, never blocks registration. The member's profile number is authoritative (edited on `/profile.html`); a number is only typed at registration when the profile has none, and that number **back-fills the profile** (only when empty). WhatsApp + per-member channel preferences are a planned later phase. **Deploy note:** both SMSPORTAL secrets must exist in Secret Manager before deploying this function (listed in its `runWith`).
 - `cancelCottageRegistration` — callable from `/members/cottage.html` — transactionally frees the seats and deletes the member's registration.
 
-### Event Registration (Phases B1-B2 — see `docs/EVENT_REGISTRATION.md`)
+### Event Registration (Phases B1-B3 — see `docs/EVENT_REGISTRATION.md`)
 
 - `registerForEvent` — callable from `events.html`'s registration modal — may be called by a
   signed-in member OR a fully unauthenticated visitor depending on the event's
   `registration.audience` setting, since this must also work for people from other assemblies
   with no account on this app (unlike RSVP, which is member-only and writes directly from the
   client). Validates the audience gate up front, then runs the actual write inside a transaction
-  that re-reads `registration.enabled`, each dynamic question's `required` flag, and — Phase B2 —
+  that re-reads `registration.enabled`, each dynamic question's `required` flag, and
   `registration.capacity` vs `seatsTaken`, rejecting with `resource-exhausted` once a capacity-
   limited event is full; mirrors `registerForCottageMeeting`'s transaction exactly. `capacity` is
   optional (`null`/absent = unlimited). Writes `/events/{eventId}/registrations/{id}`, generates a
@@ -465,6 +465,13 @@ Functions are organised by trigger type:
   best-effort SMS confirmation via the existing SMSPortal integration. Email confirmation is
   provisioned (`sendEmail()`) but no-ops until a real provider is wired in (Phase B4, blocked on
   the church's own comms mailbox existing).
+- `attachRegistrationProof` — callable from the same registration modal (Phase B3) — the
+  registrant uploads a proof-of-payment file directly to Storage client-side
+  (`js/storage-upload.js`), then calls this to persist the resulting URL on their registration
+  doc, since `/events/{eventId}/registrations/{id}` otherwise denies client writes entirely. No
+  auth requirement (same posture as `registerForEvent`); validates the URL's path actually points
+  at that specific registration's own Storage folder so a submitter can't attach a URL to someone
+  else's registration.
 
 ### YouTube Integration (Sermon Tools)
 
@@ -559,15 +566,19 @@ Functions are organised by trigger type:
                                          maintained transactionally by registerForEvent
   }
 
-/events/{eventId}/registrations/{id}  ← Phase B1 (Event Registration) — written ONLY by
-                                         registerForEvent (Cloud Function); admin reads/deletes
-                                         via events.manage, mirrors /cottageRegistrations exactly
+/events/{eventId}/registrations/{id}  ← Event Registration (Phases B1-B3) — created ONLY by
+                                         registerForEvent; admin reads/deletes via events.manage,
+                                         mirrors /cottageRegistrations. The one client-writable
+                                         field is paymentConfirmed (events.manage only, plain
+                                         boolean toggle) — everything else is create-only via the
+                                         Cloud Functions
   firstName, lastName                 ← lastName drives referenceCode
   phone, email, assembly (all nullable — built-in fields, always asked)
   answers: { [fieldId]: string }      ← dynamic question answers, keyed by registration.fields[].id
   referenceCode: string | null        ← refPrefix + "-" + uppercased lastName
-  proofOfPaymentUrl: null             ← Phase B3, not yet built
-  paymentConfirmed: false             ← Phase B3, not yet built
+  proofOfPaymentUrl: string | null    ← Phase B3 — set via attachRegistrationProof after the
+                                         registrant uploads directly to Storage
+  paymentConfirmed: boolean           ← Phase B3 — admin toggles after checking the proof
   uid: string | null                  ← set if submitted while signed in; null for public/anonymous
   submittedAt (timestamp)
 
@@ -975,6 +986,9 @@ Firestore rules for `/groups/{groupId}` updates:
 /team/{memberId}/photo.jpg
 /users/{uid}/photo               ← user profile photos (separate from /team photos)
 /events/{eventId}/cover.jpg      ← event hero image
+/events/{eventId}/registrations/{registrationId}/{timestamp}_{filename}  ← Event Registration
+                                       Phase B3 — proof-of-payment upload; public create (no
+                                       auth required), admin-only read/delete
 /blog/{postId}/cover.jpg         ← blog featured image
 /gallery/{galleryId}/{imageId}.jpg
 /music/{trackId}/audio.mp3
