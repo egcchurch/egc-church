@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-06
-**Current milestone:** Session 185 — Event Registration Phase C2 delivered (`docs/EVENT_REGISTRATION.md`): optional per-event "Require approval" moderation with admin approve/decline. Phase C3 (find my registration) next. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
+**Current milestone:** Session 186 — Event Registration Phase C3 delivered (`docs/EVENT_REGISTRATION.md`): public "Find my registration" lookup. All planned Event Registration phases (A, B1-B3, C1-C3) are now complete. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -41,11 +41,56 @@ Google login) — not required.
 
 ---
 
+## Session: feat — Event Registration Phase C3: find my registration (Session 186)
+
+**Date:** 2026-07-06
+**PR:** #313
+**Status:** Open
+
+### What was done
+
+Last of the four post-Phase-B3 needs, and the final planned phase of the whole initiative:
+letting a registrant get back to their own submission after the fact — most registrations are
+fully anonymous by design (no login), so there's otherwise no path back to attach proof-of-payment
+once the confirmation SMS is gone, and no email link exists yet (Phase B4 still deferred).
+
+- `functions/index.js` — new `lookupRegistration` callable, no auth requirement. Requires the
+  reference code plus a matching phone **or** email (accepts either, since a registration only
+  guarantees one of the two was given) — a single field alone would make this too easy to guess
+  at church scale. Queries the event's registrations by `referenceCode` (single-field, no index
+  needed — same reasoning as Phase C1's dedup query) and filters in memory for the
+  phoneKey/emailKey match, since referenceCode alone isn't strictly unique (documented surname-
+  collision rarity). Returns only what's needed to render an attach-proof step — contact first
+  name, attendee count, status, whether proof is already on file — not the full registration.
+- `js/event-registration.js` — new "Already registered? Attach payment proof" link next to the
+  Register button on any event with registration enabled, shown even once the event is full
+  (existing registrants still need this regardless of current capacity). Opens a small lookup
+  form (reference code + phone/email) reusing the same modal container as the main registration
+  flow; on a match, shows a confirmation summary plus a file upload that reuses the existing
+  `attachRegistrationProof` flow — works for both a first upload and replacing one already on file.
+- `js/events.js` — wired the new link in alongside the existing Register button.
+- No rules or index changes — `lookupRegistration` only reads, and the query is single-collection/
+  single-field. Ran the full suite to confirm nothing regressed (still 215 passing).
+- SW cache bumped to v89.
+
+### Deploy notes
+
+**Cloud Functions changed** (new `lookupRegistration`) — after merge run `firebase deploy --only
+functions` manually. No rules or Storage changes.
+
+### Status
+
+All planned Event Registration phases (A, B1-B3, C1-C3) are now delivered. Only Phase B4 (real
+email) remains, deliberately deferred until the church's own domain and comms mailbox exist
+post-launch — no further action needed on this initiative until then.
+
+---
+
 ## Session: feat — Event Registration Phase C2: moderation (Session 185)
 
 **Date:** 2026-07-06
 **PR:** #312
-**Status:** Open
+**Status:** Merged, deployed (hosting via CI; Cloud Functions deployed — setRegistrationStatus live)
 
 ### What was done
 

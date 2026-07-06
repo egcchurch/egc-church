@@ -2116,6 +2116,62 @@ exports.attachRegistrationProof = functions.https.onCall(async (data, context) =
   return { success: true };
 });
 
+// ── lookupRegistration ─────────────────────────────────────────────────────────
+// Callable from events.html's "Find my registration" flow (Event Registration
+// Phase C3). No auth requirement — most registrants have no account on this
+// app at all, so this is the only way back to a registration submitted while
+// pending, or to attach proof-of-payment after the fact (there is no
+// email-sent link to click, since Phase B4/real email is still deferred).
+//
+// Requires BOTH the reference code AND a matching phone or email — a single
+// field alone would make this too easy to guess/enumerate at church scale.
+// A registrant needs only one of phone/email on their original submission
+// (see registerForEvent), so this accepts either rather than requiring phone
+// specifically.
+//
+// Returns only what the client needs to render an "attach proof" step —
+// not the full registration (dynamic answers, other attendees' details,
+// etc. stay admin-only).
+exports.lookupRegistration = functions.https.onCall(async (data, context) => {
+  const eventId         = (data && data.eventId ? String(data.eventId) : '').trim();
+  const referenceCodeIn = (data && data.referenceCode ? String(data.referenceCode) : '').trim().toUpperCase();
+  const phone           = (data && data.phone ? String(data.phone) : '').trim();
+  const email           = (data && data.email ? String(data.email) : '').trim();
+
+  if (!eventId || !referenceCodeIn || (!phone && !email)) {
+    throw new functions.https.HttpsError('invalid-argument', 'eventId, referenceCode, and a phone number or email are required.');
+  }
+
+  const phoneKey = phone ? normaliseSaNumber(phone) : '';
+  const emailKey = email ? email.toLowerCase() : '';
+
+  // referenceCode isn't strictly unique (surname collisions are a documented,
+  // accepted rarity — see sanitizeReferenceCode) — filter in memory by
+  // phoneKey/emailKey rather than needing a composite index for a two-field
+  // query on a collection this small.
+  const snap = await db.collection('events').doc(eventId).collection('registrations')
+    .where('referenceCode', '==', referenceCodeIn)
+    .get();
+
+  const match = snap.docs.find((d) => {
+    const c = d.data().contact || {};
+    return (phoneKey && c.phoneKey === phoneKey) || (emailKey && c.emailKey === emailKey);
+  });
+
+  if (!match) {
+    throw new functions.https.HttpsError('not-found', 'No matching registration found. Check your reference code and phone number or email.');
+  }
+
+  const reg = match.data();
+  return {
+    registrationId: match.id,
+    contactFirstName: (reg.contact || {}).firstName || null,
+    attendeeCount: Array.isArray(reg.attendees) ? reg.attendees.length : 0,
+    status: reg.status || 'approved',
+    hasProof: !!reg.proofOfPaymentUrl,
+  };
+});
+
 // ── scanOrphanedMedia ───────────────────────────────────────────────────────────
 // Callable, superadmin only — used by the Media Library tab on /admin/media.html.
 // Walks every file in the Storage bucket and cross-references it against every

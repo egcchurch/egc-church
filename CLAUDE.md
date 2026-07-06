@@ -450,7 +450,7 @@ Functions are organised by trigger type:
 - `registerForCottageMeeting` — callable from `/members/cottage.html` — transactionally reserves seats (no overselling), enforces one active registration per member, writes `/cottageRegistrations/{uid}` (incl. the member's phone, captured at registration), increments the meeting's `seatsTaken`, and sends an in-app + push confirmation with the venue/date/time. **Phase 2:** also sends an **SMS via SMSPortal** (`POST rest.smsportal.com/v3/BulkMessages`, Basic auth) when the member **opts in** (a checkbox on the register form, default off) and a number is available, and the `SMSPORTAL_CLIENT_ID` / `SMSPORTAL_API_SECRET` secrets are set — best-effort, never blocks registration. The member's profile number is authoritative (edited on `/profile.html`); a number is only typed at registration when the profile has none, and that number **back-fills the profile** (only when empty). WhatsApp + per-member channel preferences are a planned later phase. **Deploy note:** both SMSPORTAL secrets must exist in Secret Manager before deploying this function (listed in its `runWith`).
 - `cancelCottageRegistration` — callable from `/members/cottage.html` — transactionally frees the seats and deletes the member's registration.
 
-### Event Registration (Phases B1-C2 — see `docs/EVENT_REGISTRATION.md`)
+### Event Registration (Phases B1-C3, all planned phases delivered — see `docs/EVENT_REGISTRATION.md`)
 
 - `registerForEvent` — callable from `events.html`'s registration modal — may be called by a
   signed-in member OR a fully unauthenticated visitor depending on the event's
@@ -485,6 +485,12 @@ Functions are organised by trigger type:
   in case seats filled up in the meantime. Approving sends the registrant their reference-code
   confirmation for the first time (withheld while pending); declining sends a "could not be
   accepted" notice. Both best-effort SMS/email, same as `registerForEvent`.
+- `lookupRegistration` — callable, no auth requirement (Phase C3) — "Find my registration" for
+  registrants with no account on this app. Requires the reference code plus a matching phone or
+  email (either, since a registration only guarantees one of the two) — a single field alone
+  would make this too easy to guess at church scale. Returns just enough (contact first name,
+  attendee count, status, whether proof is already on file) to render an attach/replace-proof
+  step that reuses `attachRegistrationProof` — not the full registration.
 
 ### YouTube Integration (Sermon Tools)
 
@@ -584,7 +590,7 @@ Functions are organised by trigger type:
                                          "declined" releases (Phase C2)
   }
 
-/events/{eventId}/registrations/{id}  ← Event Registration (Phases B1-C2) — created ONLY by
+/events/{eventId}/registrations/{id}  ← Event Registration (Phases B1-C3) — created ONLY by
                                          registerForEvent; admin reads/deletes via events.manage,
                                          mirrors /cottageRegistrations. The one client-writable
                                          field is paymentConfirmed (events.manage only, plain

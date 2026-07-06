@@ -94,12 +94,17 @@ the meantime). Mirrors the existing pending-member approve/decline pattern alrea
 Groups and Serving Teams, though as a Cloud Function rather than a direct client write — unlike
 a plain pending-member array, this has to keep `seatsTaken` correct transactionally.
 
-### Find my registration (Phase C3, planned)
+### Find my registration (Phase C3)
 Since most registrations are anonymous by design (no login required), there's no "my
 registrations" view the way a logged-in member gets one elsewhere on the site. A small public
-lookup — reference code + phone number, both required — lets a registrant reach their own
-submission again to attach proof-of-payment via the existing `attachRegistrationProof` flow,
-without needing email (still not wired up — Phase B4) or an account.
+lookup — reference code + a matching phone or email (whichever the contact originally gave;
+`registerForEvent` only requires one of the two, so the lookup can't demand phone specifically)
+— lets a registrant reach their own submission again to attach (or replace) a proof-of-payment
+file via the existing `attachRegistrationProof` flow, without needing a real email confirmation
+link (still not wired up — Phase B4) or an account. Shown as an "Already registered? Attach
+payment proof" link next to the Register button on any event with registration enabled —
+including once the event is full, since an existing registrant still needs this regardless of
+current capacity.
 
 ### First/last name split
 Built-in `firstName`/`lastName` fields rather than a single "name" box — needed to reliably
@@ -203,6 +208,9 @@ Storage (Phase B3):
 
 ## Phasing
 
+All planned phases (A, B1-B3, C1-C3) are now delivered — only Phase B4 (real email) remains,
+deliberately deferred until the church has its own domain and a comms mailbox post-launch.
+
 - **Phase A (delivered):** `rsvpEnabled` toggle. Admin checkbox on the event form (default
   checked), `events.js` skips all RSVP rendering when `false`. No new permission, no Cloud
   Function, no rules change.
@@ -248,9 +256,12 @@ Storage (Phase B3):
   them, re-checking capacity). Approving sends the real reference-code confirmation for the first
   time; declining sends a polite "could not be accepted" notice. Admin registrations list shows a
   Pending/Approved/Declined badge and Approve/Decline buttons per registration.
-- **Phase C3 (planned):** public "Find my registration" lookup (reference code + phone, both
-  required) so a registrant can return — without an account or email — to attach a
-  proof-of-payment file via the existing `attachRegistrationProof` flow.
+- **Phase C3 (delivered):** public "Find my registration" lookup — new `lookupRegistration`
+  callable, requires the reference code plus a matching phone or email (accepts either, since
+  only one is guaranteed on the original submission). Returns just enough (contact first name,
+  attendee count, status, whether proof is already on file) to render an attach/replace-proof
+  step reusing `attachRegistrationProof`. Shown as a link next to the Register button on any
+  event with registration enabled, including once full.
 - **Explicitly out of scope for now:** real-time online payment collection (a full payment
   gateway integration — e.g. PayFast — would be a separate project on its own); registration
   deadlines/close dates; waitlists once a capacity-limited event is full (may follow the same

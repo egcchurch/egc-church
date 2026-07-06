@@ -244,11 +244,13 @@ function buildDayCard(event) {
   const catLabel    = CATEGORY_LABELS[event.category] || '';
   const badgeClass  = CATEGORY_COLORS[event.category] || 'bg-gray-100 text-gray-600';
   const rsvpHtml    = buildRsvpButtons(event);
-  // buildRegisterButton lives in js/event-registration.js (loaded after this
-  // file), separate from RSVP — see docs/EVENT_REGISTRATION.md.
+  // buildRegisterButton / buildFindRegistrationLink live in
+  // js/event-registration.js (loaded after this file), separate from RSVP —
+  // see docs/EVENT_REGISTRATION.md.
   const registerBtn = buildRegisterButton(event);
-  const registerHtml = registerBtn
-    ? `<div class="flex items-center gap-3 mt-2 pt-3 border-t border-zinc-50">${registerBtn}</div>`
+  const findRegLink = buildFindRegistrationLink(event);
+  const registerHtml = registerBtn || findRegLink
+    ? `<div class="flex flex-col items-start gap-1 mt-2 pt-3 border-t border-zinc-50">${registerBtn}${findRegLink}</div>`
     : '';
 
   const imageHtml = event.imageUrl
