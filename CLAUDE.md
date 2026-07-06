@@ -450,7 +450,7 @@ Functions are organised by trigger type:
 - `registerForCottageMeeting` — callable from `/members/cottage.html` — transactionally reserves seats (no overselling), enforces one active registration per member, writes `/cottageRegistrations/{uid}` (incl. the member's phone, captured at registration), increments the meeting's `seatsTaken`, and sends an in-app + push confirmation with the venue/date/time. **Phase 2:** also sends an **SMS via SMSPortal** (`POST rest.smsportal.com/v3/BulkMessages`, Basic auth) when the member **opts in** (a checkbox on the register form, default off) and a number is available, and the `SMSPORTAL_CLIENT_ID` / `SMSPORTAL_API_SECRET` secrets are set — best-effort, never blocks registration. The member's profile number is authoritative (edited on `/profile.html`); a number is only typed at registration when the profile has none, and that number **back-fills the profile** (only when empty). WhatsApp + per-member channel preferences are a planned later phase. **Deploy note:** both SMSPORTAL secrets must exist in Secret Manager before deploying this function (listed in its `runWith`).
 - `cancelCottageRegistration` — callable from `/members/cottage.html` — transactionally frees the seats and deletes the member's registration.
 
-### Event Registration (Phases B1-C1 — see `docs/EVENT_REGISTRATION.md`)
+### Event Registration (Phases B1-C2 — see `docs/EVENT_REGISTRATION.md`)
 
 - `registerForEvent` — callable from `events.html`'s registration modal — may be called by a
   signed-in member OR a fully unauthenticated visitor depending on the event's
@@ -466,9 +466,11 @@ Functions are organised by trigger type:
   required dynamic answers, and `registration.capacity` vs `seatsTaken`, rejecting with
   `resource-exhausted` once a capacity-limited event would be oversold; mirrors
   `registerForCottageMeeting`'s transaction exactly. `capacity` is optional (`null`/absent =
-  unlimited). Sends a best-effort SMS confirmation via the existing SMSPortal integration. Email
-  confirmation is provisioned (`sendEmail()`) but no-ops until a real provider is wired in (Phase
-  B4, blocked on the church's own comms mailbox existing).
+  unlimited). Moderation (Phase C2): if `registration.requiresApproval` is set, the new doc's
+  `status` starts `"pending"` (still reserves seats) instead of `"approved"`, and the SMS/email
+  sent is a holding message with no reference code — the real confirmation is deferred to
+  `setRegistrationStatus`. Email confirmation is provisioned (`sendEmail()`) but no-ops until a
+  real provider is wired in (Phase B4, blocked on the church's own comms mailbox existing).
 - `attachRegistrationProof` — callable from the same registration modal (Phase B3) — the
   registrant uploads a proof-of-payment file directly to Storage client-side
   (`js/storage-upload.js`), then calls this to persist the resulting URL on their registration
@@ -476,6 +478,13 @@ Functions are organised by trigger type:
   auth requirement (same posture as `registerForEvent`); validates the URL's path actually points
   at that specific registration's own Storage folder so a submitter can't attach a URL to someone
   else's registration.
+- `setRegistrationStatus` — callable, requires `events.manage` (Phase C2) — approves or declines
+  a pending (or previously declined) registration. Unlike `paymentConfirmed` (a direct client
+  write, no business logic), this goes through a transaction because declining releases the
+  registration's reserved capacity seats and re-approving re-reserves them, re-checking capacity
+  in case seats filled up in the meantime. Approving sends the registrant their reference-code
+  confirmation for the first time (withheld while pending); declining sends a "could not be
+  accepted" notice. Both best-effort SMS/email, same as `registerForEvent`.
 
 ### YouTube Integration (Sermon Tools)
 
@@ -565,18 +574,22 @@ Functions are organised by trigger type:
                                          referenceCode
     capacity: number | null           ← Phase B2 — null/absent = unlimited; set = hard limit,
                                          enforced transactionally in registerForEvent
+    requiresApproval: boolean         ← Phase C2 — default false; true starts new registrations
+                                         at status: "pending" instead of "approved"
     fields: [{ id, label, type, required, options }]  ← admin-defined dynamic questions,
                                          answered per-attendee (Phase C1), not once per registration
     seatsTaken: number                ← Phase B2 capacity check; Phase C1 changed this to count
-                                         attendees, not registrations (a 3-child party = 3 seats)
+                                         attendees, not registrations (a 3-child party = 3 seats);
+                                         "pending" and "approved" registrations both count,
+                                         "declined" releases (Phase C2)
   }
 
-/events/{eventId}/registrations/{id}  ← Event Registration (Phases B1-C1) — created ONLY by
+/events/{eventId}/registrations/{id}  ← Event Registration (Phases B1-C2) — created ONLY by
                                          registerForEvent; admin reads/deletes via events.manage,
                                          mirrors /cottageRegistrations. The one client-writable
                                          field is paymentConfirmed (events.manage only, plain
-                                         boolean toggle) — everything else is create-only via the
-                                         Cloud Functions
+                                         boolean toggle) — status and everything else is
+                                         create-only / Cloud-Function-only
   contact: {                          ← Phase C1 — who to reach; NOT assumed to be an attendee
     firstName, lastName               ← lastName drives referenceCode
     phone, phoneKey (nullable)        ← phoneKey = normaliseSaNumber(phone), dedup query key
@@ -587,8 +600,12 @@ Functions are organised by trigger type:
     { firstName, lastName, answers: { [fieldId]: string } }  ← per-attendee dynamic answers
   ]
   seatsUsed: number                   ← Phase C1 — attendees.length
+  status: "pending" | "approved" | "declined"  ← Phase C2 — set by registerForEvent at creation,
+                                         changed afterwards only via setRegistrationStatus
   referenceCode: string | null        ← refPrefix + "-" + uppercased contact.lastName; one code
-                                         covers the whole party regardless of attendee count
+                                         covers the whole party regardless of attendee count;
+                                         withheld from the registrant (not from this field) while
+                                         status is "pending"
   proofOfPaymentUrl: string | null    ← Phase B3 — set via attachRegistrationProof after the
                                          registrant uploads directly to Storage
   paymentConfirmed: boolean           ← Phase B3 — admin toggles after checking the proof

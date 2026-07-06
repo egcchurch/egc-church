@@ -282,12 +282,16 @@ async function submitRegistration(confirmDuplicate) {
 
     const ref = result.data.referenceCode;
     const registrationId = result.data.registrationId;
+    const isPending = result.data.status === 'pending';
 
     // Proof-of-payment upload (Phase B3) — best-effort, never blocks the
     // registration itself, which already succeeded by this point. Uploaded
     // directly to Storage (js/storage-upload.js, the only module that talks
     // to Storage) then attached to the registration doc via a callable,
-    // since clients can't write to that collection directly.
+    // since clients can't write to that collection directly. Still attached
+    // even while pending (Phase C2) — useful for an admin reviewing the
+    // request to see payment was already made, even though no reference
+    // code has been given out yet for a pending registration.
     let proofWarning = '';
     if (proofFile) {
       try {
@@ -303,10 +307,12 @@ async function submitRegistration(confirmDuplicate) {
 
     document.getElementById('registration-modal-body').innerHTML = `
       <div class="text-center py-6">
-        <i class="fas fa-circle-check text-4xl text-green-500 mb-4"></i>
-        <p class="text-gray-700 font-medium">You're registered!</p>
-        ${ref ? `<p class="text-sm text-gray-500 mt-2">Quote this reference for any payment:</p>
-                 <p class="text-lg font-mono font-bold text-[#0A3D62] mt-1">${escHtml(ref)}</p>` : ''}
+        <i class="fas ${isPending ? 'fa-clock text-4xl text-amber-500' : 'fa-circle-check text-4xl text-green-500'} mb-4"></i>
+        <p class="text-gray-700 font-medium">${isPending ? "You're registered — pending review." : "You're registered!"}</p>
+        ${isPending
+          ? '<p class="text-sm text-gray-500 mt-2">We\'ll be in touch once your registration is approved.</p>'
+          : (ref ? `<p class="text-sm text-gray-500 mt-2">Quote this reference for any payment:</p>
+                 <p class="text-lg font-mono font-bold text-[#0A3D62] mt-1">${escHtml(ref)}</p>` : '')}
         ${proofWarning}
         <button onclick="closeRegistrationModal()"
                 class="mt-6 bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">

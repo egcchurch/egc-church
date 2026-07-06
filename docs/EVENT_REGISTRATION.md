@@ -83,14 +83,16 @@ anyway. This is deliberately **not** an admin-mediated override — the scenario
 is the registrant's own legitimate call to make, not something that should need a superadmin
 to unblock after the fact.
 
-### Moderation (Phase C2, planned)
+### Moderation (Phase C2)
 An optional per-event "Require approval" toggle (off by default, alongside the existing
 Registration toggles). When on, a submission lands as `status: "pending"` rather than being
 auto-accepted — its seats are still reserved immediately against capacity (so a pile-up of
 unreviewed pending requests can't be over-approved past the limit later), but the
 reference-code confirmation doesn't go out until an admin approves it. Declining releases the
-reserved seats. Mirrors the existing pending-member approve/decline pattern already used by
-Groups and Serving Teams.
+reserved seats (re-approving re-reserves them, re-checking capacity in case seats filled up in
+the meantime). Mirrors the existing pending-member approve/decline pattern already used by
+Groups and Serving Teams, though as a Cloud Function rather than a direct client write — unlike
+a plain pending-member array, this has to keep `seatsTaken` correct transactionally.
 
 ### Find my registration (Phase C3, planned)
 Since most registrations are anonymous by design (no login required), there's no "my
@@ -144,7 +146,10 @@ this happens) is filling in one function body — not a schema or flow change.
                                           Phase C1 changed this to count attendees, not
                                           registrations (a 3-child party uses 3 seats, not 1)
     refPrefix: string | null           ← e.g. "YC-202603" — admin sets once when enabling
-    fields: [                          ← admin-defined dynamic questions, Phase B1
+    requiresApproval: boolean          ← Phase C2 — default false; when true, new registrations
+                                          start status: "pending" instead of "approved"
+    fields: [                          ← admin-defined dynamic questions, Phase B1, answered
+                                          per-attendee since Phase C1
       { id, label, type: "text"|"email"|"phone"|"number"|"textarea"|"select"|"checkbox",
         required: boolean, options: [string] (only for "select") }
     ]
@@ -161,8 +166,10 @@ this happens) is filling in one function body — not a schema or flow change.
   ]
   seatsUsed: number                   ← Phase C1 — attendees.length; what capacity actually counts
                                          against (a party of 3 uses 3 seats, not 1)
-  status: "pending" | "approved" | "declined"   ← Phase C2, planned — absent/not built yet means
-                                         every registration today is implicitly auto-accepted
+  status: "pending" | "approved" | "declined"   ← Phase C2. "pending"/"approved" both count
+                                         toward registration.seatsTaken; "declined" releases them.
+                                         Set by registerForEvent at creation and by
+                                         setRegistrationStatus (events.manage) afterwards
   referenceCode: string               ← refPrefix + "-" + uppercased contact.lastName; covers
                                          the whole party, one code regardless of attendee count
   proofOfPaymentUrl: string | null    ← Phase B3 — Storage URL if uploaded
@@ -188,9 +195,9 @@ Storage (Phase B3):
   permission: `"public"` = anyone (including signed-out visitors), `"members"` = signed-in
   members only. Enforced inside `registerForEvent`, mirroring how `registerForCottageMeeting`
   enforces membership today.
-- **Reading registrations / marking paid** — `events.manage` only. A registrant never has read
-  access to any submission (including their own, currently) — same posture as `/connect`,
-  where a submitter can't read back their own form either.
+- **Reading registrations / marking paid / approving / declining** — `events.manage` only. A
+  registrant never has read access to any submission (including their own, currently) — same
+  posture as `/connect`, where a submitter can't read back their own form either.
 
 ---
 
@@ -229,10 +236,18 @@ Storage (Phase B3):
   not 1; dedup check on phone/email with a soft warn-and-confirm flow (not a hard block) that
   shows the existing registration's submission date and lets the registrant proceed anyway with
   `confirmDuplicate: true`.
-- **Phase C2 (planned):** per-event "Require approval" moderation toggle; `status: "pending" |
-  "approved" | "declined"` on a registration; pending reserves seats immediately (capacity can't
-  be over-approved later), declining releases them; admin approve/decline UI mirroring the
-  existing Groups/Serving Teams pending-member pattern.
+- **Phase C2 (delivered):** per-event "Require approval" toggle (`registration.requiresApproval`,
+  off by default). A submission's `status` starts `"pending"` when on, `"approved"` otherwise
+  (unchanged behavior for every event that doesn't use moderation). Pending reserves seats
+  immediately — capacity can't be over-approved later by a pile-up of unreviewed requests — and
+  the reference code is withheld from the registrant until approved (asking someone to pay
+  against a registration that might still be declined would be premature); a holding SMS/email is
+  sent instead. New `setRegistrationStatus` callable (`events.manage`) does the approve/decline —
+  unlike `paymentConfirmed`, this goes through a Cloud Function rather than a direct client write
+  because declining has to release the reserved seats transactionally (re-approving re-reserves
+  them, re-checking capacity). Approving sends the real reference-code confirmation for the first
+  time; declining sends a polite "could not be accepted" notice. Admin registrations list shows a
+  Pending/Approved/Declined badge and Approve/Decline buttons per registration.
 - **Phase C3 (planned):** public "Find my registration" lookup (reference code + phone, both
   required) so a registrant can return — without an account or email — to attach a
   proof-of-payment file via the existing `attachRegistrationProof` flow.

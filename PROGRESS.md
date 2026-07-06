@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-06
-**Current milestone:** Session 184 — Event Registration Phase C1 delivered (`docs/EVENT_REGISTRATION.md`): party model (contact + attendees[]) so one submission can register multiple people under one reference code, plus dedup detection with a soft warn-and-confirm flow. Phase C2 (moderation) and C3 (find my registration) next. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
+**Current milestone:** Session 185 — Event Registration Phase C2 delivered (`docs/EVENT_REGISTRATION.md`): optional per-event "Require approval" moderation with admin approve/decline. Phase C3 (find my registration) next. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,60 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: feat — Event Registration Phase C2: moderation (Session 185)
+
+**Date:** 2026-07-06
+**PR:** #312
+**Status:** Open
+
+### What was done
+
+Third of the four post-Phase-B3 needs: moderating registrations before accepting them (some
+events — e.g. ones with limited/valuable space or requiring vetting — need a human decision
+before a submission counts as confirmed).
+
+- `functions/index.js`:
+  - `registerForEvent` now checks `registration.requiresApproval` (new, off by default). When on,
+    a new registration's `status` starts `"pending"` instead of `"approved"` — it still reserves
+    its seats immediately against capacity either way, but the SMS/email sent is a holding
+    message ("pending review — we'll be in touch") with no reference code, rather than the full
+    confirmation. Existing events with the toggle off are completely unaffected — `status` is
+    just `"approved"` immediately, same as before this shipped.
+  - New `setRegistrationStatus` callable (`events.manage`) approves or declines a registration.
+    Unlike `paymentConfirmed` (a plain client-writable boolean), this needs a transaction:
+    declining releases the registration's reserved seats back to the event's capacity;
+    re-approving a previously declined one re-reserves them, re-checking capacity in case seats
+    filled up in the meantime. Approving sends the registrant their reference-code confirmation
+    for the first time; declining sends a "could not be accepted" notice. Both best-effort
+    SMS/email, mirroring `registerForEvent`'s own confirmation pattern.
+- `firestore.rules` — comment-only update (mentions `setRegistrationStatus` alongside the other
+  two functions that write to a registration doc); the actual rule was already correct —
+  `status` was never in the client-writable field allowlist (only `paymentConfirmed` is), so no
+  rule change was needed to keep approve/decline Cloud-Function-only.
+- `admin/events.html` — new "Require approval before accepting registrations" checkbox in the
+  Registration section. Registrations list now shows a Pending/Approved/Declined badge per
+  registration plus Approve/Decline buttons (declining asks for confirmation, since it releases
+  seats); approving/declining refreshes both the registrations panel and the event card's
+  seatsTaken badge.
+- `js/event-registration.js` — the post-submission success screen now distinguishes a pending
+  outcome (amber clock icon, "pending review" message, no reference code shown) from the normal
+  immediate-approval outcome.
+- No rules changes beyond the comment — ran the full existing suite to confirm nothing regressed
+  (still 215 passing). SW cache bumped to v88 (`js/event-registration.js` changed again).
+
+### Deploy notes
+
+**Cloud Functions changed** (`registerForEvent` updated, new `setRegistrationStatus`) — after
+merge run `firebase deploy --only functions` manually. No rules or Storage changes.
+
+### Next up
+
+Phase C3 (public "Find my registration" lookup by reference code + phone, so a registrant can
+return without an account or email to attach proof-of-payment) — the last planned phase before
+only Phase B4 (real email) remains, still deferred.
 
 ---
 

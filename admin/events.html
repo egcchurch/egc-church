@@ -16,6 +16,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-functions-compat.js"></script>
 </head>
 <body class="bg-zinc-50 font-sans overflow-x-hidden">
 
@@ -180,6 +181,12 @@
             </div>
           </div>
 
+          <label class="flex items-center gap-3">
+            <input id="f-reg-requires-approval" type="checkbox" class="w-4 h-4 accent-amber-500">
+            <span class="text-sm font-medium text-gray-700">Require approval before accepting registrations</span>
+          </label>
+          <p class="text-xs text-gray-400 -mt-3">When on, new registrations wait as "Pending" — you approve or decline each one from the Registrations list. Seats are still reserved while pending, so capacity can't be oversold by a pile-up of unreviewed requests. The reference code is only sent once approved.</p>
+
           <div>
             <div class="flex items-center justify-between mb-2">
               <label class="block text-sm font-medium text-gray-700">Questions</label>
@@ -264,6 +271,7 @@
       document.getElementById('f-reg-audience').value  = reg.audience || 'public';
       document.getElementById('f-reg-ref-prefix').value = reg.refPrefix || '';
       document.getElementById('f-reg-capacity').value  = reg.capacity ?? '';
+      document.getElementById('f-reg-requires-approval').checked = reg.requiresApproval ?? false;
       document.getElementById('reg-seats-taken-display').textContent =
         reg.capacity ? `${reg.seatsTaken || 0} / ${reg.capacity}` : `${reg.seatsTaken || 0} (unlimited)`;
       regFieldRows = (reg.fields || []).map(f => ({
@@ -361,6 +369,7 @@
         audience: document.getElementById('f-reg-audience').value,
         refPrefix: document.getElementById('f-reg-ref-prefix').value.trim() || null,
         capacity: capacityVal ? parseInt(capacityVal, 10) : null,
+        requiresApproval: document.getElementById('f-reg-requires-approval').checked,
         fields: regFieldRows
           .filter(r => r.label.trim())
           .map(r => ({
@@ -608,20 +617,31 @@
                 ${answerLines ? `<br>${answerLines}` : ''}
               </p>`;
           }).join('');
+          const status = r.status || 'approved';
+          const statusBadge = {
+            pending: '<span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Pending</span>',
+            approved: '<span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Approved</span>',
+            declined: '<span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Declined</span>',
+          }[status];
           return `
             <div class="border border-gray-100 rounded-xl p-3 mb-2">
               <div class="flex items-center justify-between gap-2 flex-wrap">
                 <p class="font-semibold text-gray-800">${escHtml(contact.firstName)} ${escHtml(contact.lastName)} <span class="text-xs font-normal text-gray-400">(${attendees.length} ${attendees.length === 1 ? 'attendee' : 'attendees'})</span></p>
-                ${r.referenceCode ? `<span class="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-mono">${escHtml(r.referenceCode)}</span>` : ''}
+                <div class="flex items-center gap-2">
+                  ${statusBadge}
+                  ${r.referenceCode ? `<span class="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-mono">${escHtml(r.referenceCode)}</span>` : ''}
+                </div>
               </div>
               <p class="text-xs text-gray-500 mt-1">${[contact.phone, contact.email, contact.assembly].filter(Boolean).map(escHtml).join(' · ') || '—'}</p>
               ${attendeeLines}
-              <div class="flex items-center gap-3 mt-2 pt-2 border-t border-gray-50">
+              <div class="flex items-center gap-3 mt-2 pt-2 border-t border-gray-50 flex-wrap">
                 ${r.proofOfPaymentUrl ? `<a href="${escAttr(r.proofOfPaymentUrl)}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline"><i class="fas fa-paperclip mr-1"></i>View proof</a>` : '<span class="text-xs text-gray-300">No proof uploaded</span>'}
                 <button onclick="togglePaymentConfirmed('${eventId}', '${d.id}', ${!!r.paymentConfirmed})"
                         class="text-xs px-2 py-0.5 rounded-full font-medium transition ${r.paymentConfirmed ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}">
                   <i class="fas ${r.paymentConfirmed ? 'fa-check-circle' : 'fa-circle'} mr-1"></i>${r.paymentConfirmed ? 'Paid' : 'Mark Paid'}
                 </button>
+                ${status !== 'approved' ? `<button onclick="setRegistrationStatus('${eventId}', '${d.id}', 'approved')" class="text-xs px-2 py-0.5 rounded-full font-medium bg-green-50 text-green-700 hover:bg-green-100 transition"><i class="fas fa-check mr-1"></i>Approve</button>` : ''}
+                ${status !== 'declined' ? `<button onclick="setRegistrationStatus('${eventId}', '${d.id}', 'declined')" class="text-xs px-2 py-0.5 rounded-full font-medium bg-red-50 text-red-700 hover:bg-red-100 transition"><i class="fas fa-times mr-1"></i>Decline</button>` : ''}
               </div>
             </div>`;
         }).join('');
@@ -641,6 +661,24 @@
         await loadRegistrationsList(eventId);
       } catch (err) {
         showToast('Failed to update payment status: ' + err.message, 'error');
+      }
+    }
+
+    // Approve/decline goes through a Cloud Function (Event Registration Phase
+    // C2), unlike paymentConfirmed — declining has to release the
+    // registration's reserved capacity seats transactionally, and approving
+    // sends the registrant their reference-code confirmation for the first
+    // time (it was withheld while pending).
+    async function setRegistrationStatus(eventId, registrationId, status) {
+      if (status === 'declined' && !confirm('Decline this registration? Its reserved seats will be released.')) return;
+      try {
+        const fn = firebase.functions().httpsCallable('setRegistrationStatus');
+        await fn({ eventId, registrationId, status });
+        showToast(status === 'approved' ? 'Registration approved.' : 'Registration declined.', 'success');
+        await loadRegistrationsList(eventId);
+        loadEvents(); // refresh the seatsTaken badge on the event card
+      } catch (err) {
+        showToast('Failed to update status: ' + err.message, 'error');
       }
     }
 
