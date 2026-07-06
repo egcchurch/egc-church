@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-06
-**Current milestone:** Session 179 — fixed two silently-failing `collectionGroup()` queries (missing Firestore field-override indexes): `deleteBroadcast`/`updateBroadcast` and, discovered in the process, `sendServingSlotReminders` (broken since it shipped — no serving-team member has ever received a morning-of reminder). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future).
+**Current milestone:** Session 180 — starting Event Registration (`docs/EVENT_REGISTRATION.md`): per-event RSVP toggle (Phase A) followed by dynamic registration forms (Phase B1-B3). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,38 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: feat — Event Registration Phase A: per-event RSVP toggle (Session 180)
+
+**Date:** 2026-07-06
+**PR:** #305
+**Status:** Open
+
+### What was done
+
+First phase of `docs/EVENT_REGISTRATION.md` (new design doc — see it for the full plan across
+Phases A/B1-B4). User need: some calendar entries are purely informational (e.g. "a visiting
+minister will be with us next Wednesday") and showing an RSVP button on them is misleading,
+since there's nothing to reserve.
+
+- `admin/events.html` — new "Enable RSVP" checkbox in the event form, defaulting to checked.
+  Saves as `rsvpEnabled` on the event doc. No `events.manage` rules change needed — the
+  existing admin branch already allows writing any field.
+- `js/events.js` — `buildRsvpButtons()` returns nothing at all (no button, no "X attending"
+  count) when `event.rsvpEnabled === false`. Absent field = enabled, so every event that
+  existed before this shipped keeps behaving exactly as it did.
+- SW cache bumped to v83 (`js/events.js` is precached, cache-first).
+
+### Deploy notes
+
+Hosting-only — deploys via CI on merge. No Cloud Functions or rules changes.
+
+### Next up
+
+Phase B1 (core dynamic registration forms) starts once this merges — see
+`docs/EVENT_REGISTRATION.md` for the full phasing plan.
 
 ---
 

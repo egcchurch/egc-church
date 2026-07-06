@@ -1168,5 +1168,8 @@ The agentic-style local workflow:
 All 9 phases (Foundation through Page Composition) are complete and deployed. Design docs in `docs/`.
 
 **Active / pending:**
+- **Event Registration** — per-event RSVP toggle + dynamic registration forms for camps/special
+  events, in progress (`docs/EVENT_REGISTRATION.md`); Phase B4 (real email) blocked on the
+  church's own domain/comms mailbox existing post-launch
 - **WhatsApp Stage 2** — blocked on church obtaining a WhatsApp Business sender number (`docs/WHATSAPP.md`)
 - **Serving Teams Phase 2** — Equipment Register + Moves (future; `docs/SERVING_TEAMS.md`)

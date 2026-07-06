@@ -133,6 +133,14 @@
           <label for="f-published" class="text-sm font-medium text-gray-700">Published (visible on site)</label>
         </div>
 
+        <!-- RSVP toggle — off for purely informational events (e.g. "a visiting minister will
+             be with us Wednesday") where there's nothing to reserve. On by default so every
+             pre-existing event keeps behaving exactly as it did before this shipped. -->
+        <div class="flex items-center gap-3 pt-6">
+          <input id="f-rsvp-enabled" type="checkbox" class="w-4 h-4 accent-amber-500" checked>
+          <label for="f-rsvp-enabled" class="text-sm font-medium text-gray-700">Enable RSVP</label>
+        </div>
+
       </div>
       <div class="flex gap-3 mt-6">
         <button onclick="saveEvent()"
@@ -197,6 +205,7 @@
       document.getElementById('f-category').value     = event?.category     || 'service';
       document.getElementById('f-audience').value     = event?.audience     || 'public';
       document.getElementById('f-published').checked  = event?.published    ?? true;
+      document.getElementById('f-rsvp-enabled').checked = event?.rsvpEnabled ?? true;
 
       existingCoverUrl = event?.imageUrl || null;
       if (existingCoverUrl) {
@@ -274,6 +283,7 @@
         audience    : document.getElementById('f-audience').value,
         imageUrl,
         published   : document.getElementById('f-published').checked,
+        rsvpEnabled : document.getElementById('f-rsvp-enabled').checked,
         startDate   : buildTimestamp(startDate, document.getElementById('f-start-time').value),
         updatedAt   : firebase.firestore.FieldValue.serverTimestamp(),
       };

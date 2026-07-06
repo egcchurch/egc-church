@@ -268,6 +268,10 @@ function buildDayCard(event) {
 // ─── RSVP ─────────────────────────────────────────────────────────────────────
 
 function buildRsvpButtons(event) {
+  // Absent field = enabled, so every event that existed before this toggle
+  // shipped keeps behaving exactly as it did (Event Registration Phase A).
+  if (event.rsvpEnabled === false) return '';
+
   const rsvps    = event.rsvps || [];
   const count    = rsvps.length;
   const hasRsvped = currentUser && rsvps.includes(currentUser.uid);
