@@ -188,6 +188,13 @@
           <p class="text-xs text-gray-400 -mt-3">When on, new registrations wait as "Pending" — you approve or decline each one from the Registrations list. Seats are still reserved while pending, so capacity can't be oversold by a pile-up of unreviewed requests. The reference code is only sent once approved.</p>
 
           <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Custom confirmation message (optional)</label>
+            <textarea id="f-reg-confirmation-template" rows="3" placeholder="e.g. Thanks for registering for {{title}}! Your reference is {{referenceCode}} — please quote it with your payment."
+                      class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"></textarea>
+            <p class="text-xs text-gray-400 mt-1">Sent by SMS (and email, once set up) the moment a registration is confirmed — immediately if approval isn't required, or the moment it's approved. Leave blank to use the default message. Placeholders: <code class="bg-gray-100 px-1 rounded">{{title}}</code> <code class="bg-gray-100 px-1 rounded">{{referenceCode}}</code> <code class="bg-gray-100 px-1 rounded">{{firstName}}</code> <code class="bg-gray-100 px-1 rounded">{{lastName}}</code> <code class="bg-gray-100 px-1 rounded">{{seatsUsed}}</code></p>
+          </div>
+
+          <div>
             <div class="flex items-center justify-between mb-2">
               <label class="block text-sm font-medium text-gray-700">Questions</label>
               <button type="button" onclick="addRegFieldRow()"
@@ -272,6 +279,7 @@
       document.getElementById('f-reg-ref-prefix').value = reg.refPrefix || '';
       document.getElementById('f-reg-capacity').value  = reg.capacity ?? '';
       document.getElementById('f-reg-requires-approval').checked = reg.requiresApproval ?? false;
+      document.getElementById('f-reg-confirmation-template').value = reg.confirmationTemplate || '';
       document.getElementById('reg-seats-taken-display').textContent =
         reg.capacity ? `${reg.seatsTaken || 0} / ${reg.capacity}` : `${reg.seatsTaken || 0} (unlimited)`;
       regFieldRows = (reg.fields || []).map(f => ({
@@ -370,6 +378,7 @@
         refPrefix: document.getElementById('f-reg-ref-prefix').value.trim() || null,
         capacity: capacityVal ? parseInt(capacityVal, 10) : null,
         requiresApproval: document.getElementById('f-reg-requires-approval').checked,
+        confirmationTemplate: document.getElementById('f-reg-confirmation-template').value.trim() || null,
         fields: regFieldRows
           .filter(r => r.label.trim())
           .map(r => ({
