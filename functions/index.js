@@ -1926,6 +1926,14 @@ exports.registerForEvent = functions
 
       const referenceCode = sanitizeReferenceCode(reg.refPrefix, contactLastName);
 
+      // Moderation (Phase C2): a registration still reserves its seats
+      // immediately either way (pending or approved both count toward
+      // seatsTaken) — only "declined" ever releases them, via
+      // setRegistrationStatus. The reference code is withheld from the
+      // registrant until approved, since asking someone to pay against a
+      // registration that might still be declined would be premature.
+      const status = reg.requiresApproval ? 'pending' : 'approved';
+
       t.set(regRef, {
         contact: {
           firstName: contactFirstName,
@@ -1938,6 +1946,7 @@ exports.registerForEvent = functions
         },
         attendees,
         seatsUsed: seatsNeeded,
+        status,
         referenceCode,
         proofOfPaymentUrl: null,
         paymentConfirmed: false,
@@ -1946,22 +1955,32 @@ exports.registerForEvent = functions
       });
       t.update(eventRef, { 'registration.seatsTaken': seatsTaken + seatsNeeded });
 
-      return { title: event.title, referenceCode, seatsUsed: seatsNeeded };
+      return { title: event.title, referenceCode, seatsUsed: seatsNeeded, status };
     });
 
     // Best-effort SMS confirmation — never blocks or fails the registration
     // itself. Email confirmation is provisioned but not wired yet (Phase B4;
-    // see sendEmail()).
+    // see sendEmail()). Pending registrations get a holding message with no
+    // reference code; setRegistrationStatus sends the real confirmation once
+    // (if) an admin approves.
     const partySuffix = result.seatsUsed > 1 ? ` (${result.seatsUsed} people)` : '';
-    if (phone) {
-      const lines = [`You're registered for ${result.title || 'the event'}${partySuffix}.`];
-      if (result.referenceCode) lines.push(`Your reference: ${result.referenceCode}.`);
-      await sendSms(phone, `EGC Registration\n\n${lines.join(' ')}`);
+    if (result.status === 'pending') {
+      if (phone) {
+        await sendSms(phone, `EGC Registration\n\nThanks for registering for ${result.title || 'the event'}${partySuffix}. Your registration is pending review — we'll be in touch once it's confirmed.`);
+      }
+      await sendEmail(email, `Registration received — ${result.title || 'Event'}`,
+        'Your registration is pending review. We\'ll be in touch once it\'s confirmed.');
+    } else {
+      if (phone) {
+        const lines = [`You're registered for ${result.title || 'the event'}${partySuffix}.`];
+        if (result.referenceCode) lines.push(`Your reference: ${result.referenceCode}.`);
+        await sendSms(phone, `EGC Registration\n\n${lines.join(' ')}`);
+      }
+      await sendEmail(email, `Registration confirmed — ${result.title || 'Event'}`,
+        result.referenceCode ? `Your reference: ${result.referenceCode}` : 'Your registration has been received.');
     }
-    await sendEmail(email, `Registration confirmed — ${result.title || 'Event'}`,
-      result.referenceCode ? `Your reference: ${result.referenceCode}` : 'Your registration has been received.');
 
-    return { registrationId: regRef.id, referenceCode: result.referenceCode };
+    return { registrationId: regRef.id, referenceCode: result.status === 'approved' ? result.referenceCode : null, status: result.status };
   });
 
 // Placeholder for Phase B4 — no email provider is configured yet (the church
@@ -1975,6 +1994,93 @@ async function sendEmail(to, subject, body) {
   console.log(`sendEmail: not configured — would have sent "${subject}" to ${to}`);
   return false;
 }
+
+// ── setRegistrationStatus ──────────────────────────────────────────────────────
+// Callable from admin/events.html's registrations list (Event Registration
+// Phase C2). Requires events.manage — unlike paymentConfirmed (a plain
+// boolean toggle allowed as a direct client write), approving/declining has
+// real business logic to enforce (releasing/reserving capacity seats), so it
+// goes through a Cloud Function and a transaction, same reasoning as
+// registerForEvent's own capacity check.
+//
+// Declining releases this registration's reserved seats back to the event's
+// capacity. Approving (moving off "pending") sends the registrant their
+// reference-code confirmation for the first time — registerForEvent withheld
+// it while pending, since asking someone to pay against a registration that
+// might still be declined would be premature. Re-approving a previously
+// declined registration re-reserves its seats, subject to the capacity check
+// still passing at that moment.
+exports.setRegistrationStatus = functions
+  .runWith({ secrets: [smsPortalClientId, smsPortalApiSecret] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
+    }
+    const token = context.auth.token;
+    if (token.superadmin !== true && !(Array.isArray(token.perms) && token.perms.includes('events.manage'))) {
+      throw new functions.https.HttpsError('permission-denied', 'events.manage permission required.');
+    }
+
+    const eventId = (data && data.eventId ? String(data.eventId) : '').trim();
+    const registrationId = (data && data.registrationId ? String(data.registrationId) : '').trim();
+    const status = data && data.status;
+    if (!eventId || !registrationId || !['approved', 'declined'].includes(status)) {
+      throw new functions.https.HttpsError('invalid-argument', 'eventId, registrationId, and a valid status are required.');
+    }
+
+    const eventRef = db.collection('events').doc(eventId);
+    const regRef = eventRef.collection('registrations').doc(registrationId);
+
+    const result = await db.runTransaction(async (t) => {
+      const [eventSnap, regSnap] = await Promise.all([t.get(eventRef), t.get(regRef)]);
+      if (!eventSnap.exists) throw new functions.https.HttpsError('not-found', 'Event not found.');
+      if (!regSnap.exists) throw new functions.https.HttpsError('not-found', 'Registration not found.');
+
+      const event = eventSnap.data();
+      const reg = regSnap.data();
+      const previousStatus = reg.status || 'approved';
+      if (previousStatus === status) {
+        return { title: event.title, reg, changed: false };
+      }
+
+      const reservedStatuses = ['pending', 'approved'];
+      const wasReserved = reservedStatuses.includes(previousStatus);
+      const willBeReserved = reservedStatuses.includes(status);
+      const eventReg = event.registration || {};
+      const seatsTaken = eventReg.seatsTaken || 0;
+
+      if (!wasReserved && willBeReserved) {
+        // Re-approving a previously declined registration — check capacity
+        // again, since seats may have filled up in the meantime.
+        if (typeof eventReg.capacity === 'number' && eventReg.capacity > 0 && seatsTaken + reg.seatsUsed > eventReg.capacity) {
+          throw new functions.https.HttpsError('resource-exhausted', 'Not enough spots left to approve this registration.');
+        }
+        t.update(eventRef, { 'registration.seatsTaken': seatsTaken + reg.seatsUsed });
+      } else if (wasReserved && !willBeReserved) {
+        t.update(eventRef, { 'registration.seatsTaken': Math.max(seatsTaken - reg.seatsUsed, 0) });
+      }
+
+      t.update(regRef, { status });
+      return { title: event.title, reg, changed: true };
+    });
+
+    if (result.changed && status === 'approved') {
+      const contact = result.reg.contact || {};
+      const partySuffix = result.reg.seatsUsed > 1 ? ` (${result.reg.seatsUsed} people)` : '';
+      const lines = [`Your registration for ${result.title || 'the event'}${partySuffix} has been approved.`];
+      if (result.reg.referenceCode) lines.push(`Your reference: ${result.reg.referenceCode}.`);
+      if (contact.phone) await sendSms(contact.phone, `EGC Registration\n\n${lines.join(' ')}`);
+      await sendEmail(contact.email, `Registration approved — ${result.title || 'Event'}`,
+        result.reg.referenceCode ? `Your reference: ${result.reg.referenceCode}` : 'Your registration has been approved.');
+    } else if (result.changed && status === 'declined') {
+      const contact = result.reg.contact || {};
+      const message = `Your registration for ${result.title || 'the event'} could not be accepted at this time. Please contact us if you have any questions.`;
+      if (contact.phone) await sendSms(contact.phone, `EGC Registration\n\n${message}`);
+      await sendEmail(contact.email, `Registration update — ${result.title || 'Event'}`, message);
+    }
+
+    return { success: true };
+  });
 
 // ── attachRegistrationProof ───────────────────────────────────────────────────
 // Callable from events.html's registration modal (Event Registration Phase B3).
