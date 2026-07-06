@@ -595,18 +595,27 @@
         }
         listEl.innerHTML = snap.docs.map(d => {
           const r = d.data();
-          const answerLines = fields
-            .filter(f => r.answers && r.answers[f.id])
-            .map(f => `<p class="text-xs text-gray-500 mt-0.5">${escHtml(f.label)}: ${escHtml(r.answers[f.id])}</p>`)
-            .join('');
+          const contact = r.contact || {};
+          const attendees = Array.isArray(r.attendees) ? r.attendees : [];
+          const attendeeLines = attendees.map((a) => {
+            const answerLines = fields
+              .filter(f => a.answers && a.answers[f.id])
+              .map(f => `<span class="mr-2">${escHtml(f.label)}: ${escHtml(a.answers[f.id])}</span>`)
+              .join('');
+            return `
+              <p class="text-xs text-gray-600 mt-1 pl-3 border-l-2 border-gray-100">
+                <span class="font-medium">${escHtml(a.firstName)} ${escHtml(a.lastName)}</span>
+                ${answerLines ? `<br>${answerLines}` : ''}
+              </p>`;
+          }).join('');
           return `
             <div class="border border-gray-100 rounded-xl p-3 mb-2">
               <div class="flex items-center justify-between gap-2 flex-wrap">
-                <p class="font-semibold text-gray-800">${escHtml(r.firstName)} ${escHtml(r.lastName)}</p>
+                <p class="font-semibold text-gray-800">${escHtml(contact.firstName)} ${escHtml(contact.lastName)} <span class="text-xs font-normal text-gray-400">(${attendees.length} ${attendees.length === 1 ? 'attendee' : 'attendees'})</span></p>
                 ${r.referenceCode ? `<span class="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-mono">${escHtml(r.referenceCode)}</span>` : ''}
               </div>
-              <p class="text-xs text-gray-500 mt-1">${[r.phone, r.email, r.assembly].filter(Boolean).map(escHtml).join(' · ') || '—'}</p>
-              ${answerLines}
+              <p class="text-xs text-gray-500 mt-1">${[contact.phone, contact.email, contact.assembly].filter(Boolean).map(escHtml).join(' · ') || '—'}</p>
+              ${attendeeLines}
               <div class="flex items-center gap-3 mt-2 pt-2 border-t border-gray-50">
                 ${r.proofOfPaymentUrl ? `<a href="${escAttr(r.proofOfPaymentUrl)}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline"><i class="fas fa-paperclip mr-1"></i>View proof</a>` : '<span class="text-xs text-gray-300">No proof uploaded</span>'}
                 <button onclick="togglePaymentConfirmed('${eventId}', '${d.id}', ${!!r.paymentConfirmed})"

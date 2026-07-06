@@ -1760,8 +1760,8 @@ exports.cancelCottageRegistration = functions.https.onCall(async (data, context)
 });
 
 // ── registerForEvent ──────────────────────────────────────────────────────────
-// Callable from events.html's registration modal (Event Registration Phase B1,
-// see docs/EVENT_REGISTRATION.md). Unlike RSVP (member-only, direct client
+// Callable from events.html's registration modal (Event Registration, see
+// docs/EVENT_REGISTRATION.md). Unlike RSVP (member-only, direct client
 // write), event registration must also work for people from other assemblies
 // with no account on this app at all — so this may be called by a signed-in
 // member OR a fully unauthenticated visitor, depending on the event's
@@ -1770,12 +1770,28 @@ exports.cancelCottageRegistration = functions.https.onCall(async (data, context)
 // form can't be trusted to self-validate which fields are required or to
 // self-report which audience gate it's allowed through.
 //
-// Capacity (Phase B2): registration.capacity is optional — null/absent means
-// unlimited (e.g. a family camp where people bring their own tents). When
-// set, the write happens inside a transaction that re-reads seatsTaken and
-// rejects once capacity is reached, mirroring registerForCottageMeeting's
-// transaction exactly — a plain read-then-write couldn't safely enforce a
-// hard cap under concurrent submissions.
+// Party model (Phase C1): one `contact` registers one or more `attendees` —
+// a parent registering 3 children submits once, gets one referenceCode, and
+// charges the event's capacity 3 seats, not 1. The contact isn't assumed to
+// be an attendee themselves. Each attendee answers the event's dynamic
+// questions individually (a T-shirt size is per-child, not per-family).
+//
+// Capacity: registration.capacity is optional — null/absent means unlimited
+// (e.g. a family camp where people bring their own tents). When set, the
+// write happens inside a transaction that re-reads seatsTaken and rejects
+// once capacity would be exceeded by this party's attendee count, mirroring
+// registerForCottageMeeting's transaction exactly — a plain read-then-write
+// couldn't safely enforce a hard cap under concurrent submissions.
+//
+// Deduplication (Phase C1): before writing, checks whether this event
+// already has a registration matching this contact's phone or email. Rather
+// than a hard block, it throws an `already-exists` error carrying the
+// existing registration's submission date; the client turns that into a
+// confirm prompt ("already registered on [date] — create another anyway?").
+// If the registrant confirms, the client resubmits with
+// confirmDuplicate: true, which skips the check entirely. This is
+// deliberately a registrant-side decision, not an admin override — covers
+// e.g. a parent submitting their own kids separately from their nephews.
 
 function sanitizeReferenceCode(prefix, lastName) {
   if (!prefix) return null;
@@ -1786,20 +1802,38 @@ function sanitizeReferenceCode(prefix, lastName) {
 exports.registerForEvent = functions
   .runWith({ secrets: [smsPortalClientId, smsPortalApiSecret] })
   .https.onCall(async (data, context) => {
-    const eventId   = (data && data.eventId   ? String(data.eventId)   : '').trim();
-    const firstName = (data && data.firstName ? String(data.firstName) : '').trim().slice(0, 200);
-    const lastName  = (data && data.lastName  ? String(data.lastName)  : '').trim().slice(0, 200);
-    const phone     = (data && data.phone     ? String(data.phone)     : '').trim().slice(0, 50);
-    const email     = (data && data.email     ? String(data.email)     : '').trim().slice(0, 200);
-    const assembly  = (data && data.assembly  ? String(data.assembly)  : '').trim().slice(0, 200);
-    const answers   = (data && data.answers && typeof data.answers === 'object' && !Array.isArray(data.answers))
-      ? data.answers : {};
+    const eventId          = (data && data.eventId ? String(data.eventId) : '').trim();
+    const contactIn        = (data && data.contact && typeof data.contact === 'object') ? data.contact : {};
+    const contactFirstName = (contactIn.firstName ? String(contactIn.firstName) : '').trim().slice(0, 200);
+    const contactLastName  = (contactIn.lastName ? String(contactIn.lastName) : '').trim().slice(0, 200);
+    const phone            = (contactIn.phone ? String(contactIn.phone) : '').trim().slice(0, 50);
+    const email            = (contactIn.email ? String(contactIn.email) : '').trim().slice(0, 200);
+    const assembly         = (contactIn.assembly ? String(contactIn.assembly) : '').trim().slice(0, 200);
+    const confirmDuplicate = !!(data && data.confirmDuplicate === true);
+
+    const attendeesRaw = Array.isArray(data && data.attendees) ? data.attendees : [];
+    const attendeesIn = attendeesRaw.map((a) => ({
+      firstName: (a && a.firstName ? String(a.firstName) : '').trim().slice(0, 200),
+      lastName: (a && a.lastName ? String(a.lastName) : '').trim().slice(0, 200),
+      answers: (a && a.answers && typeof a.answers === 'object' && !Array.isArray(a.answers)) ? a.answers : {},
+    }));
 
     if (!eventId) {
       throw new functions.https.HttpsError('invalid-argument', 'eventId is required.');
     }
-    if (!firstName || !lastName) {
-      throw new functions.https.HttpsError('invalid-argument', 'First and last name are required.');
+    if (!contactFirstName || !contactLastName) {
+      throw new functions.https.HttpsError('invalid-argument', 'Contact first and last name are required.');
+    }
+    if (!phone && !email) {
+      throw new functions.https.HttpsError('invalid-argument', 'A phone number or email address is required.');
+    }
+    if (!attendeesIn.length) {
+      throw new functions.https.HttpsError('invalid-argument', 'At least one attendee is required.');
+    }
+    for (const a of attendeesIn) {
+      if (!a.firstName || !a.lastName) {
+        throw new functions.https.HttpsError('invalid-argument', 'Each attendee needs a first and last name.');
+      }
     }
 
     const eventRef = db.collection('events').doc(eventId);
@@ -1824,6 +1858,31 @@ exports.registerForEvent = functions
       }
     }
 
+    // Deduplication — a soft warn, not a hard block. Checked before the
+    // transaction since this is a UX nicety, not a hard business constraint
+    // (unlike capacity); the tiny race window between two truly-simultaneous
+    // duplicate submissions is an acceptable risk at this scale.
+    const phoneKey = phone ? normaliseSaNumber(phone) : '';
+    const emailKey = email ? email.toLowerCase() : '';
+    if (!confirmDuplicate && (phoneKey || emailKey)) {
+      const regsRef = eventRef.collection('registrations');
+      const checks = [];
+      if (phoneKey) checks.push(regsRef.where('contact.phoneKey', '==', phoneKey).limit(1).get());
+      if (emailKey) checks.push(regsRef.where('contact.emailKey', '==', emailKey).limit(1).get());
+      const snaps = await Promise.all(checks);
+      const matchDoc = snaps.map((s) => s.docs[0]).find(Boolean);
+      if (matchDoc) {
+        const existing = matchDoc.data();
+        const submittedAt = existing.submittedAt && typeof existing.submittedAt.toDate === 'function'
+          ? existing.submittedAt.toDate().toISOString() : null;
+        throw new functions.https.HttpsError(
+          'already-exists',
+          'There is already a registration for this phone number or email.',
+          { submittedAt }
+        );
+      }
+    }
+
     const regRef = eventRef.collection('registrations').doc();
 
     const result = await db.runTransaction(async (t) => {
@@ -1837,53 +1896,65 @@ exports.registerForEvent = functions
         throw new functions.https.HttpsError('failed-precondition', 'Registration is not open for this event.');
       }
 
-      // Validate required dynamic questions, then drop any answer keyed to a
-      // field id that isn't (or no longer is) part of this event's schema —
-      // a guard against a stale client form submitting for questions that
-      // were since edited or removed.
+      // Validate each attendee's required dynamic questions, then drop any
+      // answer keyed to a field id that isn't (or no longer is) part of this
+      // event's schema — a guard against a stale client form submitting for
+      // questions that were since edited or removed.
       const fields = Array.isArray(reg.fields) ? reg.fields : [];
-      for (const f of fields) {
-        const val = answers[f.id];
-        if (f.required && !(val !== undefined && val !== null && String(val).trim())) {
-          throw new functions.https.HttpsError('invalid-argument', `"${f.label}" is required.`);
-        }
-      }
       const fieldIds = new Set(fields.map((f) => f.id));
-      const cleanAnswers = {};
-      Object.keys(answers).forEach((k) => {
-        if (fieldIds.has(k)) cleanAnswers[k] = String(answers[k]).slice(0, 2000);
+      const attendees = attendeesIn.map((a) => {
+        for (const f of fields) {
+          const val = a.answers[f.id];
+          if (f.required && !(val !== undefined && val !== null && String(val).trim())) {
+            throw new functions.https.HttpsError('invalid-argument', `"${f.label}" is required for ${a.firstName}.`);
+          }
+        }
+        const cleanAnswers = {};
+        Object.keys(a.answers).forEach((k) => {
+          if (fieldIds.has(k)) cleanAnswers[k] = String(a.answers[k]).slice(0, 2000);
+        });
+        return { firstName: a.firstName, lastName: a.lastName, answers: cleanAnswers };
       });
 
       const seatsTaken = reg.seatsTaken || 0;
-      if (typeof reg.capacity === 'number' && reg.capacity > 0 && seatsTaken >= reg.capacity) {
-        throw new functions.https.HttpsError('resource-exhausted', 'Sorry, this event is full.');
+      const seatsNeeded = attendees.length;
+      if (typeof reg.capacity === 'number' && reg.capacity > 0 && seatsTaken + seatsNeeded > reg.capacity) {
+        const left = Math.max(reg.capacity - seatsTaken, 0);
+        throw new functions.https.HttpsError('resource-exhausted',
+          `Sorry, only ${left} spot${left === 1 ? '' : 's'} left for this event.`);
       }
 
-      const referenceCode = sanitizeReferenceCode(reg.refPrefix, lastName);
+      const referenceCode = sanitizeReferenceCode(reg.refPrefix, contactLastName);
 
       t.set(regRef, {
-        firstName,
-        lastName,
-        phone: phone || null,
-        email: email || null,
-        assembly: assembly || null,
-        answers: cleanAnswers,
+        contact: {
+          firstName: contactFirstName,
+          lastName: contactLastName,
+          phone: phone || null,
+          phoneKey: phoneKey || null,
+          email: email || null,
+          emailKey: emailKey || null,
+          assembly: assembly || null,
+        },
+        attendees,
+        seatsUsed: seatsNeeded,
         referenceCode,
         proofOfPaymentUrl: null,
         paymentConfirmed: false,
         uid: context.auth ? context.auth.uid : null,
         submittedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-      t.update(eventRef, { 'registration.seatsTaken': seatsTaken + 1 });
+      t.update(eventRef, { 'registration.seatsTaken': seatsTaken + seatsNeeded });
 
-      return { title: event.title, referenceCode };
+      return { title: event.title, referenceCode, seatsUsed: seatsNeeded };
     });
 
     // Best-effort SMS confirmation — never blocks or fails the registration
     // itself. Email confirmation is provisioned but not wired yet (Phase B4;
     // see sendEmail()).
+    const partySuffix = result.seatsUsed > 1 ? ` (${result.seatsUsed} people)` : '';
     if (phone) {
-      const lines = [`You're registered for ${result.title || 'the event'}.`];
+      const lines = [`You're registered for ${result.title || 'the event'}${partySuffix}.`];
       if (result.referenceCode) lines.push(`Your reference: ${result.referenceCode}.`);
       await sendSms(phone, `EGC Registration\n\n${lines.join(' ')}`);
     }
