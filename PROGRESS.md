@@ -45,7 +45,7 @@ Google login) — not required.
 
 **Date:** 2026-07-06
 **PR:** #308
-**Status:** Open
+**Status:** Merged, deployed (hosting via CI; Cloud Functions + Firestore rules + Storage rules deployed — attachRegistrationProof live)
 
 ### What was done
 
