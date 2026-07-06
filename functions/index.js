@@ -1770,11 +1770,12 @@ exports.cancelCottageRegistration = functions.https.onCall(async (data, context)
 // form can't be trusted to self-validate which fields are required or to
 // self-report which audience gate it's allowed through.
 //
-// Phase B1 has no capacity enforcement yet (Phase B2) — registration.seatsTaken
-// is still incremented here (best-effort running count) purely so the admin
-// registrations list can show a count without an extra subcollection read per
-// event; nothing rejects a submission once a capacity number is reached until
-// B2 wraps this in a transaction.
+// Capacity (Phase B2): registration.capacity is optional — null/absent means
+// unlimited (e.g. a family camp where people bring their own tents). When
+// set, the write happens inside a transaction that re-reads seatsTaken and
+// rejects once capacity is reached, mirroring registerForCottageMeeting's
+// transaction exactly — a plain read-then-write couldn't safely enforce a
+// hard cap under concurrent submissions.
 
 function sanitizeReferenceCode(prefix, lastName) {
   if (!prefix) return null;
@@ -1802,17 +1803,17 @@ exports.registerForEvent = functions
     }
 
     const eventRef = db.collection('events').doc(eventId);
-    const eventSnap = await eventRef.get();
-    if (!eventSnap.exists) {
+
+    // Membership/audience check happens once up front (fail fast on the
+    // common case) — the transaction below re-reads registration.enabled and
+    // capacity fresh anyway, since those can legitimately change between
+    // this check and the write (an admin editing the event, or another
+    // concurrent submission filling the last seat).
+    const preSnap = await eventRef.get();
+    if (!preSnap.exists) {
       throw new functions.https.HttpsError('not-found', 'Event not found.');
     }
-    const event = eventSnap.data();
-    const reg = event.registration || {};
-    if (!reg.enabled) {
-      throw new functions.https.HttpsError('failed-precondition', 'Registration is not open for this event.');
-    }
-
-    if (reg.audience === 'members') {
+    if ((preSnap.data().registration || {}).audience === 'members') {
       if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'You must be signed in as a member to register for this event.');
       }
@@ -1823,55 +1824,73 @@ exports.registerForEvent = functions
       }
     }
 
-    // Validate required dynamic questions, then drop any answer keyed to a
-    // field id that isn't (or no longer is) part of this event's schema — a
-    // guard against a stale client form submitting for questions that were
-    // since edited or removed.
-    const fields = Array.isArray(reg.fields) ? reg.fields : [];
-    for (const f of fields) {
-      const val = answers[f.id];
-      if (f.required && !(val !== undefined && val !== null && String(val).trim())) {
-        throw new functions.https.HttpsError('invalid-argument', `"${f.label}" is required.`);
-      }
-    }
-    const fieldIds = new Set(fields.map((f) => f.id));
-    const cleanAnswers = {};
-    Object.keys(answers).forEach((k) => {
-      if (fieldIds.has(k)) cleanAnswers[k] = String(answers[k]).slice(0, 2000);
-    });
-
-    const referenceCode = sanitizeReferenceCode(reg.refPrefix, lastName);
-
     const regRef = eventRef.collection('registrations').doc();
-    await regRef.set({
-      firstName,
-      lastName,
-      phone: phone || null,
-      email: email || null,
-      assembly: assembly || null,
-      answers: cleanAnswers,
-      referenceCode,
-      proofOfPaymentUrl: null,
-      paymentConfirmed: false,
-      uid: context.auth ? context.auth.uid : null,
-      submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    await eventRef.update({
-      'registration.seatsTaken': admin.firestore.FieldValue.increment(1),
+
+    const result = await db.runTransaction(async (t) => {
+      const eventSnap = await t.get(eventRef);
+      if (!eventSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'Event not found.');
+      }
+      const event = eventSnap.data();
+      const reg = event.registration || {};
+      if (!reg.enabled) {
+        throw new functions.https.HttpsError('failed-precondition', 'Registration is not open for this event.');
+      }
+
+      // Validate required dynamic questions, then drop any answer keyed to a
+      // field id that isn't (or no longer is) part of this event's schema —
+      // a guard against a stale client form submitting for questions that
+      // were since edited or removed.
+      const fields = Array.isArray(reg.fields) ? reg.fields : [];
+      for (const f of fields) {
+        const val = answers[f.id];
+        if (f.required && !(val !== undefined && val !== null && String(val).trim())) {
+          throw new functions.https.HttpsError('invalid-argument', `"${f.label}" is required.`);
+        }
+      }
+      const fieldIds = new Set(fields.map((f) => f.id));
+      const cleanAnswers = {};
+      Object.keys(answers).forEach((k) => {
+        if (fieldIds.has(k)) cleanAnswers[k] = String(answers[k]).slice(0, 2000);
+      });
+
+      const seatsTaken = reg.seatsTaken || 0;
+      if (typeof reg.capacity === 'number' && reg.capacity > 0 && seatsTaken >= reg.capacity) {
+        throw new functions.https.HttpsError('resource-exhausted', 'Sorry, this event is full.');
+      }
+
+      const referenceCode = sanitizeReferenceCode(reg.refPrefix, lastName);
+
+      t.set(regRef, {
+        firstName,
+        lastName,
+        phone: phone || null,
+        email: email || null,
+        assembly: assembly || null,
+        answers: cleanAnswers,
+        referenceCode,
+        proofOfPaymentUrl: null,
+        paymentConfirmed: false,
+        uid: context.auth ? context.auth.uid : null,
+        submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      t.update(eventRef, { 'registration.seatsTaken': seatsTaken + 1 });
+
+      return { title: event.title, referenceCode };
     });
 
     // Best-effort SMS confirmation — never blocks or fails the registration
     // itself. Email confirmation is provisioned but not wired yet (Phase B4;
     // see sendEmail()).
     if (phone) {
-      const lines = [`You're registered for ${event.title || 'the event'}.`];
-      if (referenceCode) lines.push(`Your reference: ${referenceCode}.`);
+      const lines = [`You're registered for ${result.title || 'the event'}.`];
+      if (result.referenceCode) lines.push(`Your reference: ${result.referenceCode}.`);
       await sendSms(phone, `EGC Registration\n\n${lines.join(' ')}`);
     }
-    await sendEmail(email, `Registration confirmed — ${event.title || 'Event'}`,
-      referenceCode ? `Your reference: ${referenceCode}` : 'Your registration has been received.');
+    await sendEmail(email, `Registration confirmed — ${result.title || 'Event'}`,
+      result.referenceCode ? `Your reference: ${result.referenceCode}` : 'Your registration has been received.');
 
-    return { registrationId: regRef.id, referenceCode };
+    return { registrationId: regRef.id, referenceCode: result.referenceCode };
   });
 
 // Placeholder for Phase B4 — no email provider is configured yet (the church

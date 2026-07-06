@@ -450,19 +450,21 @@ Functions are organised by trigger type:
 - `registerForCottageMeeting` — callable from `/members/cottage.html` — transactionally reserves seats (no overselling), enforces one active registration per member, writes `/cottageRegistrations/{uid}` (incl. the member's phone, captured at registration), increments the meeting's `seatsTaken`, and sends an in-app + push confirmation with the venue/date/time. **Phase 2:** also sends an **SMS via SMSPortal** (`POST rest.smsportal.com/v3/BulkMessages`, Basic auth) when the member **opts in** (a checkbox on the register form, default off) and a number is available, and the `SMSPORTAL_CLIENT_ID` / `SMSPORTAL_API_SECRET` secrets are set — best-effort, never blocks registration. The member's profile number is authoritative (edited on `/profile.html`); a number is only typed at registration when the profile has none, and that number **back-fills the profile** (only when empty). WhatsApp + per-member channel preferences are a planned later phase. **Deploy note:** both SMSPORTAL secrets must exist in Secret Manager before deploying this function (listed in its `runWith`).
 - `cancelCottageRegistration` — callable from `/members/cottage.html` — transactionally frees the seats and deletes the member's registration.
 
-### Event Registration (Phase B1 — see `docs/EVENT_REGISTRATION.md`)
+### Event Registration (Phases B1-B2 — see `docs/EVENT_REGISTRATION.md`)
 
 - `registerForEvent` — callable from `events.html`'s registration modal — may be called by a
   signed-in member OR a fully unauthenticated visitor depending on the event's
   `registration.audience` setting, since this must also work for people from other assemblies
   with no account on this app (unlike RSVP, which is member-only and writes directly from the
-  client). Validates the audience gate and each dynamic question's `required` flag server-side,
-  writes `/events/{eventId}/registrations/{id}`, generates a `referenceCode`
-  (`refPrefix + '-' + SURNAME`) for quoting on an EFT/deposit, increments
-  `registration.seatsTaken` (a running count for the admin badge — Phase B1 has no capacity
-  *enforcement* yet, that's Phase B2), and sends a best-effort SMS confirmation via the existing
-  SMSPortal integration. Email confirmation is provisioned (`sendEmail()`) but no-ops until a
-  real provider is wired in (Phase B4, blocked on the church's own comms mailbox existing).
+  client). Validates the audience gate up front, then runs the actual write inside a transaction
+  that re-reads `registration.enabled`, each dynamic question's `required` flag, and — Phase B2 —
+  `registration.capacity` vs `seatsTaken`, rejecting with `resource-exhausted` once a capacity-
+  limited event is full; mirrors `registerForCottageMeeting`'s transaction exactly. `capacity` is
+  optional (`null`/absent = unlimited). Writes `/events/{eventId}/registrations/{id}`, generates a
+  `referenceCode` (`refPrefix + '-' + SURNAME`) for quoting on an EFT/deposit, and sends a
+  best-effort SMS confirmation via the existing SMSPortal integration. Email confirmation is
+  provisioned (`sendEmail()`) but no-ops until a real provider is wired in (Phase B4, blocked on
+  the church's own comms mailbox existing).
 
 ### YouTube Integration (Sermon Tools)
 
@@ -550,9 +552,11 @@ Functions are organised by trigger type:
                                          above; enforced server-side in registerForEvent
     refPrefix: string | null          ← e.g. "YC-202603", used to build each registrant's
                                          referenceCode
+    capacity: number | null           ← Phase B2 — null/absent = unlimited; set = hard limit,
+                                         enforced transactionally in registerForEvent
     fields: [{ id, label, type, required, options }]  ← admin-defined dynamic questions
-    seatsTaken: number                ← running count, maintained by registerForEvent; no
-                                         capacity *enforcement* yet (Phase B2)
+    seatsTaken: number                ← running count + Phase B2 capacity check, both
+                                         maintained transactionally by registerForEvent
   }
 
 /events/{eventId}/registrations/{id}  ← Phase B1 (Event Registration) — written ONLY by

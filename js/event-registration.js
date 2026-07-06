@@ -18,6 +18,15 @@ function buildRegisterButton(event) {
   const reg = event.registration || {};
   if (!reg.enabled) return '';
   if (reg.audience === 'members' && !userIsMember) return '';
+
+  // Capacity (Phase B2) — proactively show "Full" rather than only failing on
+  // submit. This is a courtesy display only; registerForEvent still enforces
+  // the actual limit server-side (this count can be stale by the time of
+  // submission under concurrent registrations).
+  if (typeof reg.capacity === 'number' && reg.capacity > 0 && (reg.seatsTaken || 0) >= reg.capacity) {
+    return `<span class="text-xs font-medium px-3 py-1.5 rounded-full bg-zinc-100 text-zinc-400"><i class="fas fa-ban mr-1"></i>Registration full</span>`;
+  }
+
   return `
     <button onclick="openRegistrationModal('${event.id}')"
             class="text-xs font-medium px-3 py-1.5 rounded-full border transition-all border-indigo-300 text-indigo-700 hover:bg-indigo-50">
