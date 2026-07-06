@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-06
-**Current milestone:** Session 187 — small Event Registration form tweak: "Add another person" moved to the bottom of the attendees section; confirmed (no code change needed) that registration confirmations already attempt both SMS and email to the contact. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
+**Current milestone:** Session 188 — admin "Delete" button for individual event registrations, incl. their uploaded proof-of-payment file. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,42 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: feat — Admin delete registration (Session 188)
+
+**Date:** 2026-07-06
+**PR:** #317
+**Status:** Open
+
+### What was done
+
+Admin request: a way to fully remove a registration (e.g. a declined one) including its
+uploaded proof-of-payment file, not just decline it.
+
+- `admin/events.html` — new "Delete" button on every registration row. Confirms first
+  (mentioning the proof file specifically when one exists, since that's also being removed).
+  Implemented as a direct client write (same reasoning as `togglePaymentConfirmed` — a trusted
+  admin cleanup action, not exposed to untrusted callers), not a new Cloud Function:
+  - If the registration was still `"pending"` or `"approved"` (seats still reserved) — releases
+    those seats on the event's `registration.seatsTaken` first. A `"declined"` registration
+    already had its seats released by `setRegistrationStatus`, so this only matters if an admin
+    deletes one directly without declining first.
+  - Deletes the uploaded proof-of-payment file from Storage via `deleteMedia()`
+    (`js/storage-upload.js`) if one exists.
+  - Deletes the registration document itself.
+  - Refreshes the registrations list and the event card's seatsTaken badge.
+- No rules or Storage rules changes needed — `events.manage` already has unrestricted `update`
+  on the event doc, `delete` on a registration doc, and `delete` on its Storage file; this was
+  purely a missing admin UI action, not a missing permission. Confirmed by re-reading
+  `firestore.rules` and `storage.rules` before writing any code.
+- Ran the full rules test suite to confirm nothing regressed (still 215 passing, unchanged since
+  no rules were touched). No SW cache bump needed — `admin/events.html` is network-first (HTML).
+
+### Deploy notes
+
+Hosting-only — deploys via CI on merge. No Cloud Functions, rules, or Storage changes.
 
 ---
 

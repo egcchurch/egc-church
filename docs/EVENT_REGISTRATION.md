@@ -200,9 +200,13 @@ Storage (Phase B3):
   permission: `"public"` = anyone (including signed-out visitors), `"members"` = signed-in
   members only. Enforced inside `registerForEvent`, mirroring how `registerForCottageMeeting`
   enforces membership today.
-- **Reading registrations / marking paid / approving / declining** — `events.manage` only. A
-  registrant never has read access to any submission (including their own, currently) — same
-  posture as `/connect`, where a submitter can't read back their own form either.
+- **Reading registrations / marking paid / approving / declining / deleting** — `events.manage`
+  only. A registrant never has read access to any submission (including their own, currently) —
+  same posture as `/connect`, where a submitter can't read back their own form either. Deleting a
+  registration (`admin/events.html`) also removes its uploaded proof-of-payment file from
+  Storage and releases any still-reserved seats if it wasn't already declined — a plain client
+  write, not a Cloud Function, since no rule or Storage-permission gap needed closing (an
+  `events.manage` holder already has unrestricted delete on both).
 
 ---
 

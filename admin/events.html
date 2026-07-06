@@ -642,6 +642,13 @@
                 </button>
                 ${status !== 'approved' ? `<button onclick="setRegistrationStatus('${eventId}', '${d.id}', 'approved')" class="text-xs px-2 py-0.5 rounded-full font-medium bg-green-50 text-green-700 hover:bg-green-100 transition"><i class="fas fa-check mr-1"></i>Approve</button>` : ''}
                 ${status !== 'declined' ? `<button onclick="setRegistrationStatus('${eventId}', '${d.id}', 'declined')" class="text-xs px-2 py-0.5 rounded-full font-medium bg-red-50 text-red-700 hover:bg-red-100 transition"><i class="fas fa-times mr-1"></i>Decline</button>` : ''}
+                <button data-proof-url="${r.proofOfPaymentUrl ? escAttr(r.proofOfPaymentUrl) : ''}"
+                        data-seats-used="${r.seatsUsed || attendees.length}"
+                        data-status="${status}"
+                        onclick="deleteRegistration('${eventId}', '${d.id}', this)"
+                        class="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 hover:bg-red-200 transition ml-auto">
+                  <i class="fas fa-trash mr-1"></i>Delete
+                </button>
               </div>
             </div>`;
         }).join('');
@@ -679,6 +686,48 @@
         loadEvents(); // refresh the seatsTaken badge on the event card
       } catch (err) {
         showToast('Failed to update status: ' + err.message, 'error');
+      }
+    }
+
+    // Permanently removes a registration: releases any still-reserved seats
+    // (only relevant if deleted directly without declining first — a
+    // declined registration already had its seats released by
+    // setRegistrationStatus), deletes the uploaded proof-of-payment file
+    // from Storage if one exists (js/storage-upload.js, the only module
+    // that talks to Storage), then deletes the Firestore doc itself. Done
+    // as a direct client write rather than a Cloud Function — same
+    // reasoning as togglePaymentConfirmed, this is a trusted admin cleanup
+    // action, not something exposed to untrusted callers.
+    async function deleteRegistration(eventId, registrationId, btn) {
+      const proofUrl = btn.dataset.proofUrl || '';
+      const seatsUsed = parseInt(btn.dataset.seatsUsed, 10) || 0;
+      const status = btn.dataset.status;
+
+      const confirmMsg = proofUrl
+        ? 'Permanently delete this registration and its uploaded proof-of-payment file? This cannot be undone.'
+        : 'Permanently delete this registration? This cannot be undone.';
+      if (!confirm(confirmMsg)) return;
+
+      try {
+        if (status === 'pending' || status === 'approved') {
+          const eventRef = db.collection('events').doc(eventId);
+          const eventSnap = await eventRef.get();
+          const eventReg = (eventSnap.data() || {}).registration || {};
+          const seatsTaken = eventReg.seatsTaken || 0;
+          await eventRef.update({ 'registration.seatsTaken': Math.max(seatsTaken - seatsUsed, 0) });
+        }
+
+        if (proofUrl) {
+          await deleteMedia(proofUrl);
+        }
+
+        await db.collection('events').doc(eventId).collection('registrations').doc(registrationId).delete();
+
+        showToast('Registration deleted.', 'success');
+        await loadRegistrationsList(eventId);
+        loadEvents();
+      } catch (err) {
+        showToast('Failed to delete registration: ' + err.message, 'error');
       }
     }
 
