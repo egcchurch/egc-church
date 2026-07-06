@@ -9,8 +9,8 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-07-06
-**Current milestone:** Session 189 — per-event custom confirmation message template (`registration.confirmationTemplate`) with `{{title}}`/`{{referenceCode}}`/`{{firstName}}`/`{{lastName}}`/`{{seatsUsed}}` placeholders, replacing the built-in confirmation SMS/email when set. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
+**Last worked on:** 2026-07-07
+**Current milestone:** Session 190 — homepage announcement banner gets an optional "Expires on" date (`announcement.expiresOn`); hidden client-side past that date even if still marked Visible. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,45 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: feat — Homepage announcement expiry date (Session 190)
+
+**Date:** 2026-07-07
+**PR:** #319
+**Status:** Open
+
+### What was done
+
+Admin request: put an announcement on the homepage banner that automatically stops showing on a
+given day, instead of having to remember to come back and turn it off manually.
+
+- `admin/homepage.html` — new "Expires on (optional)" date input in the Announcement Banner
+  section, saved as `announcement.expiresOn` (`YYYY-MM-DD` string, or `null` for no expiry). An
+  "Expired" badge appears next to the Visible toggle once the date has passed, live-updated as
+  the date field changes — since Firestore's `visible` flag itself never auto-flips off (no
+  Cloud Function involved), this keeps the admin from being misled into thinking a banner is
+  still live once visitors can no longer see it.
+- `js/homepage.js` — `applyContent()` now also checks `expiresOn` before showing the banner
+  (`ann.visible && (!ann.expiresOn || ann.expiresOn >= today)`), alongside the existing `visible`
+  flag. Every event without an expiry date set (i.e. every announcement today) keeps behaving
+  exactly as before — the field is opt-in and blank by default.
+- Purely a client-side date check, not a scheduled Cloud Function — this is a low-stakes homepage
+  banner with no concurrency/capacity concerns (unlike e.g. cottage meeting seats), so a
+  server-side auto-disable job would be overkill. The one accepted trade-off: a visitor who
+  already has the homepage open when the expiry date rolls over at midnight won't see the banner
+  disappear until the page reloads or the doc changes again (the listener is real-time on writes,
+  not on a clock tick) — the same class of edge case as other date-based checks in this codebase.
+- `CLAUDE.md` — corrected `announcement.active` (never the real field name) to `visible`
+  (matching the actual code) while documenting the new `expiresOn` field.
+- No rules changes — `expiresOn` is just a new field inside the existing `announcement` map, and
+  `homepage.manage` already has unrestricted write on `/homepage/content`. Ran the full rules
+  suite to confirm (still 215 passing). SW cache bumped to v91 (`js/homepage.js` changed).
+
+### Deploy notes
+
+Hosting-only — deploys via CI on merge. No Cloud Functions, rules, or Storage changes.
 
 ---
 

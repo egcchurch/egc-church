@@ -706,7 +706,13 @@ Functions are organised by trigger type:
 
 /homepage/content                           ← singleton doc (Phase 5 + Phase 7)
   tagline: string
-  announcement: { active: bool, title: string, body: string }
+  announcement: { visible: bool, title: string, body: string, expiresOn: "YYYY-MM-DD" | null }
+                                             ← expiresOn is optional (Session 190) — js/homepage.js
+                                               hides the banner client-side once past this date,
+                                               even if visible is still true; admin/homepage.html
+                                               shows an "Expired" badge as a reminder to turn it
+                                               off, since Firestore's visible flag itself never
+                                               auto-flips (no Cloud Function involved)
   serviceTimes: [{ label, day, time }]
   liveStream: {                             ← Phase 7 — managed from admin/homepage.html
     active: true | false,
