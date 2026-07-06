@@ -1,5 +1,5 @@
 // js/event-registration.js — public registration modal for events.html
-// (Event Registration Phase B1, see docs/EVENT_REGISTRATION.md).
+// (Event Registration, see docs/EVENT_REGISTRATION.md).
 //
 // Separate from RSVP (member-only, direct client write to the rsvps array):
 // registration must also work for people from other assemblies with no
@@ -7,12 +7,19 @@
 // Cloud Function rather than a client Firestore write, and the audience gate
 // (public vs members) is enforced there, not just in this UI.
 //
+// Party model (Phase C1): one contact (whoever is filling in the form) can
+// register one or more attendees in a single submission — e.g. a parent
+// registering their 3 children. The contact isn't assumed to be an attendee
+// themselves. Each attendee gets their own copy of the event's dynamic
+// questions (a T-shirt size or dietary need is per-child, not per-family).
+//
 // Reads currentUser / userIsMember / allEvents — globals owned by js/events.js,
 // which always loads before this file and resolves them before a user could
 // possibly click a Register button (auth state settles well before any
 // interaction is possible).
 
 let regModalEventId = null;
+let attendeeIdx = 0; // running counter for unique attendee block IDs, never reused
 
 function buildRegisterButton(event) {
   const reg = event.registration || {};
@@ -38,9 +45,11 @@ function openRegistrationModal(eventId) {
   const event = allEvents.find((e) => e.id === eventId);
   if (!event) return;
   regModalEventId = eventId;
+  attendeeIdx = 0;
 
   document.getElementById('registration-modal-title').textContent = `Register — ${event.title}`;
-  document.getElementById('registration-modal-body').innerHTML = buildRegistrationForm(event);
+  document.getElementById('registration-modal-body').innerHTML = buildRegistrationForm();
+  addAttendeeRow(); // every registration starts with at least one attendee
   document.getElementById('registration-modal').classList.remove('hidden');
 }
 
@@ -49,12 +58,10 @@ function closeRegistrationModal() {
   regModalEventId = null;
 }
 
-function buildRegistrationForm(event) {
-  const fields = (event.registration && event.registration.fields) || [];
-  const dynamicHtml = fields.map((f) => buildDynamicField(f)).join('');
-
+function buildRegistrationForm() {
   return `
     <div class="space-y-3 mt-4">
+      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Your details</p>
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">First name *</label>
@@ -65,19 +72,32 @@ function buildRegistrationForm(event) {
           <input id="reg-last-name" type="text" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
         </div>
       </div>
-      <div>
-        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Phone</label>
-        <input id="reg-phone" type="tel" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Phone</label>
+          <input id="reg-phone" type="tel" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Email</label>
+          <input id="reg-email" type="email" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
       </div>
-      <div>
-        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Email</label>
-        <input id="reg-email" type="email" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
-      </div>
+      <p class="text-xs text-gray-400">At least a phone number or email is required, so we can find your registration again if needed.</p>
       <div>
         <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Home assembly (if not EGC)</label>
         <input id="reg-assembly" type="text" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
       </div>
-      ${dynamicHtml}
+
+      <div class="pt-2 border-t border-gray-100">
+        <div class="flex items-center justify-between mt-3 mb-2">
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Who's attending</p>
+          <button type="button" onclick="addAttendeeRow()" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium border border-indigo-200 hover:border-indigo-300 px-3 py-1 rounded-full transition-all">
+            <i class="fas fa-plus mr-1"></i>Add another person
+          </button>
+        </div>
+        <div id="reg-attendees-container" class="space-y-3"></div>
+      </div>
+
       <div>
         <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Proof of payment (optional)</label>
         <label class="flex items-center gap-2 cursor-pointer bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-sm px-4 py-2.5 rounded-xl transition w-fit">
@@ -87,6 +107,7 @@ function buildRegistrationForm(event) {
         <p class="text-xs text-gray-400 mt-1">A photo or scan of your deposit slip/EFT confirmation, if you've already paid. You can also send this later.</p>
       </div>
       <div id="registration-form-msg" class="hidden text-sm font-medium text-red-500"></div>
+      <div id="registration-duplicate-msg" class="hidden text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3"></div>
       <div class="flex gap-3 pt-2">
         <button onclick="submitRegistration()" id="registration-submit-btn"
                 class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
@@ -100,14 +121,58 @@ function buildRegistrationForm(event) {
     </div>`;
 }
 
+function addAttendeeRow() {
+  const idx = attendeeIdx++;
+  const event = allEvents.find((e) => e.id === regModalEventId);
+  const fields = (event && event.registration && event.registration.fields) || [];
+  const dynamicHtml = fields.map((f) => buildDynamicField(f, idx)).join('');
+
+  const block = document.createElement('div');
+  block.className = 'attendee-block border border-gray-100 rounded-xl p-3 space-y-2';
+  block.id = 'attendee-block-' + idx;
+  block.innerHTML = `
+    <div class="flex items-center justify-between gap-2">
+      <p class="text-xs font-semibold text-gray-600">Person ${document.querySelectorAll('.attendee-block').length + 1}</p>
+      <button type="button" onclick="removeAttendeeRow(${idx})" class="text-gray-300 hover:text-red-500 text-xs"><i class="fas fa-trash"></i></button>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">First name *</label>
+        <input id="reg-att-${idx}-first-name" type="text" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Last name *</label>
+        <input id="reg-att-${idx}-last-name" type="text" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+      </div>
+    </div>
+    ${dynamicHtml}`;
+  document.getElementById('reg-attendees-container').appendChild(block);
+}
+
+function removeAttendeeRow(idx) {
+  const blocks = document.querySelectorAll('.attendee-block');
+  if (blocks.length <= 1) {
+    const msgEl = document.getElementById('registration-form-msg');
+    msgEl.textContent = 'At least one attendee is required.';
+    msgEl.classList.remove('hidden');
+    return;
+  }
+  document.getElementById('attendee-block-' + idx)?.remove();
+  // Renumber the visible "Person N" labels left to right.
+  document.querySelectorAll('.attendee-block').forEach((el, i) => {
+    const label = el.querySelector('p');
+    if (label) label.textContent = `Person ${i + 1}`;
+  });
+}
+
 function onProofFileSelected(e) {
   const file = e.target.files[0];
   document.getElementById('reg-proof-filename').textContent = file ? file.name : 'Choose file';
 }
 
-function buildDynamicField(f) {
+function buildDynamicField(f, idx) {
   const req = f.required ? ' *' : '';
-  const id = 'reg-dyn-' + f.id;
+  const id = `reg-att-${idx}-dyn-${f.id}`;
   let control;
   if (f.type === 'textarea') {
     control = `<textarea id="${id}" rows="3" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"></textarea>`;
@@ -131,32 +196,73 @@ function buildDynamicField(f) {
     </div>`;
 }
 
-async function submitRegistration() {
+// Reads the current form state into { contact, attendees } — used both for
+// the initial submit attempt and for the resubmit-with-confirmDuplicate retry,
+// so the two stay perfectly in sync.
+function collectRegistrationPayload(event) {
+  const fields = (event.registration && event.registration.fields) || [];
+  const attendees = [];
+  document.querySelectorAll('.attendee-block').forEach((block) => {
+    const idx = block.id.replace('attendee-block-', '');
+    const firstName = document.getElementById(`reg-att-${idx}-first-name`).value.trim();
+    const lastName = document.getElementById(`reg-att-${idx}-last-name`).value.trim();
+    const answers = {};
+    fields.forEach((f) => {
+      const el = document.getElementById(`reg-att-${idx}-dyn-${f.id}`);
+      if (!el) return;
+      const val = f.type === 'checkbox' ? (el.checked ? 'Yes' : '') : el.value.trim();
+      if (val) answers[f.id] = val;
+    });
+    attendees.push({ firstName, lastName, answers });
+  });
+
+  return {
+    contact: {
+      firstName: document.getElementById('reg-first-name').value.trim(),
+      lastName: document.getElementById('reg-last-name').value.trim(),
+      phone: document.getElementById('reg-phone').value.trim(),
+      email: document.getElementById('reg-email').value.trim(),
+      assembly: document.getElementById('reg-assembly').value.trim(),
+    },
+    attendees,
+  };
+}
+
+function validateRegistrationPayload(payload, event) {
+  if (!payload.contact.firstName || !payload.contact.lastName) {
+    return 'Your first and last name are required.';
+  }
+  if (!payload.contact.phone && !payload.contact.email) {
+    return 'A phone number or email address is required.';
+  }
+  const fields = (event.registration && event.registration.fields) || [];
+  for (const a of payload.attendees) {
+    if (!a.firstName || !a.lastName) {
+      return 'Each attendee needs a first and last name.';
+    }
+    for (const f of fields) {
+      if (f.required && !a.answers[f.id]) {
+        return `"${f.label}" is required for ${a.firstName}.`;
+      }
+    }
+  }
+  return null;
+}
+
+async function submitRegistration(confirmDuplicate) {
   const event = allEvents.find((e) => e.id === regModalEventId);
   if (!event) return;
   const msgEl = document.getElementById('registration-form-msg');
+  const dupEl = document.getElementById('registration-duplicate-msg');
   msgEl.classList.add('hidden');
+  dupEl.classList.add('hidden');
 
-  const firstName = document.getElementById('reg-first-name').value.trim();
-  const lastName  = document.getElementById('reg-last-name').value.trim();
-  if (!firstName || !lastName) {
-    msgEl.textContent = 'First and last name are required.';
+  const payload = collectRegistrationPayload(event);
+  const validationError = validateRegistrationPayload(payload, event);
+  if (validationError) {
+    msgEl.textContent = validationError;
     msgEl.classList.remove('hidden');
     return;
-  }
-
-  const fields = (event.registration && event.registration.fields) || [];
-  const answers = {};
-  for (const f of fields) {
-    const el = document.getElementById('reg-dyn-' + f.id);
-    if (!el) continue;
-    const val = f.type === 'checkbox' ? (el.checked ? 'Yes' : '') : el.value.trim();
-    if (f.required && !val) {
-      msgEl.textContent = `"${f.label}" is required.`;
-      msgEl.classList.remove('hidden');
-      return;
-    }
-    if (val) answers[f.id] = val;
   }
 
   const btn = document.getElementById('registration-submit-btn');
@@ -169,11 +275,9 @@ async function submitRegistration() {
     const registerFn = firebase.functions().httpsCallable('registerForEvent');
     const result = await registerFn({
       eventId: regModalEventId,
-      firstName, lastName,
-      phone: document.getElementById('reg-phone').value.trim(),
-      email: document.getElementById('reg-email').value.trim(),
-      assembly: document.getElementById('reg-assembly').value.trim(),
-      answers,
+      contact: payload.contact,
+      attendees: payload.attendees,
+      confirmDuplicate: !!confirmDuplicate,
     });
 
     const ref = result.data.referenceCode;
@@ -210,6 +314,29 @@ async function submitRegistration() {
         </button>
       </div>`;
   } catch (err) {
+    // Deduplication (Phase C1) — a soft warn, not a hard failure. The server
+    // returns 'already-exists' (with the existing registration's submission
+    // date in err.details) instead of a plain rejection; show a confirm
+    // prompt and, if accepted, resubmit the identical payload with
+    // confirmDuplicate: true rather than treating it as an error.
+    const code = err && (err.code || '').replace(/^functions\//, '');
+    if (code === 'already-exists') {
+      const details = err.details || (err.customData && err.customData.details) || null;
+      const submittedAt = details && details.submittedAt
+        ? new Date(details.submittedAt).toLocaleDateString('en-ZA', { dateStyle: 'medium' })
+        : null;
+      dupEl.innerHTML = `
+        There's already a registration for this phone number or email${submittedAt ? `, submitted on ${escHtml(submittedAt)}` : ''}.
+        Are you sure you want to create another one?
+        <div class="flex gap-3 mt-3">
+          <button onclick="submitRegistration(true)" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-1.5 rounded-full text-xs font-medium transition-all">Yes, register anyway</button>
+          <button onclick="document.getElementById('registration-duplicate-msg').classList.add('hidden')" class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-4 py-1.5 rounded-full text-xs font-medium transition-all">Cancel</button>
+        </div>`;
+      dupEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Submit';
+      return;
+    }
     msgEl.textContent = err.message || 'Failed to submit. Please try again.';
     msgEl.classList.remove('hidden');
     btn.disabled = false;

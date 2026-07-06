@@ -450,21 +450,25 @@ Functions are organised by trigger type:
 - `registerForCottageMeeting` — callable from `/members/cottage.html` — transactionally reserves seats (no overselling), enforces one active registration per member, writes `/cottageRegistrations/{uid}` (incl. the member's phone, captured at registration), increments the meeting's `seatsTaken`, and sends an in-app + push confirmation with the venue/date/time. **Phase 2:** also sends an **SMS via SMSPortal** (`POST rest.smsportal.com/v3/BulkMessages`, Basic auth) when the member **opts in** (a checkbox on the register form, default off) and a number is available, and the `SMSPORTAL_CLIENT_ID` / `SMSPORTAL_API_SECRET` secrets are set — best-effort, never blocks registration. The member's profile number is authoritative (edited on `/profile.html`); a number is only typed at registration when the profile has none, and that number **back-fills the profile** (only when empty). WhatsApp + per-member channel preferences are a planned later phase. **Deploy note:** both SMSPORTAL secrets must exist in Secret Manager before deploying this function (listed in its `runWith`).
 - `cancelCottageRegistration` — callable from `/members/cottage.html` — transactionally frees the seats and deletes the member's registration.
 
-### Event Registration (Phases B1-B3 — see `docs/EVENT_REGISTRATION.md`)
+### Event Registration (Phases B1-C1 — see `docs/EVENT_REGISTRATION.md`)
 
 - `registerForEvent` — callable from `events.html`'s registration modal — may be called by a
   signed-in member OR a fully unauthenticated visitor depending on the event's
   `registration.audience` setting, since this must also work for people from other assemblies
   with no account on this app (unlike RSVP, which is member-only and writes directly from the
-  client). Validates the audience gate up front, then runs the actual write inside a transaction
-  that re-reads `registration.enabled`, each dynamic question's `required` flag, and
-  `registration.capacity` vs `seatsTaken`, rejecting with `resource-exhausted` once a capacity-
-  limited event is full; mirrors `registerForCottageMeeting`'s transaction exactly. `capacity` is
-  optional (`null`/absent = unlimited). Writes `/events/{eventId}/registrations/{id}`, generates a
-  `referenceCode` (`refPrefix + '-' + SURNAME`) for quoting on an EFT/deposit, and sends a
-  best-effort SMS confirmation via the existing SMSPortal integration. Email confirmation is
-  provisioned (`sendEmail()`) but no-ops until a real provider is wired in (Phase B4, blocked on
-  the church's own comms mailbox existing).
+  client). Party model (Phase C1): one `contact` registers one or more `attendees` in a single
+  submission (e.g. a parent registering 3 children) — one `referenceCode` and one Storage folder
+  cover the whole party, and capacity is charged `attendees.length` seats, not 1. Validates the
+  audience gate up front, checks for a duplicate registration by `contact.phoneKey`/`emailKey`
+  (soft warn via an `already-exists` error carrying the existing submission date, not a hard
+  block — the client resubmits with `confirmDuplicate: true` if the registrant confirms), then
+  runs the actual write inside a transaction that re-reads `registration.enabled`, each attendee's
+  required dynamic answers, and `registration.capacity` vs `seatsTaken`, rejecting with
+  `resource-exhausted` once a capacity-limited event would be oversold; mirrors
+  `registerForCottageMeeting`'s transaction exactly. `capacity` is optional (`null`/absent =
+  unlimited). Sends a best-effort SMS confirmation via the existing SMSPortal integration. Email
+  confirmation is provisioned (`sendEmail()`) but no-ops until a real provider is wired in (Phase
+  B4, blocked on the church's own comms mailbox existing).
 - `attachRegistrationProof` — callable from the same registration modal (Phase B3) — the
   registrant uploads a proof-of-payment file directly to Storage client-side
   (`js/storage-upload.js`), then calls this to persist the resulting URL on their registration
@@ -561,21 +565,30 @@ Functions are organised by trigger type:
                                          referenceCode
     capacity: number | null           ← Phase B2 — null/absent = unlimited; set = hard limit,
                                          enforced transactionally in registerForEvent
-    fields: [{ id, label, type, required, options }]  ← admin-defined dynamic questions
-    seatsTaken: number                ← running count + Phase B2 capacity check, both
-                                         maintained transactionally by registerForEvent
+    fields: [{ id, label, type, required, options }]  ← admin-defined dynamic questions,
+                                         answered per-attendee (Phase C1), not once per registration
+    seatsTaken: number                ← Phase B2 capacity check; Phase C1 changed this to count
+                                         attendees, not registrations (a 3-child party = 3 seats)
   }
 
-/events/{eventId}/registrations/{id}  ← Event Registration (Phases B1-B3) — created ONLY by
+/events/{eventId}/registrations/{id}  ← Event Registration (Phases B1-C1) — created ONLY by
                                          registerForEvent; admin reads/deletes via events.manage,
                                          mirrors /cottageRegistrations. The one client-writable
                                          field is paymentConfirmed (events.manage only, plain
                                          boolean toggle) — everything else is create-only via the
                                          Cloud Functions
-  firstName, lastName                 ← lastName drives referenceCode
-  phone, email, assembly (all nullable — built-in fields, always asked)
-  answers: { [fieldId]: string }      ← dynamic question answers, keyed by registration.fields[].id
-  referenceCode: string | null        ← refPrefix + "-" + uppercased lastName
+  contact: {                          ← Phase C1 — who to reach; NOT assumed to be an attendee
+    firstName, lastName               ← lastName drives referenceCode
+    phone, phoneKey (nullable)        ← phoneKey = normaliseSaNumber(phone), dedup query key
+    email, emailKey (nullable)        ← emailKey = lowercased email, dedup query key
+    assembly (nullable)               ← "which assembly are you from"
+  }                                   ← at least one of phone/email is required
+  attendees: [                        ← Phase C1 — one or more people, e.g. a parent's 3 children
+    { firstName, lastName, answers: { [fieldId]: string } }  ← per-attendee dynamic answers
+  ]
+  seatsUsed: number                   ← Phase C1 — attendees.length
+  referenceCode: string | null        ← refPrefix + "-" + uppercased contact.lastName; one code
+                                         covers the whole party regardless of attendee count
   proofOfPaymentUrl: string | null    ← Phase B3 — set via attachRegistrationProof after the
                                          registrant uploads directly to Storage
   paymentConfirmed: boolean           ← Phase B3 — admin toggles after checking the proof

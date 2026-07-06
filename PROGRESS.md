@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-06
-**Current milestone:** Session 183 — Event Registration Phase B3 delivered (`docs/EVENT_REGISTRATION.md`): proof-of-payment upload + admin "Mark Paid" workflow. Main initiative now complete except Phase B4 (real email), which is blocked. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
+**Current milestone:** Session 184 — Event Registration Phase C1 delivered (`docs/EVENT_REGISTRATION.md`): party model (contact + attendees[]) so one submission can register multiple people under one reference code, plus dedup detection with a soft warn-and-confirm flow. Phase C2 (moderation) and C3 (find my registration) next. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,63 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: feat — Event Registration Phase C1: party model + dedup (Session 184)
+
+**Date:** 2026-07-06
+**PR:** #310
+**Status:** Open
+
+### What was done
+
+Follow-up design conversation after Phase B3 raised four real needs: deduplicating repeat
+registrations, moderating/approving before acceptance, letting a registrant return later to
+upload payment proof, and letting one person register several people (e.g. a mother registering
+her 3 children) under one payment reference. These interact enough that a single schema change —
+restructuring a registration around a **contact** and one or more **attendees** — solves the
+first and last cleanly and sets up the other two (moderation in C2, "find my registration" in
+C3). Full design captured in `docs/EVENT_REGISTRATION.md` as Phase C1-C3.
+
+- `functions/index.js` — `registerForEvent` rewritten:
+  - Accepts `contact: {firstName, lastName, phone, email, assembly}` +
+    `attendees: [{firstName, lastName, answers}]` instead of one flat person. One `referenceCode`
+    and one Storage folder cover the whole party; capacity now charges `attendees.length` seats
+    (a 3-child party uses 3 seats, not 1).
+  - Each attendee's dynamic answers are validated against the event's required fields
+    individually inside the transaction (a T-shirt size or dietary need is per-child).
+  - New deduplication check: before the transaction, queries for an existing registration on
+    this event matching `contact.phoneKey` (normalized via the existing `normaliseSaNumber`
+    helper) or `contact.emailKey` (lowercased). If found and the caller didn't pass
+    `confirmDuplicate: true`, throws `already-exists` carrying the existing registration's
+    submission date — a soft warn, not a hard block, since the legitimate "mother registers her
+    kids separately from her nephews" case needs the registrant's own call, not an admin override.
+  - No index changes — this dedup query is scoped to one event's own registrations subcollection
+    (`eventRef.collection('registrations').where(...)`), not a `collectionGroup()` query, so it's
+    automatically indexed (see Session 179 for why that distinction matters).
+- `admin/events.html` — registrations list now renders the contact plus each attendee separately
+  (with their own per-attendee answers), and shows an attendee count next to the contact's name.
+- `js/event-registration.js` — registration modal reworked: contact fields stay singular, but
+  attendees are now a repeatable block ("Add another person" / remove, at least one required).
+  Catches the `already-exists` error specifically and shows an inline confirm ("already
+  registered on [date] — create another anyway?") rather than treating it as a failure; confirming
+  resubmits the identical payload with `confirmDuplicate: true`.
+- No rules changes — ran the full existing suite to confirm nothing regressed (still 215
+  passing; rules don't validate document shape, only who can read/write, so the schema change
+  doesn't touch them).
+- SW cache bumped to v87 (`js/event-registration.js` changed again).
+
+### Deploy notes
+
+**Cloud Functions changed** (`registerForEvent` rewritten) — after merge run `firebase deploy
+--only functions` manually. No rules or Storage changes.
+
+### Next up
+
+Phase C2 (per-event "Require approval" moderation toggle, pending/approved/declined status,
+admin approve/decline UI) and Phase C3 (public "Find my registration" lookup by reference code +
+phone) — both build directly on the contact/attendees shape landed here.
 
 ---
 
