@@ -863,6 +863,57 @@ describe('Firestore Security Rules', () => {
     });
   });
 
+  describe('Event Registrations subcollection (Event Registration Phase B1)', () => {
+    it('unauthenticated visitor cannot create a registration directly (function-only)', async () => {
+      const db = unauthUser().firestore();
+      await assertFails(setDoc(doc(db, 'events', 'e1', 'registrations', 'r1'), {
+        firstName: 'Jane', lastName: 'Smith', submittedAt: new Date(),
+      }));
+    });
+
+    it('member cannot create a registration directly (function-only)', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      const db = memberUser().firestore();
+      await assertFails(setDoc(doc(db, 'events', 'e1', 'registrations', 'r1'), {
+        firstName: 'Jane', lastName: 'Smith', submittedAt: new Date(),
+      }));
+    });
+
+    it('events.manage holder can read registrations', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'events', 'e1', 'registrations', 'r1'), { firstName: 'Jane', lastName: 'Smith' });
+      });
+      const db = editorUser().firestore();
+      await assertSucceeds(getDoc(doc(db, 'events', 'e1', 'registrations', 'r1')));
+    });
+
+    it('a plain member cannot read registrations', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'events', 'e1', 'registrations', 'r1'), { firstName: 'Jane', lastName: 'Smith' });
+      });
+      const db = memberUser().firestore();
+      await assertFails(getDoc(doc(db, 'events', 'e1', 'registrations', 'r1')));
+    });
+
+    it('events.manage holder can delete a registration (admin cleanup)', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'events', 'e1', 'registrations', 'r1'), { firstName: 'Jane', lastName: 'Smith' });
+      });
+      const db = editorUser().firestore();
+      await assertSucceeds(deleteDoc(doc(db, 'events', 'e1', 'registrations', 'r1')));
+    });
+
+    it('a plain member cannot delete a registration', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'events', 'e1', 'registrations', 'r1'), { firstName: 'Jane', lastName: 'Smith' });
+      });
+      const db = memberUser().firestore();
+      await assertFails(deleteDoc(doc(db, 'events', 'e1', 'registrations', 'r1')));
+    });
+  });
+
   describe('Devotionals collection', () => {
     it('member can read devotionals', async () => {
       await seedUser('member-uid', { membership: 'member' });

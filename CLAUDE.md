@@ -450,6 +450,20 @@ Functions are organised by trigger type:
 - `registerForCottageMeeting` — callable from `/members/cottage.html` — transactionally reserves seats (no overselling), enforces one active registration per member, writes `/cottageRegistrations/{uid}` (incl. the member's phone, captured at registration), increments the meeting's `seatsTaken`, and sends an in-app + push confirmation with the venue/date/time. **Phase 2:** also sends an **SMS via SMSPortal** (`POST rest.smsportal.com/v3/BulkMessages`, Basic auth) when the member **opts in** (a checkbox on the register form, default off) and a number is available, and the `SMSPORTAL_CLIENT_ID` / `SMSPORTAL_API_SECRET` secrets are set — best-effort, never blocks registration. The member's profile number is authoritative (edited on `/profile.html`); a number is only typed at registration when the profile has none, and that number **back-fills the profile** (only when empty). WhatsApp + per-member channel preferences are a planned later phase. **Deploy note:** both SMSPORTAL secrets must exist in Secret Manager before deploying this function (listed in its `runWith`).
 - `cancelCottageRegistration` — callable from `/members/cottage.html` — transactionally frees the seats and deletes the member's registration.
 
+### Event Registration (Phase B1 — see `docs/EVENT_REGISTRATION.md`)
+
+- `registerForEvent` — callable from `events.html`'s registration modal — may be called by a
+  signed-in member OR a fully unauthenticated visitor depending on the event's
+  `registration.audience` setting, since this must also work for people from other assemblies
+  with no account on this app (unlike RSVP, which is member-only and writes directly from the
+  client). Validates the audience gate and each dynamic question's `required` flag server-side,
+  writes `/events/{eventId}/registrations/{id}`, generates a `referenceCode`
+  (`refPrefix + '-' + SURNAME`) for quoting on an EFT/deposit, increments
+  `registration.seatsTaken` (a running count for the admin badge — Phase B1 has no capacity
+  *enforcement* yet, that's Phase B2), and sends a best-effort SMS confirmation via the existing
+  SMSPortal integration. Email confirmation is provisioned (`sendEmail()`) but no-ops until a
+  real provider is wired in (Phase B4, blocked on the church's own comms mailbox existing).
+
 ### YouTube Integration (Sermon Tools)
 
 - `checkYoutubeLiveStatus` — scheduled, every 10 minutes — reads `/homepage/content.serviceTimes` and skips entirely outside a service window (~30 min before to 3 hours after a scheduled service) to conserve API quota; when inside a window, polls the YouTube Data API v3 (`search.list part=id,snippet`, `eventType=live`) for an active broadcast on the configured channel and updates `/homepage/content.liveStream` automatically — including setting `title` from the live video's own YouTube title (HTML entities decoded) so it never shows a stale title from a previous stream. **Exception to the window gate:** if `liveStream.active` is already `true`, ticks keep polling past the window close (capped at 6 hours since `startedAt`) until the stream is confirmed ended — otherwise a broadcast that runs long or ends after the window closes gets stuck showing LIVE until the next scheduled service, possibly days later (this happened in Session 177). Requires the `youtubeApiKey` / `youtubeChannelId` secrets — silently no-ops if unset, leaving the manual "Set Live / End Stream" toggle on `/admin/homepage.html` as the fallback. Frontend consumers of `liveStream` (`members/live.html`, homepage adaptive section, nav LIVE dot) use real-time `onSnapshot` listeners, not one-time gets — pages flip to/from live without a reload, incl. a PWA resumed from memory.
@@ -521,9 +535,37 @@ Functions are organised by trigger type:
   title, description, location
   startDate, endDate (timestamps)
   imageUrl (nullable — Firebase Storage)
-  audience: "public" | "members"
+  audience: "public" | "members"      ← who can SEE this event listed at all
   category: "service" | "group" | "special" | "other"
   published: true | false
+  rsvps: [uid array]                  ← members who tapped RSVP/"Going"; written directly by the
+                                         client (rules allow a member to touch only this field)
+  rsvpEnabled: boolean                ← Phase A (Event Registration) — default true (absent =
+                                         enabled) so pre-existing events keep behaving as before;
+                                         off hides all RSVP UI for purely informational events
+  registration: {                     ← Phase B1 (Event Registration) — off by default, a
+                                         separate subsystem from RSVP, see docs/EVENT_REGISTRATION.md
+    enabled: boolean
+    audience: "public" | "members"    ← who can SUBMIT — independent of the event's own audience
+                                         above; enforced server-side in registerForEvent
+    refPrefix: string | null          ← e.g. "YC-202603", used to build each registrant's
+                                         referenceCode
+    fields: [{ id, label, type, required, options }]  ← admin-defined dynamic questions
+    seatsTaken: number                ← running count, maintained by registerForEvent; no
+                                         capacity *enforcement* yet (Phase B2)
+  }
+
+/events/{eventId}/registrations/{id}  ← Phase B1 (Event Registration) — written ONLY by
+                                         registerForEvent (Cloud Function); admin reads/deletes
+                                         via events.manage, mirrors /cottageRegistrations exactly
+  firstName, lastName                 ← lastName drives referenceCode
+  phone, email, assembly (all nullable — built-in fields, always asked)
+  answers: { [fieldId]: string }      ← dynamic question answers, keyed by registration.fields[].id
+  referenceCode: string | null        ← refPrefix + "-" + uppercased lastName
+  proofOfPaymentUrl: null             ← Phase B3, not yet built
+  paymentConfirmed: false             ← Phase B3, not yet built
+  uid: string | null                  ← set if submitted while signed in; null for public/anonymous
+  submittedAt (timestamp)
 
 /blog/{postId}
   title, body, author
