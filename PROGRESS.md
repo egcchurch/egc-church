@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-06
-**Current milestone:** Session 186 — Event Registration Phase C3 delivered (`docs/EVENT_REGISTRATION.md`): public "Find my registration" lookup. All planned Event Registration phases (A, B1-B3, C1-C3) are now complete. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
+**Current milestone:** Session 187 — small Event Registration form tweak: "Add another person" moved to the bottom of the attendees section; confirmed (no code change needed) that registration confirmations already attempt both SMS and email to the contact. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,36 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: fix — Registration form tweaks (Session 187)
+
+**Date:** 2026-07-06
+**PR:** #315
+**Status:** Open
+
+### What was done
+
+Two small follow-up requests on the just-completed Event Registration initiative:
+
+- **"Send both SMS and email on registration"** — checked `registerForEvent` and
+  `setRegistrationStatus`: both already call `sendSms(contact.phone, ...)` (only when a phone was
+  given) *and* `sendEmail(contact.email, ...)` unconditionally on every path (pending, approved,
+  declined). No code change needed — email is a no-op today only because Phase B4 (a real
+  provider) is still deferred, not because the call is missing; the moment a provider is wired in,
+  both channels fire with zero further changes here.
+- **"Add another person" button position** — moved from the top of the "Who's attending" section
+  (next to the label) to the bottom, after the last attendee block, in
+  `js/event-registration.js`. Matches the natural flow of finishing one person's details and then
+  deciding to add another, rather than having to scroll back up. `addAttendeeRow()`'s behavior is
+  unchanged (still appends inside `#reg-attendees-container`) — only the static button's position
+  in the markup moved, so it now sits below the container instead of above it.
+- SW cache bumped to v90 (`js/event-registration.js` changed).
+
+### Deploy notes
+
+Hosting-only — deploys via CI on merge. No Cloud Functions, rules, or Storage changes.
 
 ---
 

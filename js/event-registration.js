@@ -105,13 +105,11 @@ function buildRegistrationForm() {
       </div>
 
       <div class="pt-2 border-t border-gray-100">
-        <div class="flex items-center justify-between mt-3 mb-2">
-          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Who's attending</p>
-          <button type="button" onclick="addAttendeeRow()" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium border border-indigo-200 hover:border-indigo-300 px-3 py-1 rounded-full transition-all">
-            <i class="fas fa-plus mr-1"></i>Add another person
-          </button>
-        </div>
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3 mb-2">Who's attending</p>
         <div id="reg-attendees-container" class="space-y-3"></div>
+        <button type="button" onclick="addAttendeeRow()" class="mt-3 text-xs text-indigo-600 hover:text-indigo-700 font-medium border border-indigo-200 hover:border-indigo-300 px-3 py-1 rounded-full transition-all">
+          <i class="fas fa-plus mr-1"></i>Add another person
+        </button>
       </div>
 
       <div>
