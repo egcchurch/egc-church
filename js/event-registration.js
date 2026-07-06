@@ -78,6 +78,14 @@ function buildRegistrationForm(event) {
         <input id="reg-assembly" type="text" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
       </div>
       ${dynamicHtml}
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Proof of payment (optional)</label>
+        <label class="flex items-center gap-2 cursor-pointer bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-sm px-4 py-2.5 rounded-xl transition w-fit">
+          <i class="fas fa-paperclip"></i> <span id="reg-proof-filename">Choose file</span>
+          <input id="reg-proof-file" type="file" accept="image/*,application/pdf" class="hidden" onchange="onProofFileSelected(event)">
+        </label>
+        <p class="text-xs text-gray-400 mt-1">A photo or scan of your deposit slip/EFT confirmation, if you've already paid. You can also send this later.</p>
+      </div>
       <div id="registration-form-msg" class="hidden text-sm font-medium text-red-500"></div>
       <div class="flex gap-3 pt-2">
         <button onclick="submitRegistration()" id="registration-submit-btn"
@@ -90,6 +98,11 @@ function buildRegistrationForm(event) {
         </button>
       </div>
     </div>`;
+}
+
+function onProofFileSelected(e) {
+  const file = e.target.files[0];
+  document.getElementById('reg-proof-filename').textContent = file ? file.name : 'Choose file';
 }
 
 function buildDynamicField(f) {
@@ -150,6 +163,8 @@ async function submitRegistration() {
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1"></i>Submitting…';
 
+  const proofFile = document.getElementById('reg-proof-file').files[0] || null;
+
   try {
     const registerFn = firebase.functions().httpsCallable('registerForEvent');
     const result = await registerFn({
@@ -162,12 +177,33 @@ async function submitRegistration() {
     });
 
     const ref = result.data.referenceCode;
+    const registrationId = result.data.registrationId;
+
+    // Proof-of-payment upload (Phase B3) — best-effort, never blocks the
+    // registration itself, which already succeeded by this point. Uploaded
+    // directly to Storage (js/storage-upload.js, the only module that talks
+    // to Storage) then attached to the registration doc via a callable,
+    // since clients can't write to that collection directly.
+    let proofWarning = '';
+    if (proofFile) {
+      try {
+        const path = `events/${regModalEventId}/registrations/${registrationId}/${Date.now()}_${proofFile.name}`;
+        const proofUrl = await uploadMedia(path, proofFile);
+        const attachFn = firebase.functions().httpsCallable('attachRegistrationProof');
+        await attachFn({ eventId: regModalEventId, registrationId, proofUrl });
+      } catch (uploadErr) {
+        console.error('Proof of payment upload failed:', uploadErr);
+        proofWarning = '<p class="text-xs text-amber-600 mt-3">Your registration is confirmed, but the proof-of-payment file didn\'t upload — you can email it instead.</p>';
+      }
+    }
+
     document.getElementById('registration-modal-body').innerHTML = `
       <div class="text-center py-6">
         <i class="fas fa-circle-check text-4xl text-green-500 mb-4"></i>
         <p class="text-gray-700 font-medium">You're registered!</p>
         ${ref ? `<p class="text-sm text-gray-500 mt-2">Quote this reference for any payment:</p>
                  <p class="text-lg font-mono font-bold text-[#0A3D62] mt-1">${escHtml(ref)}</p>` : ''}
+        ${proofWarning}
         <button onclick="closeRegistrationModal()"
                 class="mt-6 bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
           Done

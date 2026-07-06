@@ -1905,6 +1905,40 @@ async function sendEmail(to, subject, body) {
   return false;
 }
 
+// ── attachRegistrationProof ───────────────────────────────────────────────────
+// Callable from events.html's registration modal (Event Registration Phase B3).
+// The registrant uploads the proof-of-payment file directly to Storage
+// (client-side, via js/storage-upload.js — the only module that talks to
+// Storage) and then calls this to persist the resulting URL on their
+// registration doc, since /events/{eventId}/registrations/{id} otherwise
+// denies client writes entirely. No auth requirement (same posture as
+// registerForEvent) — validates the URL actually points at that specific
+// registration's own Storage folder, so a submitter can't attach an
+// arbitrary URL to someone else's registration.
+exports.attachRegistrationProof = functions.https.onCall(async (data, context) => {
+  const eventId        = (data && data.eventId ? String(data.eventId) : '').trim();
+  const registrationId = (data && data.registrationId ? String(data.registrationId) : '').trim();
+  const proofUrl        = (data && data.proofUrl ? String(data.proofUrl) : '').trim();
+
+  if (!eventId || !registrationId || !proofUrl) {
+    throw new functions.https.HttpsError('invalid-argument', 'eventId, registrationId, and proofUrl are required.');
+  }
+
+  const expectedPathFragment = `events%2F${eventId}%2Fregistrations%2F${registrationId}%2F`;
+  if (!proofUrl.includes(expectedPathFragment)) {
+    throw new functions.https.HttpsError('invalid-argument', 'proofUrl does not match this registration.');
+  }
+
+  const regRef = db.collection('events').doc(eventId).collection('registrations').doc(registrationId);
+  const regSnap = await regRef.get();
+  if (!regSnap.exists) {
+    throw new functions.https.HttpsError('not-found', 'Registration not found.');
+  }
+
+  await regRef.update({ proofOfPaymentUrl: proofUrl });
+  return { success: true };
+});
+
 // ── scanOrphanedMedia ───────────────────────────────────────────────────────────
 // Callable, superadmin only — used by the Media Library tab on /admin/media.html.
 // Walks every file in the Storage bucket and cross-references it against every

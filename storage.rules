@@ -119,6 +119,19 @@ service firebase.storage {
       allow delete: if hasPermission('events.manage');
     }
 
+    // ── Event registration proof-of-payment (Event Registration Phase B3) ──
+    // Public create — no auth requirement, since a registrant may have no
+    // account on this app at all (same posture as registerForEvent itself).
+    // A scanned deposit slip is typically a phone photo or a PDF, hence both
+    // validators; admin-only read/delete keeps other registrants' proof
+    // private.
+    match /events/{eventId}/registrations/{registrationId}/{fileName} {
+      allow read: if hasPermission('events.manage');
+      allow create: if isValidImage() || isValidDocument();
+      allow update: if false;
+      allow delete: if hasPermission('events.manage');
+    }
+
     // ── Team photos ───────────────────────────────────────────────────────
     match /team/{fileName} {
       allow read: if true;
