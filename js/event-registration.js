@@ -41,6 +41,21 @@ function buildRegisterButton(event) {
     </button>`;
 }
 
+// "Find my registration" (Phase C3) — shown whenever registration is enabled,
+// regardless of capacity/full state, since an existing registrant still
+// needs a way back in to attach proof-of-payment even after the event fills
+// up. Most registrants have no account on this app, so this is the only path
+// back — there's no email-sent link to click (Phase B4/real email deferred).
+function buildFindRegistrationLink(event) {
+  const reg = event.registration || {};
+  if (!reg.enabled) return '';
+  return `
+    <button onclick="openFindRegistrationModal('${event.id}')"
+            class="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 mt-1">
+      Already registered? Attach payment proof
+    </button>`;
+}
+
 function openRegistrationModal(eventId) {
   const event = allEvents.find((e) => e.id === eventId);
   if (!event) return;
@@ -56,6 +71,7 @@ function openRegistrationModal(eventId) {
 function closeRegistrationModal() {
   document.getElementById('registration-modal').classList.add('hidden');
   regModalEventId = null;
+  findRegModalEventId = null;
 }
 
 function buildRegistrationForm() {
@@ -347,6 +363,151 @@ async function submitRegistration(confirmDuplicate) {
     msgEl.classList.remove('hidden');
     btn.disabled = false;
     btn.textContent = 'Submit';
+  }
+}
+
+// ── Find my registration (Phase C3) ─────────────────────────────────────────
+// Reuses the same #registration-modal container as the main registration
+// flow — just swaps its title/body content.
+
+let findRegModalEventId = null;
+
+function openFindRegistrationModal(eventId) {
+  const event = allEvents.find((e) => e.id === eventId);
+  if (!event) return;
+  findRegModalEventId = eventId;
+
+  document.getElementById('registration-modal-title').textContent = `Find my registration — ${event.title}`;
+  document.getElementById('registration-modal-body').innerHTML = `
+    <div class="space-y-3 mt-4">
+      <p class="text-xs text-gray-500">Enter your reference code and the phone number or email you registered with.</p>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Reference code *</label>
+        <input id="find-reg-code" type="text" placeholder="e.g. YC-202603-SMITH" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Phone</label>
+          <input id="find-reg-phone" type="tel" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Email</label>
+          <input id="find-reg-email" type="email" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+      </div>
+      <p class="text-xs text-gray-400">At least one of phone or email is required.</p>
+      <div id="find-reg-msg" class="hidden text-sm font-medium text-red-500"></div>
+      <div class="flex gap-3 pt-2">
+        <button onclick="submitFindRegistration()" id="find-reg-submit-btn"
+                class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          Find registration
+        </button>
+        <button onclick="closeRegistrationModal()"
+                class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          Cancel
+        </button>
+      </div>
+    </div>`;
+  document.getElementById('registration-modal').classList.remove('hidden');
+}
+
+async function submitFindRegistration() {
+  const msgEl = document.getElementById('find-reg-msg');
+  msgEl.classList.add('hidden');
+
+  const referenceCode = document.getElementById('find-reg-code').value.trim();
+  const phone = document.getElementById('find-reg-phone').value.trim();
+  const email = document.getElementById('find-reg-email').value.trim();
+  if (!referenceCode || (!phone && !email)) {
+    msgEl.textContent = 'A reference code and a phone number or email are required.';
+    msgEl.classList.remove('hidden');
+    return;
+  }
+
+  const btn = document.getElementById('find-reg-submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1"></i>Searching…';
+
+  try {
+    const lookupFn = firebase.functions().httpsCallable('lookupRegistration');
+    const result = await lookupFn({ eventId: findRegModalEventId, referenceCode, phone, email });
+    renderFindRegistrationResult(result.data);
+  } catch (err) {
+    msgEl.textContent = err.message || 'No matching registration found.';
+    msgEl.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = 'Find registration';
+  }
+}
+
+function renderFindRegistrationResult(data) {
+  const event = allEvents.find((e) => e.id === findRegModalEventId);
+  const statusLine = {
+    pending: '<p class="text-xs text-amber-600 mt-1"><i class="fas fa-clock mr-1"></i>Still pending review.</p>',
+    approved: '<p class="text-xs text-green-600 mt-1"><i class="fas fa-check-circle mr-1"></i>Approved.</p>',
+    declined: '<p class="text-xs text-red-600 mt-1"><i class="fas fa-times-circle mr-1"></i>This registration was declined.</p>',
+  }[data.status] || '';
+
+  document.getElementById('registration-modal-body').innerHTML = `
+    <div class="mt-4">
+      <div class="bg-gray-50 border border-gray-100 rounded-xl p-3 mb-4">
+        <p class="text-sm text-gray-700">Found it — ${escHtml(data.contactFirstName || 'your registration')}'s registration for ${escHtml(event ? event.title : 'this event')} (${data.attendeeCount} ${data.attendeeCount === 1 ? 'attendee' : 'attendees'}).</p>
+        ${statusLine}
+        ${data.hasProof ? '<p class="text-xs text-gray-400 mt-1"><i class="fas fa-paperclip mr-1"></i>Proof of payment already on file.</p>' : ''}
+      </div>
+      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">${data.hasProof ? 'Replace proof of payment' : 'Attach proof of payment'}</label>
+      <label class="flex items-center gap-2 cursor-pointer bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-sm px-4 py-2.5 rounded-xl transition w-fit">
+        <i class="fas fa-paperclip"></i> <span id="find-reg-proof-filename">Choose file</span>
+        <input id="find-reg-proof-file" type="file" accept="image/*,application/pdf" class="hidden" onchange="document.getElementById('find-reg-proof-filename').textContent = (this.files[0] && this.files[0].name) || 'Choose file'">
+      </label>
+      <div id="find-reg-attach-msg" class="hidden text-sm font-medium text-red-500 mt-3"></div>
+      <div class="flex gap-3 pt-4">
+        <button onclick="submitAttachProof('${data.registrationId}')" id="find-reg-attach-btn"
+                class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          Upload
+        </button>
+        <button onclick="closeRegistrationModal()"
+                class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          Close
+        </button>
+      </div>
+    </div>`;
+}
+
+async function submitAttachProof(registrationId) {
+  const msgEl = document.getElementById('find-reg-attach-msg');
+  msgEl.classList.add('hidden');
+  const file = document.getElementById('find-reg-proof-file').files[0];
+  if (!file) {
+    msgEl.textContent = 'Choose a file first.';
+    msgEl.classList.remove('hidden');
+    return;
+  }
+
+  const btn = document.getElementById('find-reg-attach-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1"></i>Uploading…';
+
+  try {
+    const path = `events/${findRegModalEventId}/registrations/${registrationId}/${Date.now()}_${file.name}`;
+    const proofUrl = await uploadMedia(path, file);
+    const attachFn = firebase.functions().httpsCallable('attachRegistrationProof');
+    await attachFn({ eventId: findRegModalEventId, registrationId, proofUrl });
+
+    document.getElementById('registration-modal-body').innerHTML = `
+      <div class="text-center py-6">
+        <i class="fas fa-circle-check text-4xl text-green-500 mb-4"></i>
+        <p class="text-gray-700 font-medium">Uploaded — thank you!</p>
+        <button onclick="closeRegistrationModal()"
+                class="mt-6 bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          Done
+        </button>
+      </div>`;
+  } catch (err) {
+    msgEl.textContent = err.message || 'Upload failed. Please try again.';
+    msgEl.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = 'Upload';
   }
 }
 
