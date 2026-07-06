@@ -45,7 +45,7 @@ Google login) — not required.
 
 **Date:** 2026-07-06
 **PR:** #310
-**Status:** Open
+**Status:** Merged, deployed (hosting via CI; Cloud Functions deployed — registerForEvent live, confirmed via a real successful registration in production logs)
 
 ### What was done
 
