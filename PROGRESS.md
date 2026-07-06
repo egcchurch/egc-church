@@ -45,7 +45,7 @@ Google login) — not required.
 
 **Date:** 2026-07-06
 **PR:** #313
-**Status:** Open
+**Status:** Merged, deployed (hosting via CI; Cloud Functions deployed — lookupRegistration live, confirmed in production)
 
 ### What was done
 
