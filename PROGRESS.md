@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-06
-**Current milestone:** Session 181 — Event Registration Phase B1 delivered (`docs/EVENT_REGISTRATION.md`): dynamic registration forms, public/members gating, reference codes, SMS confirmation, admin registrations list. Phase B2 (capacity) and B3 (proof of payment) next. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
+**Current milestone:** Session 182 — Event Registration Phase B2 delivered (`docs/EVENT_REGISTRATION.md`): optional per-event capacity limit, transactionally enforced. Phase B3 (proof of payment) next. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -41,11 +41,55 @@ Google login) — not required.
 
 ---
 
+## Session: feat — Event Registration Phase B2: capacity limits (Session 182)
+
+**Date:** 2026-07-06
+**PR:** #307
+**Status:** Open
+
+### What was done
+
+Third phase of `docs/EVENT_REGISTRATION.md` — optional per-event capacity, for the "youth camp
+has a hard bed limit vs. family camp where people bring their own tents" distinction from the
+original request.
+
+- `functions/index.js` — `registerForEvent` refactored: the audience/membership check still
+  happens up front (fail fast), but the actual write now happens inside a `db.runTransaction()`
+  that re-reads `registration.enabled`, each dynamic field's `required` flag, and — new —
+  `registration.capacity` vs `seatsTaken`, rejecting with `resource-exhausted` ("Sorry, this event
+  is full.") once a capacity-limited event is full. Mirrors `registerForCottageMeeting`'s
+  transaction exactly — a plain read-then-write couldn't safely enforce a hard cap under
+  concurrent submissions. `capacity` is optional (`null`/absent = unlimited, unaffected).
+- `admin/events.html` — new "Capacity (optional)" number input in the Registration section
+  (blank = unlimited) and a "Registered so far" readout (`N / capacity` or `N (unlimited)`). The
+  registrations badge on the event list turns red once a capacity-limited event is full.
+- `js/event-registration.js` — the public "Register" button is replaced with a "Registration
+  full" pill once a capacity-limited event's `seatsTaken` reaches `capacity` — a courtesy display
+  only (the count can be stale under concurrent registrations); `registerForEvent` is still the
+  actual enforcement.
+- No rules changes this phase (only `functions/index.js` business logic and the admin form) — ran
+  the full existing rules suite to confirm nothing regressed (205 passing). No dedicated test for
+  the transaction's capacity logic — this codebase has no Functions-emulator test harness, and
+  `registerForCottageMeeting`'s identical pattern has no such test either; trusted by mirroring
+  that already-proven code exactly.
+
+### Deploy notes
+
+**Cloud Functions changed** (`registerForEvent`) — after merge run `firebase deploy --only
+functions` manually. No rules changes this time. SW cache bumped to v85
+(`js/event-registration.js` is precached, cache-first).
+
+### Next up
+
+Phase B3 (proof-of-payment upload + admin "mark paid" workflow) once this merges.
+
+---
+
 ## Session: feat — Event Registration Phase B1: dynamic registration forms (Session 181)
 
 **Date:** 2026-07-06
 **PR:** #306
-**Status:** Open
+**Status:** Merged, deployed (hosting via CI; Cloud Functions + Firestore rules deployed manually — registerForEvent live)
 
 ### What was done
 

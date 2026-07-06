@@ -155,9 +155,13 @@ Storage (Phase B3):
   `seatsTaken` running count for the admin badge but no capacity *enforcement* yet); a public
   registration modal (`js/event-registration.js`) on `events.html`; an admin registrations list
   per event (view answers + reference code).
-- **Phase B2 (capacity):** `capacity`/`seatsTaken` transactional enforcement in
-  `registerForEvent`, mirroring `registerForCottageMeeting`'s transaction. Optional per event —
-  events with `capacity: null` are unaffected.
+- **Phase B2 (delivered):** `capacity`/`seatsTaken` transactional enforcement in
+  `registerForEvent`, mirroring `registerForCottageMeeting`'s transaction exactly. Optional per
+  event — events with `capacity: null` (the default, blank in the admin form) are unaffected. The
+  admin form shows a "Registered so far" count (`N / capacity` or `N (unlimited)`), the admin
+  list badge turns red once full, and the public "Register" button is replaced with a
+  "Registration full" pill (a courtesy display only — `registerForEvent` is still the actual
+  enforcement, since the displayed count can be stale under concurrent registrations).
 - **Phase B3 (proof of payment):** Storage upload path + rules, upload step in the
   registration flow, `proofOfPaymentUrl` on the submission, admin "mark paid" toggle and a way
   to view the uploaded file from the registrations list.
