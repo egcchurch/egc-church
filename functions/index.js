@@ -1799,6 +1799,21 @@ function sanitizeReferenceCode(prefix, lastName) {
   return `${prefix}-${cleanLast}`;
 }
 
+// Renders an admin-authored per-event confirmation message
+// (registration.confirmationTemplate) by substituting {{placeholder}} tokens.
+// Returns null when no template is set, so callers can fall back to the
+// built-in default message — every existing event (no template configured)
+// keeps behaving exactly as before this was added.
+function renderConfirmationMessage(template, vars) {
+  if (!template) return null;
+  return template
+    .replace(/\{\{\s*title\s*\}\}/g, vars.title || '')
+    .replace(/\{\{\s*referenceCode\s*\}\}/g, vars.referenceCode || '')
+    .replace(/\{\{\s*firstName\s*\}\}/g, vars.firstName || '')
+    .replace(/\{\{\s*lastName\s*\}\}/g, vars.lastName || '')
+    .replace(/\{\{\s*seatsUsed\s*\}\}/g, vars.seatsUsed != null ? String(vars.seatsUsed) : '');
+}
+
 exports.registerForEvent = functions
   .runWith({ secrets: [smsPortalClientId, smsPortalApiSecret] })
   .https.onCall(async (data, context) => {
@@ -1955,7 +1970,7 @@ exports.registerForEvent = functions
       });
       t.update(eventRef, { 'registration.seatsTaken': seatsTaken + seatsNeeded });
 
-      return { title: event.title, referenceCode, seatsUsed: seatsNeeded, status };
+      return { title: event.title, referenceCode, seatsUsed: seatsNeeded, status, confirmationTemplate: reg.confirmationTemplate || null };
     });
 
     // Best-effort SMS confirmation — never blocks or fails the registration
@@ -1971,13 +1986,15 @@ exports.registerForEvent = functions
       await sendEmail(email, `Registration received — ${result.title || 'Event'}`,
         'Your registration is pending review. We\'ll be in touch once it\'s confirmed.');
     } else {
-      if (phone) {
+      const vars = { title: result.title, referenceCode: result.referenceCode, firstName: contactFirstName, lastName: contactLastName, seatsUsed: result.seatsUsed };
+      let body = renderConfirmationMessage(result.confirmationTemplate, vars);
+      if (!body) {
         const lines = [`You're registered for ${result.title || 'the event'}${partySuffix}.`];
         if (result.referenceCode) lines.push(`Your reference: ${result.referenceCode}.`);
-        await sendSms(phone, `EGC Registration\n\n${lines.join(' ')}`);
+        body = lines.join(' ');
       }
-      await sendEmail(email, `Registration confirmed — ${result.title || 'Event'}`,
-        result.referenceCode ? `Your reference: ${result.referenceCode}` : 'Your registration has been received.');
+      if (phone) await sendSms(phone, `EGC Registration\n\n${body}`);
+      await sendEmail(email, `Registration confirmed — ${result.title || 'Event'}`, body);
     }
 
     return { registrationId: regRef.id, referenceCode: result.status === 'approved' ? result.referenceCode : null, status: result.status };
@@ -2038,9 +2055,10 @@ exports.setRegistrationStatus = functions
 
       const event = eventSnap.data();
       const reg = regSnap.data();
+      const confirmationTemplate = (event.registration || {}).confirmationTemplate || null;
       const previousStatus = reg.status || 'approved';
       if (previousStatus === status) {
-        return { title: event.title, reg, changed: false };
+        return { title: event.title, reg, confirmationTemplate, changed: false };
       }
 
       const reservedStatuses = ['pending', 'approved'];
@@ -2061,17 +2079,21 @@ exports.setRegistrationStatus = functions
       }
 
       t.update(regRef, { status });
-      return { title: event.title, reg, changed: true };
+      return { title: event.title, reg, confirmationTemplate, changed: true };
     });
 
     if (result.changed && status === 'approved') {
       const contact = result.reg.contact || {};
       const partySuffix = result.reg.seatsUsed > 1 ? ` (${result.reg.seatsUsed} people)` : '';
-      const lines = [`Your registration for ${result.title || 'the event'}${partySuffix} has been approved.`];
-      if (result.reg.referenceCode) lines.push(`Your reference: ${result.reg.referenceCode}.`);
-      if (contact.phone) await sendSms(contact.phone, `EGC Registration\n\n${lines.join(' ')}`);
-      await sendEmail(contact.email, `Registration approved — ${result.title || 'Event'}`,
-        result.reg.referenceCode ? `Your reference: ${result.reg.referenceCode}` : 'Your registration has been approved.');
+      const vars = { title: result.title, referenceCode: result.reg.referenceCode, firstName: contact.firstName, lastName: contact.lastName, seatsUsed: result.reg.seatsUsed };
+      let body = renderConfirmationMessage(result.confirmationTemplate, vars);
+      if (!body) {
+        const lines = [`Your registration for ${result.title || 'the event'}${partySuffix} has been approved.`];
+        if (result.reg.referenceCode) lines.push(`Your reference: ${result.reg.referenceCode}.`);
+        body = lines.join(' ');
+      }
+      if (contact.phone) await sendSms(contact.phone, `EGC Registration\n\n${body}`);
+      await sendEmail(contact.email, `Registration approved — ${result.title || 'Event'}`, body);
     } else if (result.changed && status === 'declined') {
       const contact = result.reg.contact || {};
       const message = `Your registration for ${result.title || 'the event'} could not be accepted at this time. Please contact us if you have any questions.`;

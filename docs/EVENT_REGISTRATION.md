@@ -94,6 +94,18 @@ the meantime). Mirrors the existing pending-member approve/decline pattern alrea
 Groups and Serving Teams, though as a Cloud Function rather than a direct client write — unlike
 a plain pending-member array, this has to keep `seatsTaken` correct transactionally.
 
+### Custom confirmation message (per-event)
+An optional free-text template (`registration.confirmationTemplate`), set in the admin event
+form's Registration section. Replaces the built-in confirmation SMS/email — the one sent
+immediately (no approval required) or the moment a pending registration is approved — with the
+admin's own wording, substituting `{{title}}`, `{{referenceCode}}`, `{{firstName}}`,
+`{{lastName}}`, and `{{seatsUsed}}` tokens. Left blank (the default for every event, including all
+existing ones), nothing changes — the built-in message is used exactly as before. Deliberately
+scoped to only the confirmation message, not the pending-holding or decline messages, since the
+reference code is the one thing a registrant actually needs and can't get any other way (there's
+no email link yet — Phase B4 — and the "Find my registration" lookup itself needs the reference
+code as an input, so it can't be the delivery mechanism for it).
+
 ### Find my registration (Phase C3)
 Since most registrations are anonymous by design (no login required), there's no "my
 registrations" view the way a logged-in member gets one elsewhere on the site. A small public
@@ -153,6 +165,10 @@ this happens) is filling in one function body — not a schema or flow change.
     refPrefix: string | null           ← e.g. "YC-202603" — admin sets once when enabling
     requiresApproval: boolean          ← Phase C2 — default false; when true, new registrations
                                           start status: "pending" instead of "approved"
+    confirmationTemplate: string | null  ← optional per-event override for the confirmation
+                                          SMS/email; null = built-in default message. Supports
+                                          {{title}}, {{referenceCode}}, {{firstName}},
+                                          {{lastName}}, {{seatsUsed}} tokens
     fields: [                          ← admin-defined dynamic questions, Phase B1, answered
                                           per-attendee since Phase C1
       { id, label, type: "text"|"email"|"phone"|"number"|"textarea"|"select"|"checkbox",

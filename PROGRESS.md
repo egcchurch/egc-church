@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-06
-**Current milestone:** Session 188 — admin "Delete" button for individual event registrations, incl. their uploaded proof-of-payment file. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
+**Current milestone:** Session 189 — per-event custom confirmation message template (`registration.confirmationTemplate`) with `{{title}}`/`{{referenceCode}}`/`{{firstName}}`/`{{lastName}}`/`{{seatsUsed}}` placeholders, replacing the built-in confirmation SMS/email when set. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,44 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: feat — Custom registration confirmation message (Session 189)
+
+**Date:** 2026-07-06
+**PR:** #318
+**Status:** Open
+
+### What was done
+
+Clarified during discussion: the reference code was already being sent by SMS on every
+confirmed registration (immediately, or the moment a pending one is approved) — only the
+pending-review holding message correctly withholds it, by design, since it'd be premature to
+hand out a payment reference before the registration is even confirmed. No bug there.
+
+Follow-up idea from that discussion, scoped and built: a per-event custom confirmation message.
+
+- `functions/index.js` — new `renderConfirmationMessage(template, vars)` helper, substitutes
+  `{{title}}`, `{{referenceCode}}`, `{{firstName}}`, `{{lastName}}`, `{{seatsUsed}}` tokens.
+  Returns `null` when no template is set so callers fall back to the existing built-in message —
+  every event without a template configured (i.e. every event today) keeps behaving exactly as
+  before. Wired into both places that send the confirmation message: `registerForEvent` (fires
+  immediately when no approval is required) and `setRegistrationStatus`'s approve branch (fires
+  the moment a pending registration is approved). Deliberately NOT applied to the pending-holding
+  or decline messages — out of scope per discussion, since those don't need the reference code.
+- `admin/events.html` — new "Custom confirmation message (optional)" textarea in the event form's
+  Registration section, with the available placeholders listed underneath. Blank = default
+  behavior (recommended, no forced setup for existing events).
+- `docs/EVENT_REGISTRATION.md` — documented the new field and scope decision.
+- No rules or Storage changes — `confirmationTemplate` is just a new field inside the
+  `registration` map, and `events.manage` already has unrestricted write on the event doc. Ran
+  the full rules suite to confirm (still 215 passing).
+
+### Deploy notes
+
+**Cloud Functions changed** (`registerForEvent`, `setRegistrationStatus`) — after merge run
+`firebase deploy --only functions` manually. No rules or Storage changes.
 
 ---
 

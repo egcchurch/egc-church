@@ -582,6 +582,10 @@ Functions are organised by trigger type:
                                          enforced transactionally in registerForEvent
     requiresApproval: boolean         ← Phase C2 — default false; true starts new registrations
                                          at status: "pending" instead of "approved"
+    confirmationTemplate: string | null  ← optional per-event override for the confirmation
+                                         SMS/email (null = built-in default); {{title}},
+                                         {{referenceCode}}, {{firstName}}, {{lastName}},
+                                         {{seatsUsed}} tokens, rendered by renderConfirmationMessage()
     fields: [{ id, label, type, required, options }]  ← admin-defined dynamic questions,
                                          answered per-attendee (Phase C1), not once per registration
     seatsTaken: number                ← Phase B2 capacity check; Phase C1 changed this to count
