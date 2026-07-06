@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-07
-**Current milestone:** Session 190 — homepage announcement banner gets an optional "Expires on" date (`announcement.expiresOn`); hidden client-side past that date even if still marked Visible. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
+**Current milestone:** Session 191 — homepage's "Upcoming Events" card shows a "Register" shortcut for any event with registration enabled, deep-linking into the events calendar and auto-opening that event's registration modal. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,40 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: feat — Homepage event registration shortcut (Session 191)
+
+**Date:** 2026-07-07
+**PR:** #320
+**Status:** Open
+
+### What was done
+
+Admin feedback: finding a registerable event from the homepage meant clicking "View all" and
+searching through the events calendar manually — cumbersome, especially since `/events.html` is
+a monthly calendar, not a flat list.
+
+- `js/homepage.js` — the members-only "Upcoming Events" card (`buildUpcomingEvents`) now shows a
+  small "Register" pill on any event with `registration.enabled`, linking to
+  `/events.html?register={eventId}#event-card-{eventId}`.
+- `js/events.js` — new `jumpToDeepLinkedEvent()`, called once events load. Reads the `register`
+  query param, jumps `currentMonth`/`selectedDate` straight to that event's own month and day
+  (triggering the existing day-panel render + auto-scroll), then opens that event's registration
+  modal automatically — no manual month-by-month hunting, no need to find and click Register a
+  second time. Mirrors `buildRegisterButton`'s own audience/capacity gating before auto-opening,
+  since `openRegistrationModal()` has no gate of its own and would otherwise show a form to a
+  visitor who shouldn't see it (a members-only event viewed by a non-member) or one that's
+  certain to be rejected as already full — both already-established conditions, just re-checked
+  here rather than duplicated as a new concept.
+- No rules, Storage, or Cloud Functions changes — purely client-side. Ran the full rules suite to
+  confirm nothing regressed (still 215 passing). SW cache bumped to v92 (`js/events.js` and
+  `js/homepage.js` both changed).
+
+### Deploy notes
+
+Hosting-only — deploys via CI on merge. No Cloud Functions, rules, or Storage changes.
 
 ---
 

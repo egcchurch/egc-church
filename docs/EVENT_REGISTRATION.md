@@ -282,6 +282,15 @@ deliberately deferred until the church has its own domain and a comms mailbox po
   attendee count, status, whether proof is already on file) to render an attach/replace-proof
   step reusing `attachRegistrationProof`. Shown as a link next to the Register button on any
   event with registration enabled, including once full.
+- **Homepage discoverability (delivered):** an admin observation, not a numbered phase — the
+  homepage's members-only "Upcoming Events" card (`js/homepage.js`) shows a "Register" pill for
+  any event with `registration.enabled`, linking to `/events.html?register={eventId}`. Since
+  `/events.html` is a monthly calendar (not a flat list), `js/events.js`'s
+  `jumpToDeepLinkedEvent()` reads that query param on load, jumps the calendar to the event's
+  own month, selects its day (rendering its card, with the existing day-panel auto-scroll), and
+  auto-opens the registration modal — mirroring `buildRegisterButton`'s own audience/capacity
+  gating first, since `openRegistrationModal()` itself has no gate of its own and would otherwise
+  show a form to a visitor who shouldn't see it, or one that's certain to be rejected as full.
 - **Explicitly out of scope for now:** real-time online payment collection (a full payment
   gateway integration — e.g. PayFast — would be a separate project on its own); registration
   deadlines/close dates; waitlists once a capacity-limited event is full (may follow the same
