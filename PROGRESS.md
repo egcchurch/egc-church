@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-06
-**Current milestone:** Session 180 — starting Event Registration (`docs/EVENT_REGISTRATION.md`): per-event RSVP toggle (Phase A) followed by dynamic registration forms (Phase B1-B3). Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
+**Current milestone:** Session 181 — Event Registration Phase B1 delivered (`docs/EVENT_REGISTRATION.md`): dynamic registration forms, public/members gating, reference codes, SMS confirmation, admin registrations list. Phase B2 (capacity) and B3 (proof of payment) next. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -41,11 +41,66 @@ Google login) — not required.
 
 ---
 
+## Session: feat — Event Registration Phase B1: dynamic registration forms (Session 181)
+
+**Date:** 2026-07-06
+**PR:** #306
+**Status:** Open
+
+### What was done
+
+Second phase of `docs/EVENT_REGISTRATION.md` — the actual registration system, distinct from
+RSVP because it must also work for people from other assemblies with no account on this app.
+
+- `functions/index.js` — new `registerForEvent` callable. Unlike RSVP, this may be invoked by a
+  signed-in member OR a fully unauthenticated visitor depending on the event's
+  `registration.audience` setting, so validation (audience gate, required dynamic fields) happens
+  entirely server-side rather than trusting the client. Writes
+  `/events/{eventId}/registrations/{id}`, generates a `referenceCode` (`refPrefix-SURNAME`) for
+  quoting on an EFT/deposit, increments `registration.seatsTaken` (running count only — no
+  capacity enforcement yet, that's Phase B2), and sends a best-effort SMS confirmation via the
+  existing SMSPortal integration. Added a `sendEmail()` stub that no-ops and logs — mirrors
+  exactly how `sendSms` behaves when its secrets aren't configured — so Phase B4 is just filling
+  in one function body once the church's comms mailbox exists, not a schema change.
+- `firestore.rules` — new `/events/{eventId}/registrations/{id}` block, mirroring
+  `/cottageRegistrations` exactly: `create`/`update` always denied to clients (only the Cloud
+  Function writes, via the Admin SDK), `read`/`delete` gated to `events.manage`.
+- `admin/events.html` — new "Enable Registration" section in the event form: audience selector
+  (public/members — independent of the event's own visibility audience), optional payment
+  reference prefix, and a dynamic question builder (add/remove rows: label, type, required,
+  comma-separated options for dropdowns — same UX pattern as Serving Teams' schedule-pattern
+  builder). New "Registrations" badge/button/expandable panel per event, mirroring the existing
+  RSVP list pattern, showing each registrant's contact info, reference code, and dynamic answers.
+- `events.html` / new `js/event-registration.js` — a "Register" button appears on any event with
+  registration enabled (hidden from non-members when `audience: "members"`), opening a modal that
+  renders the built-in fields (first/last name, phone, email, home assembly) plus the event's
+  dynamic questions, submits via `registerForEvent`, and shows the reference code on success.
+  Added the `firebase-functions-compat.js` script tag `events.html` didn't previously need.
+- SW cache bumped to v84; `/js/event-registration.js` added to `PRECACHE_URLS`.
+- Updated `docs/EVENT_REGISTRATION.md` (Phases A + B1 marked delivered) and CLAUDE.md (Cloud
+  Functions Architecture + Firestore Data Structure — also documented the pre-existing `rsvps`
+  field, which had never been in the schema listing at all).
+
+### Deploy notes
+
+**Cloud Functions changed** (new `registerForEvent`) — after merge run `firebase deploy --only
+functions` manually. **Firestore rules changed** — after merge run `firebase deploy --only
+firestore:rules` manually. No new indexes (the admin registrations list queries a single event's
+own subcollection directly, not a `collectionGroup()` — see Session 179 for why that distinction
+matters).
+
+### Next up
+
+Phase B2 (capacity limit + transactional seat reservation, mirroring
+`registerForCottageMeeting`) once this merges.
+
+---
+
 ## Session: feat — Event Registration Phase A: per-event RSVP toggle (Session 180)
 
 **Date:** 2026-07-06
 **PR:** #305
-**Status:** Open
+**Status:** Merged, deployed (hosting via CI — no functions/rules changes)
 
 ### What was done
 

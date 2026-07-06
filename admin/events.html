@@ -142,6 +142,48 @@
         </div>
 
       </div>
+
+      <!-- REGISTRATION — separate from RSVP, for things like youth/family camps that need to
+           gather attendee info (see docs/EVENT_REGISTRATION.md). Off by default. -->
+      <div class="mt-8 border-t border-gray-100 pt-6">
+        <label class="flex items-center gap-3 mb-4">
+          <input id="f-reg-enabled" type="checkbox" class="w-4 h-4 accent-amber-500" onchange="toggleRegSection()">
+          <span class="text-sm font-semibold text-gray-800">Enable Registration (for camps, retreats, etc.)</span>
+        </label>
+
+        <div id="reg-section" class="hidden space-y-5">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Who can register</label>
+              <select id="f-reg-audience"
+                      class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white">
+                <option value="public">Public — anyone, no login required</option>
+                <option value="members">Members only</option>
+              </select>
+              <p class="text-xs text-gray-400 mt-1">Independent of this event's own Audience above — a members-only camp can still be listed publicly while only members can register.</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Payment reference prefix (optional)</label>
+              <input id="f-reg-ref-prefix" type="text" placeholder="e.g. YC-202603"
+                     class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+              <p class="text-xs text-gray-400 mt-1">Each registrant gets a reference code (prefix + surname) to quote on their EFT/deposit, e.g. "YC-202603-SMITH".</p>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="block text-sm font-medium text-gray-700">Questions</label>
+              <button type="button" onclick="addRegFieldRow()"
+                      class="text-xs text-amber-600 hover:text-amber-700 font-medium border border-amber-200 hover:border-amber-300 px-3 py-1 rounded-full transition-all">
+                <i class="fas fa-plus mr-1"></i>Add Question
+              </button>
+            </div>
+            <p class="text-xs text-gray-400 mb-3">Name, phone, email, and home assembly are always asked automatically — add questions here for anything else specific to this event.</p>
+            <div id="reg-field-rows" class="space-y-3"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="flex gap-3 mt-6">
         <button onclick="saveEvent()"
                 class="bg-amber-500 hover:bg-amber-600 text-white px-8 py-3 rounded-full text-sm font-medium transition-all">
@@ -206,6 +248,17 @@
       document.getElementById('f-audience').value     = event?.audience     || 'public';
       document.getElementById('f-published').checked  = event?.published    ?? true;
       document.getElementById('f-rsvp-enabled').checked = event?.rsvpEnabled ?? true;
+
+      const reg = event?.registration || {};
+      document.getElementById('f-reg-enabled').checked = reg.enabled ?? false;
+      document.getElementById('f-reg-audience').value  = reg.audience || 'public';
+      document.getElementById('f-reg-ref-prefix').value = reg.refPrefix || '';
+      regFieldRows = (reg.fields || []).map(f => ({
+        id: f.id, label: f.label || '', type: f.type || 'text',
+        required: !!f.required, options: Array.isArray(f.options) ? f.options.join(', ') : (f.options || ''),
+      }));
+      renderRegFieldRows();
+      toggleRegSection();
 
       existingCoverUrl = event?.imageUrl || null;
       if (existingCoverUrl) {
@@ -288,6 +341,27 @@
         updatedAt   : firebase.firestore.FieldValue.serverTimestamp(),
       };
 
+      const regEnabled = document.getElementById('f-reg-enabled').checked;
+      data.registration = {
+        enabled: regEnabled,
+        audience: document.getElementById('f-reg-audience').value,
+        refPrefix: document.getElementById('f-reg-ref-prefix').value.trim() || null,
+        fields: regFieldRows
+          .filter(r => r.label.trim())
+          .map(r => ({
+            id: r.id,
+            label: r.label.trim(),
+            type: r.type,
+            required: !!r.required,
+            options: r.type === 'select'
+              ? r.options.split(',').map(o => o.trim()).filter(Boolean)
+              : [],
+          })),
+        // Preserve seatsTaken across edits — registerForEvent maintains it, the
+        // admin form never touches it directly.
+        seatsTaken: (editingId && eventsCache[editingId]?.registration?.seatsTaken) || 0,
+      };
+
       const endDateVal = document.getElementById('f-end-date').value;
       data.endDate = endDateVal
         ? buildTimestamp(endDateVal, document.getElementById('f-end-time').value)
@@ -352,6 +426,11 @@
               ? `<span class="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700"><i class="fas fa-calendar-check mr-1"></i>${rsvpCount} RSVP</span>`
               : '';
 
+            const regCount = (e.registration && e.registration.seatsTaken) || 0;
+            const regBadge = e.registration && e.registration.enabled
+              ? `<span class="text-xs px-2 py-1 rounded-full bg-indigo-100 text-indigo-700"><i class="fas fa-clipboard-list mr-1"></i>${regCount} Registered</span>`
+              : '';
+
             list.innerHTML += `
               <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6" id="admin-event-${doc.id}">
                 <div class="flex flex-col md:flex-row md:items-center gap-4">
@@ -361,6 +440,7 @@
                       ${catBadge}
                       ${audBadge}
                       ${rsvpBadge}
+                      ${regBadge}
                     </div>
                     <p class="font-semibold text-gray-900 truncate">${escHtml(e.title)}</p>
                     <div class="flex flex-wrap gap-x-4 mt-1 text-sm text-gray-500">
@@ -372,6 +452,10 @@
                     ${rsvpCount > 0 ? `<button onclick="toggleRsvpList('${doc.id}')"
                             class="bg-amber-50 hover:bg-amber-100 text-amber-700 text-sm px-4 py-2 rounded-full transition">
                       <i class="fas fa-users mr-1"></i>RSVPs
+                    </button>` : ''}
+                    ${e.registration && e.registration.enabled ? `<button onclick="toggleRegistrationsList('${doc.id}')"
+                            class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm px-4 py-2 rounded-full transition">
+                      <i class="fas fa-clipboard-list mr-1"></i>Registrations
                     </button>` : ''}
                     <button onclick="openForm('${doc.id}')"
                             class="bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm px-4 py-2 rounded-full transition">
@@ -386,6 +470,10 @@
                 <div id="rsvp-panel-${doc.id}" class="hidden mt-4 pt-4 border-t border-gray-100">
                   <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">RSVP List</p>
                   <div id="rsvp-list-${doc.id}" class="text-sm text-gray-500"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+                </div>
+                <div id="reg-panel-${doc.id}" class="hidden mt-4 pt-4 border-t border-gray-100">
+                  <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Registrations</p>
+                  <div id="reg-list-${doc.id}" class="text-sm text-gray-500"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
                 </div>
               </div>`;
           });
@@ -462,6 +550,103 @@
       } catch (err) {
         listEl.textContent = 'Failed to load names.';
       }
+    }
+
+    // ─── Registrations list (Event Registration Phase B1) ──────────────────────
+    async function toggleRegistrationsList(eventId) {
+      const panel = document.getElementById('reg-panel-' + eventId);
+      if (!panel) return;
+      if (!panel.classList.contains('hidden')) {
+        panel.classList.add('hidden');
+        return;
+      }
+      panel.classList.remove('hidden');
+      const listEl = document.getElementById('reg-list-' + eventId);
+      const fields = (eventsCache[eventId]?.registration?.fields) || [];
+      try {
+        const snap = await db.collection('events').doc(eventId).collection('registrations')
+          .orderBy('submittedAt', 'desc').get();
+        if (snap.empty) {
+          listEl.textContent = 'No registrations yet.';
+          return;
+        }
+        listEl.innerHTML = snap.docs.map(d => {
+          const r = d.data();
+          const answerLines = fields
+            .filter(f => r.answers && r.answers[f.id])
+            .map(f => `<p class="text-xs text-gray-500 mt-0.5">${escHtml(f.label)}: ${escHtml(r.answers[f.id])}</p>`)
+            .join('');
+          return `
+            <div class="border border-gray-100 rounded-xl p-3 mb-2">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <p class="font-semibold text-gray-800">${escHtml(r.firstName)} ${escHtml(r.lastName)}</p>
+                ${r.referenceCode ? `<span class="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-mono">${escHtml(r.referenceCode)}</span>` : ''}
+              </div>
+              <p class="text-xs text-gray-500 mt-1">${[r.phone, r.email, r.assembly].filter(Boolean).map(escHtml).join(' · ') || '—'}</p>
+              ${answerLines}
+            </div>`;
+        }).join('');
+      } catch (err) {
+        listEl.textContent = 'Failed to load registrations.';
+      }
+    }
+
+    // ─── Registration config — dynamic question builder ─────────────────────────
+    let regFieldRows = []; // [{ id, label, type, required, options }] staged for the open form
+
+    function toggleRegSection() {
+      document.getElementById('reg-section').classList.toggle('hidden', !document.getElementById('f-reg-enabled').checked);
+    }
+
+    function newRegFieldId() {
+      return 'f_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
+
+    function addRegFieldRow() {
+      regFieldRows.push({ id: newRegFieldId(), label: '', type: 'text', required: false, options: '' });
+      renderRegFieldRows();
+    }
+
+    function removeRegFieldRow(idx) {
+      regFieldRows.splice(idx, 1);
+      renderRegFieldRows();
+    }
+
+    function updateRegFieldRow(idx, key, value) {
+      regFieldRows[idx][key] = value;
+    }
+
+    function renderRegFieldRows() {
+      const container = document.getElementById('reg-field-rows');
+      container.innerHTML = regFieldRows.map((row, idx) => `
+        <div class="border border-gray-200 rounded-xl p-3 space-y-2">
+          <div class="flex items-center gap-2">
+            <input type="text" placeholder="Question label, e.g. T-shirt size" value="${escAttr(row.label)}"
+                   onchange="updateRegFieldRow(${idx}, 'label', this.value)"
+                   class="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+            <select onchange="updateRegFieldRow(${idx}, 'type', this.value); renderRegFieldRows()"
+                    class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400">
+              <option value="text" ${row.type === 'text' ? 'selected' : ''}>Text</option>
+              <option value="textarea" ${row.type === 'textarea' ? 'selected' : ''}>Long text</option>
+              <option value="email" ${row.type === 'email' ? 'selected' : ''}>Email</option>
+              <option value="phone" ${row.type === 'phone' ? 'selected' : ''}>Phone</option>
+              <option value="number" ${row.type === 'number' ? 'selected' : ''}>Number</option>
+              <option value="select" ${row.type === 'select' ? 'selected' : ''}>Dropdown</option>
+              <option value="checkbox" ${row.type === 'checkbox' ? 'selected' : ''}>Checkbox</option>
+            </select>
+            <label class="flex items-center gap-1.5 text-xs text-gray-600 whitespace-nowrap">
+              <input type="checkbox" ${row.required ? 'checked' : ''} onchange="updateRegFieldRow(${idx}, 'required', this.checked)">
+              Required
+            </label>
+            <button type="button" onclick="removeRegFieldRow(${idx})" class="text-gray-300 hover:text-red-500"><i class="fas fa-trash"></i></button>
+          </div>
+          ${row.type === 'select' ? `
+            <input type="text" placeholder="Options, comma-separated, e.g. Small, Medium, Large" value="${escAttr(row.options)}"
+                   onchange="updateRegFieldRow(${idx}, 'options', this.value)"
+                   class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          ` : ''}
+        </div>
+      `).join('') || '<p class="text-xs text-gray-400 italic">No questions added yet — name, phone, email, and assembly are always asked automatically.</p>';
     }
 
     document.addEventListener('DOMContentLoaded', () => loadEvents());

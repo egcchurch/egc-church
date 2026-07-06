@@ -18,6 +18,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-functions-compat.js"></script>
 
   <style>
     .category-btn.active {
@@ -157,11 +158,24 @@
     </div>
   </div>
 
+  <!-- REGISTRATION MODAL — dynamic fields per event (Event Registration Phase B1,
+       see docs/EVENT_REGISTRATION.md). Content is rendered by js/event-registration.js. -->
+  <div id="registration-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="text-lg font-bold text-[#0A3D62]" id="registration-modal-title">Register</h3>
+        <button onclick="closeRegistrationModal()" class="text-zinc-400 hover:text-zinc-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <div id="registration-modal-body"></div>
+    </div>
+  </div>
+
   <div id="footer-placeholder"></div>
 
   <script src="firebase-config.js"></script>
   <script src="/js/nav.js"></script>
   <script src="js/main.js"></script>
   <script src="js/events.js"></script>
+  <script src="js/event-registration.js"></script>
 </body>
 </html>

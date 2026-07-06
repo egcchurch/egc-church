@@ -244,6 +244,12 @@ function buildDayCard(event) {
   const catLabel    = CATEGORY_LABELS[event.category] || '';
   const badgeClass  = CATEGORY_COLORS[event.category] || 'bg-gray-100 text-gray-600';
   const rsvpHtml    = buildRsvpButtons(event);
+  // buildRegisterButton lives in js/event-registration.js (loaded after this
+  // file), separate from RSVP — see docs/EVENT_REGISTRATION.md.
+  const registerBtn = buildRegisterButton(event);
+  const registerHtml = registerBtn
+    ? `<div class="flex items-center gap-3 mt-2 pt-3 border-t border-zinc-50">${registerBtn}</div>`
+    : '';
 
   const imageHtml = event.imageUrl
     ? `<img src="${event.imageUrl}" alt="${escHtml(event.title)}" class="w-full h-40 object-cover rounded-xl mb-3">`
@@ -262,6 +268,7 @@ function buildDayCard(event) {
       ${event.location ? `<p class="text-sm text-gray-500"><i class="fas fa-map-marker-alt text-amber-500 mr-1.5 w-4"></i>${escHtml(event.location)}</p>` : ''}
       ${event.description ? `<p class="text-sm text-gray-600 leading-relaxed line-clamp-3 mt-1">${escHtml(event.description)}</p>` : ''}
       ${rsvpHtml}
+      ${registerHtml}
     </div>`;
 }
 

@@ -1759,6 +1759,133 @@ exports.cancelCottageRegistration = functions.https.onCall(async (data, context)
   return { success: true, cancelled: !!removed };
 });
 
+// ── registerForEvent ──────────────────────────────────────────────────────────
+// Callable from events.html's registration modal (Event Registration Phase B1,
+// see docs/EVENT_REGISTRATION.md). Unlike RSVP (member-only, direct client
+// write), event registration must also work for people from other assemblies
+// with no account on this app at all — so this may be called by a signed-in
+// member OR a fully unauthenticated visitor, depending on the event's
+// registration.audience setting. That's exactly why this is a Cloud Function
+// rather than a client Firestore write: a public, possibly-unauthenticated
+// form can't be trusted to self-validate which fields are required or to
+// self-report which audience gate it's allowed through.
+//
+// Phase B1 has no capacity enforcement yet (Phase B2) — registration.seatsTaken
+// is still incremented here (best-effort running count) purely so the admin
+// registrations list can show a count without an extra subcollection read per
+// event; nothing rejects a submission once a capacity number is reached until
+// B2 wraps this in a transaction.
+
+function sanitizeReferenceCode(prefix, lastName) {
+  if (!prefix) return null;
+  const cleanLast = String(lastName || '').replace(/[^A-Za-z]/g, '').toUpperCase() || 'GUEST';
+  return `${prefix}-${cleanLast}`;
+}
+
+exports.registerForEvent = functions
+  .runWith({ secrets: [smsPortalClientId, smsPortalApiSecret] })
+  .https.onCall(async (data, context) => {
+    const eventId   = (data && data.eventId   ? String(data.eventId)   : '').trim();
+    const firstName = (data && data.firstName ? String(data.firstName) : '').trim().slice(0, 200);
+    const lastName  = (data && data.lastName  ? String(data.lastName)  : '').trim().slice(0, 200);
+    const phone     = (data && data.phone     ? String(data.phone)     : '').trim().slice(0, 50);
+    const email     = (data && data.email     ? String(data.email)     : '').trim().slice(0, 200);
+    const assembly  = (data && data.assembly  ? String(data.assembly)  : '').trim().slice(0, 200);
+    const answers   = (data && data.answers && typeof data.answers === 'object' && !Array.isArray(data.answers))
+      ? data.answers : {};
+
+    if (!eventId) {
+      throw new functions.https.HttpsError('invalid-argument', 'eventId is required.');
+    }
+    if (!firstName || !lastName) {
+      throw new functions.https.HttpsError('invalid-argument', 'First and last name are required.');
+    }
+
+    const eventRef = db.collection('events').doc(eventId);
+    const eventSnap = await eventRef.get();
+    if (!eventSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'Event not found.');
+    }
+    const event = eventSnap.data();
+    const reg = event.registration || {};
+    if (!reg.enabled) {
+      throw new functions.https.HttpsError('failed-precondition', 'Registration is not open for this event.');
+    }
+
+    if (reg.audience === 'members') {
+      if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'You must be signed in as a member to register for this event.');
+      }
+      const userSnap = await db.collection('users').doc(context.auth.uid).get();
+      const user = userSnap.exists ? userSnap.data() : null;
+      if (!user || user.membership !== 'member') {
+        throw new functions.https.HttpsError('permission-denied', 'Registration for this event is limited to members.');
+      }
+    }
+
+    // Validate required dynamic questions, then drop any answer keyed to a
+    // field id that isn't (or no longer is) part of this event's schema — a
+    // guard against a stale client form submitting for questions that were
+    // since edited or removed.
+    const fields = Array.isArray(reg.fields) ? reg.fields : [];
+    for (const f of fields) {
+      const val = answers[f.id];
+      if (f.required && !(val !== undefined && val !== null && String(val).trim())) {
+        throw new functions.https.HttpsError('invalid-argument', `"${f.label}" is required.`);
+      }
+    }
+    const fieldIds = new Set(fields.map((f) => f.id));
+    const cleanAnswers = {};
+    Object.keys(answers).forEach((k) => {
+      if (fieldIds.has(k)) cleanAnswers[k] = String(answers[k]).slice(0, 2000);
+    });
+
+    const referenceCode = sanitizeReferenceCode(reg.refPrefix, lastName);
+
+    const regRef = eventRef.collection('registrations').doc();
+    await regRef.set({
+      firstName,
+      lastName,
+      phone: phone || null,
+      email: email || null,
+      assembly: assembly || null,
+      answers: cleanAnswers,
+      referenceCode,
+      proofOfPaymentUrl: null,
+      paymentConfirmed: false,
+      uid: context.auth ? context.auth.uid : null,
+      submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await eventRef.update({
+      'registration.seatsTaken': admin.firestore.FieldValue.increment(1),
+    });
+
+    // Best-effort SMS confirmation — never blocks or fails the registration
+    // itself. Email confirmation is provisioned but not wired yet (Phase B4;
+    // see sendEmail()).
+    if (phone) {
+      const lines = [`You're registered for ${event.title || 'the event'}.`];
+      if (referenceCode) lines.push(`Your reference: ${referenceCode}.`);
+      await sendSms(phone, `EGC Registration\n\n${lines.join(' ')}`);
+    }
+    await sendEmail(email, `Registration confirmed — ${event.title || 'Event'}`,
+      referenceCode ? `Your reference: ${referenceCode}` : 'Your registration has been received.');
+
+    return { registrationId: regRef.id, referenceCode };
+  });
+
+// Placeholder for Phase B4 — no email provider is configured yet (the church
+// plans to set one up, e.g. Brevo, once its own domain and a dedicated
+// communications mailbox exist post-launch). No-ops and logs, mirroring
+// exactly how sendSms() behaves when the SMSPortal secrets aren't set, so
+// wiring in a real provider later is filling in this one function body —
+// not a schema or call-site change.
+async function sendEmail(to, subject, body) {
+  if (!to) return false;
+  console.log(`sendEmail: not configured — would have sent "${subject}" to ${to}`);
+  return false;
+}
+
 // ── scanOrphanedMedia ───────────────────────────────────────────────────────────
 // Callable, superadmin only — used by the Media Library tab on /admin/media.html.
 // Walks every file in the Storage bucket and cross-references it against every

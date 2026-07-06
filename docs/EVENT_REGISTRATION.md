@@ -145,15 +145,16 @@ Storage (Phase B3):
 
 ## Phasing
 
-- **Phase A (next up):** `rsvpEnabled` toggle. Admin checkbox on the event form (default
+- **Phase A (delivered):** `rsvpEnabled` toggle. Admin checkbox on the event form (default
   checked), `events.js` skips all RSVP rendering when `false`. No new permission, no Cloud
   Function, no rules change.
-- **Phase B1 (core registration):** `registration` config block in the admin event form incl.
-  a dynamic question builder (add/remove/reorder rows — same UX pattern as Serving Teams'
-  schedule-pattern builder); `registerForEvent` callable (public/members gating, required-field
-  validation, reference code generation, SMS confirmation via existing SMSPortal integration,
-  no capacity enforcement yet); a public registration modal on `events.html`; an admin
-  registrations list per event (view answers + reference code).
+- **Phase B1 (delivered):** `registration` config block in the admin event form incl. a
+  dynamic question builder (add/remove rows — same UX pattern as Serving Teams' schedule-pattern
+  builder); `registerForEvent` callable (public/members gating, required-field validation,
+  reference code generation, SMS confirmation via the existing SMSPortal integration,
+  `seatsTaken` running count for the admin badge but no capacity *enforcement* yet); a public
+  registration modal (`js/event-registration.js`) on `events.html`; an admin registrations list
+  per event (view answers + reference code).
 - **Phase B2 (capacity):** `capacity`/`seatsTaken` transactional enforcement in
   `registerForEvent`, mirroring `registerForCottageMeeting`'s transaction. Optional per event —
   events with `capacity: null` are unaffected.

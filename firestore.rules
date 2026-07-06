@@ -136,6 +136,18 @@ service cloud.firestore {
                             .hasOnly(['rsvps']));
     }
 
+    // Event Registration (Phase B1, see docs/EVENT_REGISTRATION.md) — written
+    // ONLY by the registerForEvent Cloud Function, which enforces the
+    // public/members audience gate and required-field validation server-side
+    // (a public, possibly-unauthenticated form can't be trusted to self-gate).
+    // Mirrors /cottageRegistrations exactly: create/update always go through
+    // the function; delete is available for admin cleanup.
+    match /events/{eventId}/registrations/{id} {
+      allow read: if hasPermission('events.manage');
+      allow create, update: if false;
+      allow delete: if hasPermission('events.manage');
+    }
+
     // ── Blog ──────────────────────────────────────────────────────────────────
     match /blog/{id} {
       allow read: if true;
