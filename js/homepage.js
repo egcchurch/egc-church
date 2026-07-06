@@ -33,15 +33,27 @@
     document.getElementById('service-times-section')?.classList.remove('hidden');
   }
 
+  // Local YYYY-MM-DD, matching admin/homepage.html's <input type="date">
+  // value format — string comparison against that is enough.
+  function todayDateStr() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   function applyContent(data) {
     const taglineEl = document.getElementById('hero-tagline');
     if (taglineEl && data.tagline) taglineEl.textContent = data.tagline;
 
-    if (data.announcement?.visible) {
+    const ann = data.announcement;
+    const notExpired = !ann?.expiresOn || ann.expiresOn >= todayDateStr();
+    if (ann?.visible && notExpired) {
       const section = document.getElementById('announcement-section');
       if (section) {
-        document.getElementById('announcement-title').textContent = data.announcement.title || '';
-        document.getElementById('announcement-body').textContent  = data.announcement.body  || '';
+        document.getElementById('announcement-title').textContent = ann.title || '';
+        document.getElementById('announcement-body').textContent  = ann.body  || '';
         section.classList.remove('hidden');
       }
     }
