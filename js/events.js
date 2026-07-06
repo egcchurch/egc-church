@@ -69,6 +69,7 @@ function loadEvents() {
       document.getElementById('loading').classList.add('hidden');
       document.getElementById('content').classList.remove('hidden');
       renderCalendar();
+      jumpToDeepLinkedEvent();
     })
     .catch((err) => {
       console.error('Error loading events:', err);
@@ -211,6 +212,35 @@ function selectDay(day) {
     selectedDate = date;
   }
   renderCalendar();
+}
+
+// Deep link from the homepage's "Register" shortcut on an Upcoming Events
+// card (?register={eventId}) — jumps the calendar straight to that event's
+// month/day and opens its registration modal, rather than making the
+// visitor hunt through months of the calendar to find it themselves.
+function jumpToDeepLinkedEvent() {
+  const eventId = new URLSearchParams(window.location.search).get('register');
+  if (!eventId) return;
+  const event = allEvents.find((e) => e.id === eventId);
+  if (!event) return;
+
+  const start = toDate(event.startDate);
+  currentMonth = new Date(start.getFullYear(), start.getMonth(), 1);
+  selectedDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  renderCalendar();
+
+  // Mirrors buildRegisterButton()'s own gating (js/event-registration.js) —
+  // openRegistrationModal() itself has no audience/capacity gate of its own,
+  // it only relies on that button never being rendered for an ineligible
+  // viewer. Since this bypasses the button, re-check the same conditions
+  // before auto-opening so a deep link can't show a form to someone who
+  // shouldn't see it, or that's certain to be rejected as already full.
+  const reg = event.registration || {};
+  const capacityFull = typeof reg.capacity === 'number' && reg.capacity > 0 && (reg.seatsTaken || 0) >= reg.capacity;
+  const eligible = reg.enabled && !(reg.audience === 'members' && !userIsMember) && !capacityFull;
+  if (eligible && typeof openRegistrationModal === 'function') {
+    setTimeout(() => openRegistrationModal(eventId), 150);
+  }
 }
 
 // ─── Day panel ────────────────────────────────────────────────────────────────

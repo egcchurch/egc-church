@@ -559,17 +559,24 @@
           <div class="space-y-3">
             ${events.map(e => {
               const d = toDate(e.startDate);
+              const registerBadge = e.registration?.enabled
+                ? `<a href="/events.html?register=${e.id}#event-card-${e.id}"
+                      class="text-xs font-medium px-2.5 py-1 rounded-full border border-indigo-300 text-indigo-700 hover:bg-indigo-50 shrink-0 self-center whitespace-nowrap">
+                     <i class="fas fa-clipboard-list mr-1"></i>Register
+                   </a>`
+                : '';
               return `
                 <div class="flex items-start gap-4 p-4 border border-gray-100 rounded-2xl">
                   <div class="bg-amber-100 rounded-xl p-3 shrink-0 text-center min-w-[52px]">
                     <p class="text-amber-700 font-bold text-sm leading-none">${d.getDate()}</p>
                     <p class="text-amber-600 text-xs">${d.toLocaleString('en-ZA', { month: 'short' })}</p>
                   </div>
-                  <div>
+                  <div class="flex-1">
                     <p class="font-semibold text-[#0A3D62]">${esc(e.title)}</p>
                     ${e.location ? `<p class="text-sm text-gray-500"><i class="fas fa-map-marker-alt text-amber-400 mr-1"></i>${esc(e.location)}</p>` : ''}
                     <p class="text-xs text-gray-400 mt-1">${formatDate(d)}</p>
                   </div>
+                  ${registerBadge}
                 </div>`;
             }).join('')}
           </div>
