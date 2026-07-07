@@ -321,34 +321,57 @@ service cloud.firestore {
       allow create, update, delete: if hasPermission('servingTeams.manage') || isServingTeamLeader(teamId);
     }
 
-    // ── Equipment Register + Moves (Phase 2, Session 195) ────────────────────
+    // ── Equipment Register + Moves (Session 197 — church-wide, no longer
+    // nested under a serving team; see docs/EQUIPMENT.md) ─────────────────────
     // Not a booking calendar — tracks where a piece of equipment currently is,
     // kept accurate via a "move" (pick a destination + checklist, mark packed,
-    // complete). See docs/SERVING_TEAMS.md. Available to any team (general-
-    // purpose, like schedules/slots), though in practice only used by the
-    // Equipment Team.
-    match /servingTeams/{teamId}/equipment/{itemId} {
-      allow read: if hasPermission('servingTeams.manage') || isServingTeamMember(teamId);
-      allow create, delete: if hasPermission('servingTeams.manage') || isServingTeamLeader(teamId);
-      // Full-field edits (name, cost, condition, photo, description) are a
-      // leader/admin action. Any team member may additionally update ONLY the
-      // location fields — this is what completing a move actually writes, and
-      // any member can complete a move they (or a teammate) packed, not just
-      // the team's leaders.
-      allow update: if hasPermission('servingTeams.manage') || isServingTeamLeader(teamId) ||
-        (isServingTeamMember(teamId) &&
-          request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['currentLocation', 'lastMovedAt', 'lastMovedBy', 'updatedAt']));
+    // complete). Two access tiers, deliberately NOT both permission keys:
+    //   - equipment.manage (custom-claim permission) — full item CRUD, sees
+    //     costs, manages the users list. Assigned via /admin/roles.html.
+    //   - "equipment user" — a uid on /equipmentAccess/users.uids. Can view
+    //     the register (not costs) and run moves. A plain list, not a role,
+    //     because role-holders are treated as admins elsewhere (admin
+    //     notifications, admin nav) — wrong for someone who just packs trailers.
+    function isEquipmentUser() {
+      return isSignedIn() &&
+        request.auth.uid in
+          get(/databases/$(database)/documents/equipmentAccess/users).data.uids;
     }
 
-    match /servingTeams/{teamId}/moves/{moveId} {
-      allow read: if hasPermission('servingTeams.manage') || isServingTeamMember(teamId);
-      // Any team member can start a move (they're the one physically packing)
-      // and update it (checking off items, marking complete) — a collaborative
-      // checklist, not a leader-gated approval flow.
-      allow create, update: if hasPermission('servingTeams.manage') || isServingTeamMember(teamId);
-      allow delete: if hasPermission('servingTeams.manage') || isServingTeamLeader(teamId) ||
-        (isServingTeamMember(teamId) && resource.data.createdBy == request.auth.uid);
+    // The access list itself — only managers (or superadmin) read or write it.
+    // Ordinary equipment users never need to read it: their access is proven
+    // by the isEquipmentUser() get() above, evaluated server-side.
+    match /equipmentAccess/{docId} {
+      allow read, write: if hasPermission('equipment.manage');
+    }
+
+    match /equipment/{itemId} {
+      allow read: if hasPermission('equipment.manage') || isEquipmentUser();
+      allow create, delete: if hasPermission('equipment.manage');
+      // Managers edit any field. An equipment user may update ONLY the
+      // location fields — exactly what completing a move writes.
+      allow update: if hasPermission('equipment.manage') ||
+        (isEquipmentUser() &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['currentLocation', 'lastMovedAt', 'lastMovedBy', 'updatedAt']));
+
+      // Purchase cost/date live on a separate subdoc, not the item doc,
+      // because Firestore rules can't hide individual fields of a readable
+      // document — this is the only way "equipment users see items but not
+      // costs" is actually enforced rather than just cosmetic in the UI.
+      match /private/{docId} {
+        allow read, write: if hasPermission('equipment.manage');
+      }
+    }
+
+    match /equipmentMoves/{moveId} {
+      allow read: if hasPermission('equipment.manage') || isEquipmentUser();
+      // Any equipment user can start a move (they're the one physically
+      // packing) and update it (checking off items, marking complete) — a
+      // collaborative checklist, not a manager-gated approval flow.
+      allow create, update: if hasPermission('equipment.manage') || isEquipmentUser();
+      allow delete: if hasPermission('equipment.manage') ||
+        (isEquipmentUser() && resource.data.createdBy == request.auth.uid);
     }
 
     // ── Devotionals ───────────────────────────────────────────────────────────

@@ -174,36 +174,15 @@ template, apply it to one date" idea — the date-range generator covers that ca
 - **Roster/slots** — visible only to that team's own members, that team's leaders, and
   admins holding `servingTeams.manage`. Nobody sees another team's schedule.
 
-### Equipment Register + Moves (Phase 2 — delivered, Session 195)
-Not a booking/reservation calendar. The actual need is **knowing where a piece of
-equipment currently is** (e.g. "Elands" vs "Nestpark"), kept accurate via a **move**: pick
-a destination venue and a checklist of items, check them off as they're packed, and on
-completion each **checked-off** item's known location updates to the destination —
-unpacked items are left as-is, so a partially-completed move doesn't wrongly relocate
-things that never actually moved. The move *is* the checklist — there's no separate
-"equipment register" data entry step beyond what a move naturally produces. Available to
-any team (general-purpose, like schedules/slots), though in practice only used by the
-Equipment Team; reachable from its own dedicated page (`/members/equipment.html?team=`),
-linked from an "Equipment" button on that team's card, rather than buried in a tab, since
-it's the kind of thing checked from a phone mid-move.
-
-Scoped slightly beyond pure location-tracking on user request: each item also carries an
-optional purchase date, cost, condition (good/fair/needs repair/retired), and photo —
-enough to answer "what would we claim on insurance" or "what needs replacing" without
-becoming full asset-management software (no maintenance-history log, no custodian
-assignment, no depreciation).
-
-**Permissions** mirror the rest of this module: any team member can read the register,
-start a move, check off items, and complete a move (a collaborative packing checklist,
-not a leader-gated approval) — but only a leader (or `servingTeams.manage`) can add/edit/
-retire an equipment item outright, and only the move's own creator or a leader can cancel
-(delete) a move someone else started. Completing a move is the one place a regular member
-writes to an equipment doc directly — Firestore rules restrict that write to exactly the
-location fields (`currentLocation`, `lastMovedAt`, `lastMovedBy`), never the full item.
-
-Category and location fields are free text with a `<datalist>` autocomplete sourced from
-whatever's already been typed on that team's existing equipment/moves (same "no separate
-management screen" philosophy as functions) — not a new stored list on the team doc.
+### Equipment Register + Moves (Phase 2 — moved out of Serving Teams, Session 197)
+Built here as Phase 2 in Session 195 (data nested under `/servingTeams/{teamId}/equipment`,
+access tied to team membership), then **restructured as its own church-wide section** in
+Session 197 — equipment belongs to the church, not a team, and team-scoping fragmented the
+register, gated visibility on team membership, and trapped the data under a doc that could
+be renamed or dissolved. See **`docs/EQUIPMENT.md`** for the current design (church-wide
+`/equipment` + `/equipmentMoves` collections, `equipment.manage` permission, an
+equipment-users access list, and rules-enforced cost privacy). No equipment data or rules
+remain under `/servingTeams/`.
 
 ---
 
@@ -255,27 +234,9 @@ management screen" philosophy as functions) — not a new stored list on the tea
   notes
   createdBy, createdAt, updatedAt
 
-/servingTeams/{teamId}/equipment/{itemId}     ← Phase 2 (Session 195)
-  name: string
-  category: string|null                ← free text, datalist autocomplete from existing items
-  description, notes: string|null
-  condition: "good" | "fair" | "needs repair" | "retired"   ← default "good"
-  currentLocation: string|null         ← free text, datalist autocomplete
-  purchaseDate: string (YYYY-MM-DD)|null
-  purchaseCost: number|null
-  photoUrl: string|null                ← Firebase Storage, /servingTeams/{teamId}/equipment/{itemId}/
-  lastMovedAt, lastMovedBy: timestamp|null, uid|null   ← set only by completing a move
-  createdBy, createdAt, updatedAt
-
-/servingTeams/{teamId}/moves/{moveId}         ← Phase 2 (Session 195)
-  fromLocation: string|null            ← free text, optional (not always known/relevant)
-  toLocation: string                   ← free text, required
-  scheduledFor: string (YYYY-MM-DD)|null
-  status: "in-progress" | "complete"
-  items: [{ equipmentId, name, packed: bool }]   ← name denormalized for checklist display
-                                          without extra reads, same pattern as slot's
-                                          assignedName alongside assignedUid
-  createdBy, createdByName, createdAt, completedAt: timestamp|null
+(Equipment Register + Moves moved to church-wide top-level collections in Session 197 —
+see docs/EQUIPMENT.md for /equipment, /equipment/{id}/private/finance, /equipmentMoves,
+and /equipmentAccess/users.)
 ```
 
 ---
@@ -320,10 +281,9 @@ Group leaders manage their own group today.
   lead positions by rotating through qualified + eligible + available members — fewest
   assignments first, avoiding double-booking within one service, leaving unfillable
   slots open. See the two Phase 1.7 sections above for the full behavior.
-- **Phase 2 (delivered, Session 195):** Equipment Register + Moves — location tracking plus
-  purchase date/cost/condition/photo per item, on `/members/equipment.html?team=`. Any team
-  member can start/complete a move (collaborative checklist); only leaders/admin can add,
-  edit, or retire an item outright. Available to any team, not hardcoded to one team ID.
+- **Phase 2 (delivered Session 195; restructured church-wide Session 197):** Equipment
+  Register + Moves — now its own section outside Serving Teams entirely. See
+  `docs/EQUIPMENT.md`.
 - **Explicitly deferred / not in scope yet:** push notifications when a slot opens up
   (claiming is currently "check the roster," not pushed); a personal "my upcoming slots
   across all teams I'm on" combined view.

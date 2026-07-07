@@ -10,18 +10,15 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-07
-**Current milestone:** Session 196 — chore: removed the dead `isMember()` helper from
-`storage.rules` (defined since PR #273 scoped rules to per-feature permissions, never called
-since; source of the harmless "Unused function" / "Invalid function name: firestore.get" linter
-warnings on every `firebase deploy --only storage`). Session 195 (previous) — Serving Teams
-Phase 2 (Equipment Register + Moves) delivered:
-new `/members/equipment.html?team=` page, location tracking plus purchase date/cost/condition/
-photo per item, collaborative move checklists. Closes out the last "future" item in
-`docs/SERVING_TEAMS.md`. Session 194 (previous): optional second address (camp grounds/Nestpark)
-on `/admin/settings.html`. Session 193 (docs-only): corrected `docs/WHATSAPP.md`'s pricing model —
-WhatsApp Stage 2 stays on hold until the `WHATSAPP_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` secrets exist.
-No further pending feature phases — remaining work is ad-hoc backlog items (see PROGRESS.md's
-top-of-file "To do" sections and `docs/ROADMAP.md`).
+**Current milestone:** Session 197 — Equipment Register restructured church-wide (was per-team
+under Serving Teams, Session 195): top-level `/equipment` + `/equipmentMoves` collections, new
+`equipment.manage` permission key (18 keys now), an equipment-users access list
+(`/equipmentAccess/users`, managed from the page's Users tab), and rules-enforced cost privacy
+(costs on a manager-only `/private/finance` subdoc). See `docs/EQUIPMENT.md`. Session 196
+(previous): removed the dead `isMember()` helper from `storage.rules`. Session 195: Equipment
+Register + Moves first built (per-team). No further pending feature phases — remaining work is
+ad-hoc backlog items (see the "To do" sections below and `docs/ROADMAP.md`), plus WhatsApp
+Stage 2 once the church's Meta account and secrets exist.
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -49,6 +46,91 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: feat — Equipment Register restructured church-wide (Session 197)
+
+**Date:** 2026-07-07
+**PR:** #326 (pending)
+**Status:** Open
+
+### What was done
+
+Immediately after testing Session 195's per-team version, the user decided equipment shouldn't
+sit under a serving team — it belongs to the church, and team-scoping fragmented the register,
+gated visibility on team membership (a treasurer couldn't see asset values without joining the
+team), and trapped the data under a doc that could be renamed or dissolved. Discussed and agreed
+before building; also agreed during discussion: **costs are privileged** (special right to see),
+and **section access itself is gated** ("you need to be an equipment user"), with moves open to
+any equipment user.
+
+Two access tiers, deliberately different mechanisms:
+
+- **`equipment.manage`** — new permission key (18 total now), assigned via `/admin/roles.html`:
+  full item CRUD, sees/edits costs, manages the users list, cancels anyone's move. A permission
+  key is right for the coordinator; it would be wrong for helpers, because role-holders are
+  treated as admins elsewhere (connect-form alert fan-outs count any user with roles as an admin;
+  admin nav shows for perms-holders).
+- **Equipment users** — a plain uid list on `/equipmentAccess/users` (`uids` + denormalized
+  `names` map), manager-only read/write, edited from a new Users tab on the page itself (live
+  member search, add/remove chips — same UX as serving teams' add-member). Listed users can view
+  the register (not costs) and start/pack/complete moves. Rules check the list via a `get()` in
+  `isEquipmentUser()`.
+
+Cost privacy is **rules-enforced, not cosmetic**: Firestore can't hide individual fields of a
+readable doc, so `purchaseCost`/`purchaseDate` moved off the item doc onto
+`/equipment/{itemId}/private/finance`, readable/writable only by managers. The page merges
+finance subdocs into the item cache for managers only; ordinary users' reads of those docs would
+be denied so it never attempts them.
+
+Changes:
+
+- `firestore.rules` — per-team `/servingTeams/{teamId}/equipment` + `/moves` blocks removed;
+  new top-level `/equipment` (+ nested `/private/{docId}`), `/equipmentMoves`, and
+  `/equipmentAccess` blocks with `isEquipmentUser()`. An equipment user's only item write is
+  still the location-fields set that completing a move batches in.
+- `storage.rules` — photo path now `/equipment/{itemId}/{fileName}`, gated on
+  `equipment.manage`; removed the `isServingTeamLeader()` helper (only equipment photos used it —
+  leaving it would recreate exactly the dead-function linter warnings Session 196 just cleaned up).
+- `members/equipment.html` — rewritten: no `?team=` param; access proven by the equipment read
+  itself succeeding (no client-readable membership list needed); manager detection via
+  `getIdTokenResult()` claims; new Users tab (managers only); costs shown/edited only by
+  managers; save/delete batch the item doc + finance subdoc together. Session 195's review fixes
+  (transactional checkbox toggles, delete-guard for items in in-progress moves) carried over.
+- `members/serving-teams.html` — per-team Equipment button removed.
+- `members-nav.html` — Equipment link added (desktop dropdown + mobile), between Serving Teams
+  and Prayer. Non-users who tap it get the page's "No access yet — ask an equipment manager"
+  card. SW cache bumped to v95 (nav partial is precached).
+- `functions/rolesData.js`, `admin/roles.html`, `docs/PERMISSIONS.md` — `equipment.manage`
+  added (17 → 18 keys). No Cloud Functions deploy needed: `computeEffectiveClaims` unions role
+  permissions without validating against `ALL_PERMISSIONS`, so the key works the moment a role
+  containing it is saved; `rolesData.js` only matters for future seeds/forks.
+- `docs/EQUIPMENT.md` (new) — full design + history; `docs/SERVING_TEAMS.md` Phase 2 sections
+  now point there; CLAUDE.md data structure/pages/storage paths updated.
+
+Old per-team test data under `/servingTeams/{id}/equipment` is orphaned-but-inaccessible
+(default deny once the rules blocks were removed); recreate real items by hand in the new
+register.
+
+### Tests
+
+Replaced the 14 per-team equipment/moves rules tests with 11 church-wide ones — listed-user vs
+non-listed-member vs manager vs superadmin across items, the finance subdoc (the key one:
+equipment user CANNOT read it, manager/superadmin can), the access list itself, and move
+create/update/delete incl. creator-only cancel. **229 passing** against the emulator
+(232 − 14 + 11). Client logic verified in the browser with injected state: manager sees costs +
+edit prefills finance fields, non-manager cards hide costs, cancel-move button hidden for
+non-creators but shown for managers, Users tab chips render, tab switching works. Authenticated
+end-to-end flow still needs a real walkthrough after deploy (no live credentials in-session).
+
+### Deploy notes
+
+Hosting deploys via CI on merge. **Firestore rules and Storage rules both changed** — after merge
+run `firebase deploy --only firestore:rules` and `firebase deploy --only storage` manually. No
+Cloud Functions changes. **Post-deploy setup (superadmin):** create an "Equipment Coordinator"
+role containing the Equipment Register permission on `/admin/roles.html` and assign it (or rely
+on superadmin), then add equipment users from the page's Users tab.
 
 ---
 
