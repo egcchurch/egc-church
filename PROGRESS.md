@@ -10,7 +10,11 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-07
-**Current milestone:** Session 195 — Serving Teams Phase 2 (Equipment Register + Moves) delivered:
+**Current milestone:** Session 196 — chore: removed the dead `isMember()` helper from
+`storage.rules` (defined since PR #273 scoped rules to per-feature permissions, never called
+since; source of the harmless "Unused function" / "Invalid function name: firestore.get" linter
+warnings on every `firebase deploy --only storage`). Session 195 (previous) — Serving Teams
+Phase 2 (Equipment Register + Moves) delivered:
 new `/members/equipment.html?team=` page, location tracking plus purchase date/cost/condition/
 photo per item, collaborative move checklists. Closes out the last "future" item in
 `docs/SERVING_TEAMS.md`. Session 194 (previous): optional second address (camp grounds/Nestpark)
@@ -45,6 +49,30 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: chore — Remove dead isMember() from storage.rules (Session 196)
+
+**Date:** 2026-07-07
+**PR:** #325 (pending)
+**Status:** Open
+
+### What was done
+
+Cleanup flagged in Session 195: deploying Storage rules printed three linter warnings —
+"Unused function: isMember", plus two confusing secondary warnings about `firestore.get` /
+`request` inside its body (the linter can't fully type-check a function nothing calls). The
+function has been dead since PR #273 replaced the blanket `isAdminUser()` pattern with per-path
+`hasPermission(p)` checks; nothing in `storage.rules` references it. Deleted the four lines.
+
+Confirmed via grep that the definition was the only occurrence, and ran the full rules suite —
+still 232 passing (Storage tests never exercised it, being dead code).
+
+### Deploy notes
+
+**Storage rules changed** — after merge run `firebase deploy --only storage` manually (the deploy
+should now be warning-free). No hosting, functions, or Firestore rules changes.
 
 ---
 
