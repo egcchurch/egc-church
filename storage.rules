@@ -17,12 +17,6 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function isServingTeamLeader(teamId) {
-      return isSignedIn() &&
-        request.auth.uid in
-          firestore.get(/databases/(default)/documents/servingTeams/$(teamId)).data.leaders;
-    }
-
     function isValidImage() {
       return request.resource.contentType.matches('image/.*')
         && request.resource.size < 5 * 1024 * 1024; // 5MB max
@@ -140,11 +134,12 @@ service firebase.storage {
       allow delete: if hasPermission('team.manage');
     }
 
-    // ── Serving Teams equipment photos (Phase 2, Session 195) ──────────────
-    match /servingTeams/{teamId}/equipment/{itemId}/{fileName} {
+    // ── Equipment photos (church-wide register, Session 197) ────────────────
+    // Only equipment.manage holders add/edit items, so only they touch photos.
+    match /equipment/{itemId}/{fileName} {
       allow read: if true;
-      allow create, update: if (hasPermission('servingTeams.manage') || isServingTeamLeader(teamId)) && isValidImage();
-      allow delete: if hasPermission('servingTeams.manage') || isServingTeamLeader(teamId);
+      allow create, update: if hasPermission('equipment.manage') && isValidImage();
+      allow delete: if hasPermission('equipment.manage');
     }
 
     // ── Site branding (logo) ──────────────────────────────────────────────

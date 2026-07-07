@@ -26,23 +26,20 @@
   <!-- PAGE HEADER -->
   <div class="bg-[#0A3D62] text-white py-10 px-6">
     <div class="max-w-6xl mx-auto">
-      <a href="/members/serving-teams.html" class="text-blue-200 hover:text-white text-sm mb-2 inline-flex items-center gap-1.5">
-        <i class="fas fa-arrow-left"></i> Serving Teams
-      </a>
-      <h1 class="text-3xl font-bold tracking-tight" id="page-title">Equipment</h1>
-      <p class="text-blue-200 mt-1" id="page-subtitle">Track what you have and where it currently is</p>
+      <h1 class="text-3xl font-bold tracking-tight">Equipment</h1>
+      <p class="text-blue-200 mt-1">The church's equipment register — what we have and where it currently is</p>
     </div>
   </div>
 
-  <!-- NOT PART OF THIS TEAM -->
+  <!-- NO ACCESS -->
   <div id="not-authorized" class="hidden max-w-md mx-auto px-6 py-20 text-center">
     <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
       <i class="fas fa-lock text-amber-600 text-2xl"></i>
     </div>
-    <h2 class="text-xl font-bold text-zinc-900 mb-2">Not part of this team</h2>
-    <p class="text-zinc-500 mb-6">You need to be a member or leader of this team to view its equipment.</p>
-    <a href="/members/serving-teams.html" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
-      Back to Serving Teams
+    <h2 class="text-xl font-bold text-zinc-900 mb-2">No access yet</h2>
+    <p class="text-zinc-500 mb-6">The equipment register is for equipment users. Ask an equipment manager to add you.</p>
+    <a href="/members/index.html" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+      Back to Members Area
     </a>
   </div>
 
@@ -63,6 +60,10 @@
       <button id="tab-moves-btn" onclick="switchTab('moves')"
               class="px-5 py-2.5 rounded-full text-sm font-medium transition-all border border-zinc-200 text-zinc-600 hover:border-zinc-300">
         <i class="fas fa-dolly mr-1.5"></i>Moves
+      </button>
+      <button id="tab-users-btn" onclick="switchTab('users')"
+              class="hidden px-5 py-2.5 rounded-full text-sm font-medium transition-all border border-zinc-200 text-zinc-600 hover:border-zinc-300">
+        <i class="fas fa-user-gear mr-1.5"></i>Users
       </button>
     </div>
 
@@ -100,9 +101,30 @@
       <div id="moves-list" class="space-y-3"></div>
     </div>
 
+    <!-- USERS TAB (managers only) -->
+    <div id="tab-users" class="hidden">
+      <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-6 max-w-2xl">
+        <h2 class="font-bold text-lg text-[#0A3D62] mb-1">Equipment Users</h2>
+        <p class="text-sm text-zinc-500 mb-5">
+          People listed here can open this register, see items and locations (not costs), and run
+          moves. Managing items and costs needs the Equipment Register permission, assigned by a
+          superadmin under Admin &rarr; Roles.
+        </p>
+        <div class="relative mb-4">
+          <input id="user-search" type="text" placeholder="Search members to add (type 2+ letters)&hellip;"
+                 oninput="searchUsersToAdd()"
+                 onblur="setTimeout(hideUserSearchResults, 150)"
+                 class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <div id="user-search-results"
+               class="hidden absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-zinc-100 py-1 z-10 max-h-56 overflow-y-auto"></div>
+        </div>
+        <div id="user-chips" class="flex flex-wrap gap-2"></div>
+      </div>
+    </div>
+
   </main>
 
-  <!-- EQUIPMENT MODAL (add/edit — leader view) -->
+  <!-- EQUIPMENT MODAL (add/edit — managers only) -->
   <div id="equipment-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-4">
@@ -146,6 +168,9 @@
           <input id="equipment-location" type="text" list="equipment-location-datalist" placeholder="e.g. Elands"
                  class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
         </div>
+        <!-- Cost + purchase date live on a manager-only Firestore subdoc — this whole
+             modal is manager-only, so the fields always show here; they're simply
+             never present in the data an ordinary equipment user can read. -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-zinc-700 mb-1">Purchase date (optional)</label>
@@ -242,14 +267,15 @@
   <script>
     const db = firebase.firestore();
     let currentUser = null;
-    let teamId = new URLSearchParams(window.location.search).get('team');
-    let team = null;
-    let isLeader = false;
+    let isManager = false;   // equipment.manage permission or superadmin
     let equipmentCache = [];
     let movesCache = [];
+    let accessDoc = { uids: [], names: {} };
     let editingEquipmentId = null;
     let editingEquipmentPhotoUrl = null;
     let openMoveId = null;
+    let userSearchTimer = null;
+    let userSearchRoster = null; // cached directory-visible members for the add-user search
 
     function escapeHtml(str) {
       return String(str || '')
@@ -272,57 +298,62 @@
 
     auth.onAuthStateChanged((user) => {
       currentUser = user;
-      if (user && teamId) init();
+      if (user) init();
     });
 
     async function init() {
-      if (!teamId) {
+      const token = await currentUser.getIdTokenResult();
+      isManager = token.claims.superadmin === true ||
+        (Array.isArray(token.claims.perms) && token.claims.perms.includes('equipment.manage'));
+
+      // Access is proven by the read itself: Firestore rules allow it for
+      // managers and listed equipment users, and deny everyone else — no
+      // separate client-side membership lookup needed (or possible; the
+      // access list doc is manager-only).
+      try {
+        await Promise.all([loadEquipment(), loadMoves()]);
+      } catch (err) {
+        console.warn('Equipment access denied:', err.message);
         document.getElementById('loading').classList.add('hidden');
         document.getElementById('not-authorized').classList.remove('hidden');
         return;
       }
-      try {
-        const snap = await db.collection('servingTeams').doc(teamId).get();
-        if (!snap.exists) throw new Error('Team not found');
-        team = { id: snap.id, ...snap.data() };
-        const uid = currentUser.uid;
-        isLeader = (team.leaders || []).includes(uid);
-        const isMemberOf = (team.members || []).includes(uid);
-        if (!isLeader && !isMemberOf) {
-          document.getElementById('loading').classList.add('hidden');
-          document.getElementById('not-authorized').classList.remove('hidden');
-          return;
-        }
 
-        document.getElementById('page-title').textContent = 'Equipment — ' + team.name;
-        if (isLeader) document.getElementById('add-equipment-btn').classList.remove('hidden');
-
-        await Promise.all([loadEquipment(), loadMoves()]);
-        document.getElementById('loading').classList.add('hidden');
-        document.getElementById('main-content').classList.remove('hidden');
-      } catch (err) {
-        console.error('Failed to load team:', err);
-        document.getElementById('loading').classList.add('hidden');
-        document.getElementById('not-authorized').classList.remove('hidden');
+      if (isManager) {
+        document.getElementById('add-equipment-btn').classList.remove('hidden');
+        document.getElementById('tab-users-btn').classList.remove('hidden');
+        await loadAccessList();
       }
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('main-content').classList.remove('hidden');
     }
 
     function switchTab(tab) {
-      const isEquip = tab === 'equipment';
-      document.getElementById('tab-equipment').classList.toggle('hidden', !isEquip);
-      document.getElementById('tab-moves').classList.toggle('hidden', isEquip);
-      document.getElementById('tab-equipment-btn').className = 'px-5 py-2.5 rounded-full text-sm font-medium transition-all ' +
-        (isEquip ? 'bg-[#0A3D62] text-white' : 'border border-zinc-200 text-zinc-600 hover:border-zinc-300');
-      document.getElementById('tab-moves-btn').className = 'px-5 py-2.5 rounded-full text-sm font-medium transition-all ' +
-        (!isEquip ? 'bg-[#0A3D62] text-white' : 'border border-zinc-200 text-zinc-600 hover:border-zinc-300');
+      ['equipment', 'moves', 'users'].forEach((t) => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+        const btn = document.getElementById('tab-' + t + '-btn');
+        const active = t === tab;
+        btn.className = (t === 'users' && !isManager ? 'hidden ' : '') +
+          'px-5 py-2.5 rounded-full text-sm font-medium transition-all ' +
+          (active ? 'bg-[#0A3D62] text-white' : 'border border-zinc-200 text-zinc-600 hover:border-zinc-300');
+      });
     }
 
     // ── Equipment ────────────────────────────────────────────────────────────
 
     async function loadEquipment() {
-      const snap = await db.collection('servingTeams').doc(teamId).collection('equipment')
-        .orderBy('name').get();
+      const snap = await db.collection('equipment').orderBy('name').get();
       equipmentCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // Costs live on a manager-only subdoc (rules-enforced, not just hidden UI).
+      // Merge them into the cache for display/edit — managers only; an ordinary
+      // equipment user's reads of these docs would be denied, so don't attempt.
+      if (isManager) {
+        await Promise.all(equipmentCache.map(async (e) => {
+          const fin = await db.collection('equipment').doc(e.id)
+            .collection('private').doc('finance').get().catch(() => null);
+          if (fin && fin.exists) Object.assign(e, fin.data());
+        }));
+      }
       populateEquipmentDatalists();
       renderEquipment();
     }
@@ -353,8 +384,8 @@
           ? `<img src="${escapeHtml(e.photoUrl)}" alt="" class="h-32 w-full object-cover rounded-t-2xl">`
           : `<div class="h-32 w-full bg-[#0A3D62]/5 rounded-t-2xl flex items-center justify-center"><i class="fas fa-box text-3xl text-[#0A3D62]/20"></i></div>`;
         return `
-          <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden ${isLeader ? 'cursor-pointer hover:shadow-md transition-all' : ''}"
-               ${isLeader ? `onclick="openEquipmentModal('${e.id}')"` : ''}>
+          <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden ${isManager ? 'cursor-pointer hover:shadow-md transition-all' : ''}"
+               ${isManager ? `onclick="openEquipmentModal('${e.id}')"` : ''}>
             ${photo}
             <div class="p-4">
               <div class="flex items-start justify-between gap-2 mb-1">
@@ -364,7 +395,7 @@
               ${e.category ? `<p class="text-xs text-zinc-400 mb-2">${escapeHtml(e.category)}</p>` : ''}
               <div class="text-xs text-zinc-500 space-y-1">
                 ${e.currentLocation ? `<p><i class="fas fa-location-dot w-4 text-zinc-300"></i> ${escapeHtml(e.currentLocation)}</p>` : ''}
-                ${e.purchaseCost != null ? `<p><i class="fas fa-tag w-4 text-zinc-300"></i> ${formatCost(e.purchaseCost)}</p>` : ''}
+                ${isManager && e.purchaseCost != null ? `<p><i class="fas fa-tag w-4 text-zinc-300"></i> ${formatCost(e.purchaseCost)}</p>` : ''}
               </div>
             </div>
           </div>`;
@@ -373,7 +404,6 @@
 
     function openEquipmentModal(itemId) {
       editingEquipmentId = itemId || null;
-      editingEquipmentPhotoUrl = null;
       document.getElementById('equipment-form-msg').classList.add('hidden');
       document.getElementById('equipment-photo').value = '';
       document.getElementById('equipment-delete-btn').classList.toggle('hidden', !itemId);
@@ -417,29 +447,38 @@
         category: document.getElementById('equipment-category').value.trim() || null,
         condition: document.getElementById('equipment-condition').value,
         currentLocation: document.getElementById('equipment-location').value.trim() || null,
-        purchaseDate: document.getElementById('equipment-purchase-date').value || null,
-        purchaseCost: costRaw !== '' ? parseFloat(costRaw) : null,
         description: document.getElementById('equipment-description').value.trim() || null,
         notes: document.getElementById('equipment-notes').value.trim() || null,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       };
+      // Financial details go on a separate, manager-only subdoc — never on the
+      // item doc itself, or every equipment user could read them (rules can't
+      // hide individual fields of a readable document).
+      const finance = {
+        purchaseDate: document.getElementById('equipment-purchase-date').value || null,
+        purchaseCost: costRaw !== '' ? parseFloat(costRaw) : null,
+      };
 
       try {
+        const itemId = editingEquipmentId || db.collection('equipment').doc().id;
         const photoFile = document.getElementById('equipment-photo').files[0];
-        const itemId = editingEquipmentId || db.collection('servingTeams').doc(teamId).collection('equipment').doc().id;
         if (photoFile) {
           const compressed = await compressImage(photoFile);
-          data.photoUrl = await uploadMedia(`servingTeams/${teamId}/equipment/${itemId}/photo.jpg`, compressed);
+          data.photoUrl = await uploadMedia(`equipment/${itemId}/photo.jpg`, compressed);
         }
 
-        const ref = db.collection('servingTeams').doc(teamId).collection('equipment').doc(itemId);
+        const itemRef = db.collection('equipment').doc(itemId);
+        const batch = db.batch();
         if (editingEquipmentId) {
-          await ref.update(data);
+          batch.update(itemRef, data);
         } else {
           data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
           data.createdBy = currentUser.uid;
-          await ref.set(data);
+          batch.set(itemRef, data);
         }
+        batch.set(itemRef.collection('private').doc('finance'), finance, { merge: true });
+        await batch.commit();
+
         closeEquipmentModal();
         await loadEquipment();
       } catch (err) {
@@ -463,7 +502,11 @@
       if (!confirm('Delete this equipment item? This cannot be undone.')) return;
       try {
         if (editingEquipmentPhotoUrl) await deleteMedia(editingEquipmentPhotoUrl);
-        await db.collection('servingTeams').doc(teamId).collection('equipment').doc(editingEquipmentId).delete();
+        const itemRef = db.collection('equipment').doc(editingEquipmentId);
+        const batch = db.batch();
+        batch.delete(itemRef.collection('private').doc('finance'));
+        batch.delete(itemRef);
+        await batch.commit();
         closeEquipmentModal();
         await loadEquipment();
       } catch (err) {
@@ -475,8 +518,7 @@
     // ── Moves ────────────────────────────────────────────────────────────────
 
     async function loadMoves() {
-      const snap = await db.collection('servingTeams').doc(teamId).collection('moves')
-        .orderBy('createdAt', 'desc').get();
+      const snap = await db.collection('equipmentMoves').orderBy('createdAt', 'desc').get();
       movesCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       renderMoves();
     }
@@ -508,6 +550,7 @@
             <div class="flex items-center gap-4 text-xs text-zinc-400 mt-2">
               ${m.scheduledFor ? `<span><i class="fas fa-calendar mr-1"></i>${escapeHtml(m.scheduledFor)}</span>` : ''}
               <span><i class="fas fa-boxes-stacked mr-1"></i>${packedCount}/${total} packed</span>
+              ${m.createdByName ? `<span><i class="fas fa-user mr-1"></i>${escapeHtml(m.createdByName)}</span>` : ''}
             </div>
           </div>`;
       }).join('');
@@ -525,7 +568,7 @@
               <input type="checkbox" class="move-item-checkbox w-4 h-4 accent-amber-500" value="${e.id}">
               ${escapeHtml(e.name)} ${e.currentLocation ? `<span class="text-xs text-zinc-400">(${escapeHtml(e.currentLocation)})</span>` : ''}
             </label>`).join('')
-        : '<p class="text-sm text-zinc-400">No equipment to select — add some first.</p>';
+        : '<p class="text-sm text-zinc-400">No equipment to select yet.</p>';
       document.getElementById('move-start-modal').classList.remove('hidden');
     }
 
@@ -553,7 +596,7 @@
         packed: false,
       }));
       try {
-        await db.collection('servingTeams').doc(teamId).collection('moves').add({
+        await db.collection('equipmentMoves').add({
           fromLocation: document.getElementById('move-from').value.trim() || null,
           toLocation: to,
           scheduledFor: document.getElementById('move-scheduled-for').value || null,
@@ -588,7 +631,7 @@
                  ${item.packed ? 'checked' : ''} ${isComplete ? 'disabled' : ''} onchange="toggleMoveItemPacked(${idx})">
           ${escapeHtml(item.name)}
         </label>`).join('');
-      const canCancel = isLeader || move.createdBy === currentUser.uid;
+      const canCancel = isManager || move.createdBy === currentUser.uid;
       document.getElementById('move-complete-btn').classList.toggle('hidden', isComplete);
       document.getElementById('move-cancel-btn').classList.toggle('hidden', isComplete || !canCancel);
       document.getElementById('move-detail-modal').classList.remove('hidden');
@@ -605,7 +648,7 @@
     // transaction re-reads the move fresh and only flips the one index it was
     // asked to, so Firestore's automatic retry-on-conflict keeps both toggles.
     async function toggleMoveItemPacked(idx) {
-      const moveRef = db.collection('servingTeams').doc(teamId).collection('moves').doc(openMoveId);
+      const moveRef = db.collection('equipmentMoves').doc(openMoveId);
       try {
         await db.runTransaction(async (tx) => {
           const snap = await tx.get(moveRef);
@@ -628,10 +671,10 @@
 
       try {
         const batch = db.batch();
-        const moveRef = db.collection('servingTeams').doc(teamId).collection('moves').doc(openMoveId);
+        const moveRef = db.collection('equipmentMoves').doc(openMoveId);
         batch.update(moveRef, { status: 'complete', completedAt: firebase.firestore.FieldValue.serverTimestamp() });
         packedItems.forEach((item) => {
-          const itemRef = db.collection('servingTeams').doc(teamId).collection('equipment').doc(item.equipmentId);
+          const itemRef = db.collection('equipment').doc(item.equipmentId);
           batch.update(itemRef, {
             currentLocation: move.toLocation,
             lastMovedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -654,12 +697,103 @@
       if (!openMoveId) return;
       if (!confirm('Cancel this move? Nothing will be marked as moved.')) return;
       try {
-        await db.collection('servingTeams').doc(teamId).collection('moves').doc(openMoveId).delete();
+        await db.collection('equipmentMoves').doc(openMoveId).delete();
         closeMoveDetailModal();
         await loadMoves();
       } catch (err) {
         console.error('Failed to cancel move:', err);
         alert('Failed to cancel move. Please try again.');
+      }
+    }
+
+    // ── Equipment users (managers only) ──────────────────────────────────────
+
+    async function loadAccessList() {
+      const snap = await db.doc('equipmentAccess/users').get().catch(() => null);
+      accessDoc = (snap && snap.exists) ? { uids: [], names: {}, ...snap.data() } : { uids: [], names: {} };
+      renderUserChips();
+    }
+
+    function renderUserChips() {
+      const el = document.getElementById('user-chips');
+      if (!accessDoc.uids.length) {
+        el.innerHTML = '<p class="text-sm text-zinc-400">No equipment users yet — search above to add someone.</p>';
+        return;
+      }
+      el.innerHTML = accessDoc.uids.map((uid) => `
+        <span class="inline-flex items-center gap-2 bg-[#0A3D62]/5 text-[#0A3D62] text-sm px-3 py-1.5 rounded-full">
+          ${escapeHtml(accessDoc.names[uid] || 'Member')}
+          <button onclick="removeEquipmentUser('${uid}')" title="Remove"
+                  class="text-zinc-400 hover:text-red-500 transition-colors"><i class="fas fa-times"></i></button>
+        </span>`).join('');
+    }
+
+    function searchUsersToAdd() {
+      clearTimeout(userSearchTimer);
+      const q = (document.getElementById('user-search').value || '').trim().toLowerCase();
+      const results = document.getElementById('user-search-results');
+      if (q.length < 2) { results.classList.add('hidden'); results.innerHTML = ''; return; }
+
+      userSearchTimer = setTimeout(async () => {
+        if (!userSearchRoster) {
+          const snap = await db.collection('users')
+            .where('membership', '==', 'member')
+            .where('directoryVisible', '==', true)
+            .get()
+            .catch(() => null);
+          userSearchRoster = snap
+            ? snap.docs.map((d) => ({ uid: d.id, name: d.data().displayName || '' })).filter((u) => u.name)
+            : [];
+        }
+        const existing = new Set(accessDoc.uids);
+        const matches = userSearchRoster.filter((u) =>
+          u.name.toLowerCase().includes(q) && !existing.has(u.uid));
+
+        results.innerHTML = matches.length
+          ? matches.map((u) => `
+              <button type="button"
+                      onmousedown="addEquipmentUser('${u.uid}', ${JSON.stringify(u.name).replace(/"/g, '&quot;')})"
+                      class="w-full text-left px-3 py-2 text-xs text-zinc-700 hover:bg-amber-50 hover:text-amber-800 transition-colors">
+                ${escapeHtml(u.name)}
+              </button>`).join('')
+          : '<p class="text-xs text-zinc-400 px-3 py-2">No members found.</p>';
+        results.classList.remove('hidden');
+      }, 200);
+    }
+
+    function hideUserSearchResults() {
+      const el = document.getElementById('user-search-results');
+      if (el) el.classList.add('hidden');
+    }
+
+    async function addEquipmentUser(uid, name) {
+      document.getElementById('user-search').value = '';
+      hideUserSearchResults();
+      try {
+        // set + merge so the very first add works before the doc exists
+        await db.doc('equipmentAccess/users').set({
+          uids: firebase.firestore.FieldValue.arrayUnion(uid),
+          names: { [uid]: name },
+        }, { merge: true });
+        await loadAccessList();
+      } catch (err) {
+        console.error('Failed to add user:', err);
+        alert('Failed to add user. Please try again.');
+      }
+    }
+
+    async function removeEquipmentUser(uid) {
+      const name = accessDoc.names[uid] || 'this member';
+      if (!confirm(`Remove ${name} from equipment users? They'll lose access to this register.`)) return;
+      try {
+        await db.doc('equipmentAccess/users').update({
+          uids: firebase.firestore.FieldValue.arrayRemove(uid),
+          [`names.${uid}`]: firebase.firestore.FieldValue.delete(),
+        });
+        await loadAccessList();
+      } catch (err) {
+        console.error('Failed to remove user:', err);
+        alert('Failed to remove user. Please try again.');
       }
     }
   </script>
