@@ -10,13 +10,12 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-07
-**Current milestone:** Session 193 — docs-only: corrected `docs/WHATSAPP.md`'s pricing model (Meta
-moved to per-delivered-template-message billing in mid-2025, not per-conversation) and added a
-concrete Meta/business account setup checklist, since the church is now getting a prepaid SIM and
-setting up the Meta developer account for WhatsApp Stage 2. No code changes — on hold until the
-`WHATSAPP_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` secrets exist. Session 192 (previous): real outgoing
-email via SMTP, closing out Event Registration Phase B4. Pending: Serving Teams Phase 2 (Equipment
-Register + Moves, future).
+**Current milestone:** Session 194 — optional second address (e.g. camp grounds/Nestpark) on
+`/admin/settings.html`, shown in the footer alongside the main address when set. Session 193
+(previous, docs-only): corrected `docs/WHATSAPP.md`'s pricing model and added a Meta/business
+account setup checklist — WhatsApp Stage 2 stays on hold until the `WHATSAPP_TOKEN`/
+`WHATSAPP_PHONE_NUMBER_ID` secrets exist. Session 192: real outgoing email via SMTP, closing out
+Event Registration Phase B4. Pending: Serving Teams Phase 2 (Equipment Register + Moves, future).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -44,6 +43,55 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: feat — Optional second address (camp grounds) in footer (Session 194)
+
+**Date:** 2026-07-07
+**PR:** #323 (pending)
+**Status:** Open
+
+### What was done
+
+User request: add a second address like egc.church shows for Nestpark (the camp grounds site) —
+occasional-use, not a regular second campus. Confirmed via egc.church that the address is "Martha
+Rd, Nestpark AH, Bapsfontein, 1510, South Africa" (that fetch also returned unrelated Canadian
+phone numbers mixed in, flagged to the user as untrustworthy before proceeding — user confirmed
+the address text independently). Discussed and settled: footer only, alongside the main address
+(not a separate About page section).
+
+- `admin/settings.html` — Church Info section gained "Second Address Label (optional)" and
+  "Second Address (optional)" fields, saved to `config/church.secondAddressLabel`/`secondAddress`
+  alongside the existing single `address` field. Blank = hidden (existing behavior for every
+  church using this template unaffected).
+- `footer.html` — new `#footer-second-address-label`/`#footer-second-address`/
+  `#footer-second-directions` elements, same hidden-until-populated pattern as the existing
+  address/directions pair, positioned directly below it.
+- `js/footer.js` — `applyChurchInfo()` populates the three new elements when
+  `data.secondAddress` is set; label defaults to "Second Location" if left blank. Directions link
+  reuses the same `maps.google.com/?q=` pattern as the main address.
+- `service-worker.js` — cache bumped to v93 (`footer.html` and `js/footer.js` are both precached,
+  cache-first assets).
+- `CLAUDE.md` — documented the two new `config/church` fields.
+- No rules changes — `config/church` was already covered by the existing superadmin-write rule;
+  ran the full rules suite to confirm (still 218 passing, unchanged).
+
+### Verification
+
+No live superadmin credentials available in this session to test the actual save round-trip, so
+verified what's testable: started `firebase serve --only hosting` locally, confirmed the
+production `/config/church` doc has no `secondAddress` set today and the footer renders with no
+console errors and no layout break (new elements correctly stay hidden). Then simulated
+`applyChurchInfo()`'s new code path directly in the browser console with a fake `secondAddress`/
+`secondAddressLabel` — confirmed all three elements exist with matching ids, unhide correctly, and
+the directions link builds a correct encoded Google Maps URL. Screenshot confirmed the visual
+layout (label, address, Get Directions, sitting above the service times list) looks right.
+
+### Deploy notes
+
+Hosting-only — deploys via CI on merge. No Cloud Functions, rules, or Storage changes. After
+deploy, a superadmin fills in the two new fields on `/admin/settings.html` to make it live.
 
 ---
 

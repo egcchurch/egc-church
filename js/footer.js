@@ -36,6 +36,14 @@
       const dirEl = document.getElementById('footer-directions');
       if (dirEl) { dirEl.href = 'https://maps.google.com/?q=' + encodeURIComponent(data.address); dirEl.classList.remove('hidden'); }
     }
+    if (data.secondAddress) {
+      const labelEl = document.getElementById('footer-second-address-label');
+      if (labelEl) { labelEl.textContent = data.secondAddressLabel || 'Second Location'; labelEl.classList.remove('hidden'); }
+      const addrEl = document.getElementById('footer-second-address');
+      if (addrEl) { addrEl.textContent = data.secondAddress; addrEl.classList.remove('hidden'); }
+      const dirEl = document.getElementById('footer-second-directions');
+      if (dirEl) { dirEl.href = 'https://maps.google.com/?q=' + encodeURIComponent(data.secondAddress); dirEl.classList.remove('hidden'); }
+    }
     if (data.phone) {
       const phoneEl = document.getElementById('footer-phone');
       if (phoneEl) { phoneEl.textContent = data.phone; phoneEl.classList.remove('hidden'); }
