@@ -102,9 +102,10 @@ admin's own wording, substituting `{{title}}`, `{{referenceCode}}`, `{{firstName
 `{{lastName}}`, and `{{seatsUsed}}` tokens. Left blank (the default for every event, including all
 existing ones), nothing changes — the built-in message is used exactly as before. Deliberately
 scoped to only the confirmation message, not the pending-holding or decline messages, since the
-reference code is the one thing a registrant actually needs and can't get any other way (there's
-no email link yet — Phase B4 — and the "Find my registration" lookup itself needs the reference
-code as an input, so it can't be the delivery mechanism for it).
+reference code is the one thing a registrant actually needs and can't get any other way (the
+confirmation email is plain text with no deep link back into the site, and the "Find my
+registration" lookup itself needs the reference code as an input, so it can't be the delivery
+mechanism for it).
 
 ### Find my registration (Phase C3)
 Since most registrations are anonymous by design (no login required), there's no "my
@@ -112,8 +113,8 @@ registrations" view the way a logged-in member gets one elsewhere on the site. A
 lookup — reference code + a matching phone or email (whichever the contact originally gave;
 `registerForEvent` only requires one of the two, so the lookup can't demand phone specifically)
 — lets a registrant reach their own submission again to attach (or replace) a proof-of-payment
-file via the existing `attachRegistrationProof` flow, without needing a real email confirmation
-link (still not wired up — Phase B4) or an account. Shown as an "Already registered? Attach
+file via the existing `attachRegistrationProof` flow, without needing an email confirmation link
+(the confirmation email is plain text, no deep link) or an account. Shown as an "Already registered? Attach
 payment proof" link next to the Register button on any event with registration enabled —
 including once the event is full, since an existing registrant still needs this regardless of
 current capacity.
@@ -134,14 +135,17 @@ reasoning exactly: a public, possibly-unauthenticated form can't be trusted to s
 which fields are required, and capacity enforcement needs a transaction, not a client-side
 read-then-write.
 
-### Email — provisioned, not wired (deferred to Phase B4)
-No email-sending capability exists anywhere in this codebase yet (Firebase Auth only sends
-its own fixed templates — verification, password reset — nothing custom). SMS reuses the
-already-working SMSPortal integration from Cottage Meetings immediately. A `sendEmail()`
-helper is added now as a no-op (mirrors exactly how `sendSms` already no-ops when the
-SMSPortal secrets aren't configured) so that once the church's own domain and a dedicated
-communications mailbox exist post-launch, wiring in a real provider (Brevo was the pick when
-this happens) is filling in one function body — not a schema or flow change.
+### Email — delivered (Phase B4, Session 192)
+`sendEmail()` sends via SMTP (`nodemailer`), using the church's own domain mailbox (e.g.
+`communications@egc.church`, hosted on domains.co.za) instead of a third-party API provider —
+no separate account/API key needed beyond the mailbox itself. Configured entirely at runtime
+from `/admin/settings.html`'s "Email (SMTP)" section, not Secret Manager: non-sensitive settings
+(host/port/from/reply-to) live on `/config/email`; the mailbox username/password live on
+`/config/emailCredentials`, which `firestore.rules` denies to every client in both directions —
+only the `updateEmailCredentials` callable (Admin SDK) ever writes it, and only `sendEmail()`/
+`sendTestEmail()` (also Admin SDK) ever read it. This lets a non-technical superadmin set up or
+change the mailbox from a form, with none of the credentials ever readable back through the
+Firestore SDK. See `CLAUDE.md`'s Cloud Functions Architecture section for the full callable list.
 
 ---
 
@@ -228,8 +232,7 @@ Storage (Phase B3):
 
 ## Phasing
 
-All planned phases (A, B1-B3, C1-C3) are now delivered — only Phase B4 (real email) remains,
-deliberately deferred until the church has its own domain and a comms mailbox post-launch.
+All planned phases (A, B1-B3, C1-C3, B4) are now delivered.
 
 - **Phase A (delivered):** `rsvpEnabled` toggle. Admin checkbox on the event form (default
   checked), `events.js` skips all RSVP rendering when `false`. No new permission, no Cloud
@@ -257,8 +260,9 @@ deliberately deferred until the church has its own domain and a comms mailbox po
   registrations list shows a "View proof" link and a "Mark Paid" toggle (`paymentConfirmed`) —
   the one field on a registration doc `events.manage` can write directly, since it's a plain
   boolean with no business logic to enforce, unlike everything `registerForEvent` does.
-- **Phase B4 (deferred — blocked on the church's own domain/mailbox existing post-launch):**
-  wire a real email provider (Brevo) into the `sendEmail()` stub added in Phase B1.
+- **Phase B4 (delivered, Session 192):** `sendEmail()` now sends via SMTP (`nodemailer`) using
+  the church's own domain mailbox, configured at runtime from `/admin/settings.html` — see
+  "Email — delivered" above and `CLAUDE.md`'s Cloud Functions Architecture section.
 - **Phase C1 (in progress):** party model — `contact` + `attendees[]` replaces one-doc-per-person;
   per-attendee dynamic answers; capacity now charges `attendees.length` seats per registration,
   not 1; dedup check on phone/email with a soft warn-and-confirm flow (not a hard block) that

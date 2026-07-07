@@ -9,7 +9,7 @@ const db = admin.firestore();
 
 const { computeEffectiveClaims, permissionFieldsChanged } = require('./computePermissions');
 const { DEFAULT_ROLES } = require('./rolesData');
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
 // functions.config() was removed in firebase-functions v7 — migrated to the
 // params module. Set with `firebase functions:secrets:set YOUTUBE_APIKEY`
@@ -26,16 +26,8 @@ const youtubeChannelId = defineSecret('YOUTUBE_CHANNELID');
 const smsPortalClientId = defineSecret('SMSPORTAL_CLIENT_ID');
 const smsPortalApiSecret = defineSecret('SMSPORTAL_API_SECRET');
 
-// Same migration for the Resend email alert in onNewConnectForm. This feature
-// is not currently in use, so RESEND_APIKEY is a plain string param (default
-// '') rather than a Secret Manager secret — that avoids the deploy needing a
-// value that doesn't exist. If the church starts using Resend, switch this to
-// `defineSecret('RESEND_APIKEY')` (set via `firebase functions:secrets:set`)
-// and add it to onNewConnectForm's runWith({ secrets: [...] }) list.
-// RESEND_FROM_EMAIL and CHURCH_DOMAIN keep the previous functions.config()
-// fallback defaults — no setup needed unless overriding them.
-const resendApiKey = defineString('RESEND_APIKEY', { default: '' });
-const resendFromEmail = defineString('RESEND_FROM_EMAIL', { default: 'noreply@egc.church' });
+// CHURCH_DOMAIN keeps the previous functions.config() fallback default — no
+// setup needed unless overriding it.
 const churchDomain = defineString('CHURCH_DOMAIN', { default: 'app.egc.church' });
 
 // ── syncUserClaims ────────────────────────────────────────────────────────────
@@ -589,31 +581,20 @@ exports.onNewConnectForm = functions.firestore
     const connectAlertEmail = configSnap.exists
       ? (configSnap.data().connectAlertEmail || null)
       : null;
-    const apiKey = resendApiKey.value();
 
-    if (connectAlertEmail && apiKey) {
-      try {
-        const resend = new Resend(apiKey);
-        await resend.emails.send({
-          from:    `Connect Form <${resendFromEmail.value()}>`,
-          to:      connectAlertEmail,
-          subject: `New connect form submission from ${form.name || 'Visitor'}`,
-          text: [
-            'A visitor has submitted a connect form.',
-            '',
-            `Name:  ${form.name  || 'Not provided'}`,
-            `Email: ${form.email || 'Not provided'}`,
-            `Phone: ${form.phone || 'Not provided'}`,
-            '',
-            'Message:',
-            form.message || '(no message)',
-            '',
-            `View submissions: https://${churchDomain.value()}/admin/connect.html`,
-          ].join('\n'),
-        });
-      } catch (err) {
-        console.error('onNewConnectForm: email alert failed:', err.message);
-      }
+    if (connectAlertEmail) {
+      await sendEmail(connectAlertEmail, `New connect form submission from ${form.name || 'Visitor'}`, [
+        'A visitor has submitted a connect form.',
+        '',
+        `Name:  ${form.name  || 'Not provided'}`,
+        `Email: ${form.email || 'Not provided'}`,
+        `Phone: ${form.phone || 'Not provided'}`,
+        '',
+        'Message:',
+        form.message || '(no message)',
+        '',
+        `View submissions: https://${churchDomain.value()}/admin/connect.html`,
+      ].join('\n'));
     }
 
     // ── In-app notification to all admins ────────────────────────────────────
@@ -1973,18 +1954,17 @@ exports.registerForEvent = functions
       return { title: event.title, referenceCode, seatsUsed: seatsNeeded, status, confirmationTemplate: reg.confirmationTemplate || null };
     });
 
-    // Best-effort SMS confirmation — never blocks or fails the registration
-    // itself. Email confirmation is provisioned but not wired yet (Phase B4;
-    // see sendEmail()). Pending registrations get a holding message with no
-    // reference code; setRegistrationStatus sends the real confirmation once
-    // (if) an admin approves.
+    // Best-effort SMS + email confirmation — never blocks or fails the
+    // registration itself (see sendEmail()). Pending registrations get a
+    // holding message with no reference code; setRegistrationStatus sends the
+    // real confirmation once (if) an admin approves.
     const partySuffix = result.seatsUsed > 1 ? ` (${result.seatsUsed} people)` : '';
     if (result.status === 'pending') {
-      if (phone) {
-        await sendSms(phone, `EGC Registration\n\nThanks for registering for ${result.title || 'the event'}${partySuffix}. Your registration is pending review — we'll be in touch once it's confirmed.`);
-      }
-      await sendEmail(email, `Registration received — ${result.title || 'Event'}`,
-        'Your registration is pending review. We\'ll be in touch once it\'s confirmed.');
+      await Promise.all([
+        phone ? sendSms(phone, `EGC Registration\n\nThanks for registering for ${result.title || 'the event'}${partySuffix}. Your registration is pending review — we'll be in touch once it's confirmed.`) : null,
+        sendEmail(email, `Registration received — ${result.title || 'Event'}`,
+          'Your registration is pending review. We\'ll be in touch once it\'s confirmed.'),
+      ]);
     } else {
       const vars = { title: result.title, referenceCode: result.referenceCode, firstName: contactFirstName, lastName: contactLastName, seatsUsed: result.seatsUsed };
       let body = renderConfirmationMessage(result.confirmationTemplate, vars);
@@ -1993,24 +1973,169 @@ exports.registerForEvent = functions
         if (result.referenceCode) lines.push(`Your reference: ${result.referenceCode}.`);
         body = lines.join(' ');
       }
-      if (phone) await sendSms(phone, `EGC Registration\n\n${body}`);
-      await sendEmail(email, `Registration confirmed — ${result.title || 'Event'}`, body);
+      await Promise.all([
+        phone ? sendSms(phone, `EGC Registration\n\n${body}`) : null,
+        sendEmail(email, `Registration confirmed — ${result.title || 'Event'}`, body),
+      ]);
     }
 
     return { registrationId: regRef.id, referenceCode: result.status === 'approved' ? result.referenceCode : null, status: result.status };
   });
 
-// Placeholder for Phase B4 — no email provider is configured yet (the church
-// plans to set one up, e.g. Brevo, once its own domain and a dedicated
-// communications mailbox exist post-launch). No-ops and logs, mirroring
-// exactly how sendSms() behaves when the SMSPortal secrets aren't set, so
-// wiring in a real provider later is filling in this one function body —
-// not a schema or call-site change.
+// Builds a nodemailer transporter from runtime-configured SMTP settings —
+// not Secret Manager — so a superadmin can set up or change the mailbox from
+// /admin/settings.html without a CLI. Non-sensitive settings (host/port/
+// from/replyTo) live on /config/email, readable like any other config doc;
+// the username/password live on /config/emailCredentials, which
+// firestore.rules denies to every client in both directions — only this
+// function and the updateEmailCredentials callable (both server-side, Admin
+// SDK) ever touch that doc. Returns { transporter: null, cfg } when SMTP
+// hasn't been fully configured yet, rather than throwing — callers decide
+// whether that's a silent no-op (sendEmail) or a surfaced error (sendTestEmail).
+async function getSmtpTransporter() {
+  const [emailSnap, credSnap] = await Promise.all([
+    db.doc('config/email').get(),
+    db.doc('config/emailCredentials').get(),
+  ]);
+  const cfg = emailSnap.exists ? emailSnap.data() : {};
+  const creds = credSnap.exists ? credSnap.data() : {};
+  if (!cfg.smtpHost || !cfg.smtpPort || !creds.smtpUser || !creds.smtpPassword) {
+    return { transporter: null, cfg };
+  }
+  const secure = cfg.smtpSecure !== false; // default true (465/SSL); false = 587/STARTTLS
+  const transporter = nodemailer.createTransport({
+    host: cfg.smtpHost,
+    port: cfg.smtpPort,
+    secure,
+    // nodemailer only upgrades to STARTTLS opportunistically when secure:false —
+    // if the server doesn't offer it, it would otherwise send the mailbox
+    // password over plaintext instead of failing. requireTLS makes the 587/
+    // STARTTLS path fail closed instead, matching domains.co.za's own guidance
+    // to always use an encrypted connection.
+    requireTLS: !secure,
+    auth: { user: creds.smtpUser, pass: creds.smtpPassword },
+  });
+  return { transporter, cfg, fromUser: creds.smtpUser };
+}
+
+// Best-effort: returns false and logs on any failure or missing config,
+// mirroring how sendSms() behaves when its secrets aren't set — never throws
+// to the caller. Used by registration confirmations and the connect-form alert.
 async function sendEmail(to, subject, body) {
   if (!to) return false;
-  console.log(`sendEmail: not configured — would have sent "${subject}" to ${to}`);
-  return false;
+  try {
+    const { transporter, cfg, fromUser } = await getSmtpTransporter();
+    if (!transporter) {
+      console.log(`sendEmail: SMTP not configured — would have sent "${subject}" to ${to}`);
+      return false;
+    }
+    await transporter.sendMail({
+      from: `${cfg.fromName || 'EGC'} <${cfg.fromEmail || fromUser}>`,
+      to,
+      subject,
+      text: body,
+      replyTo: cfg.replyTo || undefined,
+    });
+    console.log(`sendEmail: sent "${subject}" to ${to}`);
+    return true;
+  } catch (err) {
+    console.error('sendEmail failed:', err.message);
+    return false;
+  }
 }
+
+// Masks an email's local part for display on /admin/settings.html (e.g.
+// "co**********@egc.church") — enough for a superadmin to confirm the right
+// mailbox is configured without ever exposing the full address or password
+// back through a Firestore read.
+function maskEmailForDisplay(email) {
+  if (!email || !email.includes('@')) return null;
+  const [local, domain] = email.split('@');
+  const visible = local.slice(0, 2);
+  return `${visible}${'*'.repeat(Math.max(local.length - visible.length, 3))}@${domain}`;
+}
+
+// ── updateEmailCredentials ────────────────────────────────────────────────────
+// Callable, superadmin only — the ONLY way /config/emailCredentials is ever
+// written (firestore.rules denies direct client read/write on that doc
+// entirely). Called from the Email (SMTP) section on /admin/settings.html.
+// smtpUser/smtpPassword are each optional and merged in independently, so a
+// superadmin can update just the password (or just the username) without
+// retyping the other — the admin page can never prefill either field since
+// the doc holding them is unreadable by design.
+exports.updateEmailCredentials = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
+  }
+  if (context.auth.token.superadmin !== true) {
+    throw new functions.https.HttpsError('permission-denied', 'Superadmin required.');
+  }
+
+  const smtpUser = (data && data.smtpUser ? String(data.smtpUser) : '').trim();
+  const smtpPassword = data && data.smtpPassword ? String(data.smtpPassword) : '';
+
+  const credUpdate = {};
+  if (smtpUser) credUpdate.smtpUser = smtpUser;
+  if (smtpPassword) credUpdate.smtpPassword = smtpPassword;
+  if (Object.keys(credUpdate).length === 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'Provide a username and/or password to update.');
+  }
+
+  const credSnap = await db.doc('config/emailCredentials').get();
+  const creds = { ...(credSnap.exists ? credSnap.data() : {}), ...credUpdate };
+  await db.doc('config/emailCredentials').set(credUpdate, { merge: true });
+
+  const configured = !!(creds.smtpUser && creds.smtpPassword);
+  const smtpUserMasked = maskEmailForDisplay(creds.smtpUser);
+
+  await db.doc('config/email').set({
+    smtpConfigured: configured,
+    smtpUserMasked,
+    credentialsUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    credentialsUpdatedBy: context.auth.uid,
+  }, { merge: true });
+
+  return { configured, smtpUserMasked };
+});
+
+// ── sendTestEmail ─────────────────────────────────────────────────────────────
+// Callable, superadmin only — "Send test email" button on /admin/settings.html.
+// Unlike every other sendEmail() call site (best-effort, silent), this one
+// surfaces the real success/failure back to the admin so a non-technical
+// superadmin can self-diagnose a wrong host/port/password without digging
+// through Cloud Functions logs.
+exports.sendTestEmail = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
+  }
+  if (context.auth.token.superadmin !== true) {
+    throw new functions.https.HttpsError('permission-denied', 'Superadmin required.');
+  }
+
+  const to = (data && data.to ? String(data.to) : '').trim();
+  if (!to) {
+    throw new functions.https.HttpsError('invalid-argument', 'Provide a recipient email address.');
+  }
+
+  const { transporter, cfg, fromUser } = await getSmtpTransporter();
+  if (!transporter) {
+    throw new functions.https.HttpsError('failed-precondition', 'SMTP is not fully configured yet — fill in and save the host, port, username, and password first.');
+  }
+
+  try {
+    await transporter.sendMail({
+      from: `${cfg.fromName || 'EGC'} <${cfg.fromEmail || fromUser}>`,
+      to,
+      subject: 'Test email from your church website',
+      text: 'If you are reading this, SMTP email sending is configured correctly.',
+      replyTo: cfg.replyTo || undefined,
+    });
+  } catch (err) {
+    throw new functions.https.HttpsError('internal', `SMTP error: ${err.message}`);
+  }
+
+  return { success: true };
+});
 
 // ── setRegistrationStatus ──────────────────────────────────────────────────────
 // Callable from admin/events.html's registrations list (Event Registration
@@ -2092,13 +2217,17 @@ exports.setRegistrationStatus = functions
         if (result.reg.referenceCode) lines.push(`Your reference: ${result.reg.referenceCode}.`);
         body = lines.join(' ');
       }
-      if (contact.phone) await sendSms(contact.phone, `EGC Registration\n\n${body}`);
-      await sendEmail(contact.email, `Registration approved — ${result.title || 'Event'}`, body);
+      await Promise.all([
+        contact.phone ? sendSms(contact.phone, `EGC Registration\n\n${body}`) : null,
+        sendEmail(contact.email, `Registration approved — ${result.title || 'Event'}`, body),
+      ]);
     } else if (result.changed && status === 'declined') {
       const contact = result.reg.contact || {};
       const message = `Your registration for ${result.title || 'the event'} could not be accepted at this time. Please contact us if you have any questions.`;
-      if (contact.phone) await sendSms(contact.phone, `EGC Registration\n\n${message}`);
-      await sendEmail(contact.email, `Registration update — ${result.title || 'Event'}`, message);
+      await Promise.all([
+        contact.phone ? sendSms(contact.phone, `EGC Registration\n\n${message}`) : null,
+        sendEmail(contact.email, `Registration update — ${result.title || 'Event'}`, message),
+      ]);
     }
 
     return { success: true };
@@ -2142,8 +2271,8 @@ exports.attachRegistrationProof = functions.https.onCall(async (data, context) =
 // Callable from events.html's "Find my registration" flow (Event Registration
 // Phase C3). No auth requirement — most registrants have no account on this
 // app at all, so this is the only way back to a registration submitted while
-// pending, or to attach proof-of-payment after the fact (there is no
-// email-sent link to click, since Phase B4/real email is still deferred).
+// pending, or to attach proof-of-payment after the fact (the confirmation
+// email is plain text with no deep link to click).
 //
 // Requires BOTH the reference code AND a matching phone or email — a single
 // field alone would make this too easy to guess/enumerate at church scale.

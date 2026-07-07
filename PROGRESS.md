@@ -10,7 +10,7 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-07
-**Current milestone:** Session 191 — homepage's "Upcoming Events" card shows a "Register" shortcut for any event with registration enabled, deep-linking into the events calendar and auto-opening that event's registration modal. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future); Event Registration Phase B4 (real email, blocked on the church's comms mailbox existing post-launch).
+**Current milestone:** Session 192 — real outgoing email via SMTP (nodemailer), configured from a new "Email (SMTP)" section on `/admin/settings.html`. Closes out Event Registration Phase B4 (was the last deferred item on that initiative) and switches the connect-form alert off its unused Resend integration onto the same sender. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +38,89 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: feat — Real outgoing email via SMTP (Session 192)
+
+**Date:** 2026-07-07
+**PR:** #321 (pending)
+**Status:** Open
+
+### What was done
+
+User has a domain mailbox (`communications@egc.church`, hosted on domains.co.za) and wants the
+site able to send real mail — closing out Event Registration's long-deferred Phase B4, whose
+`sendEmail()` had been a no-op stub since Session 181 (see `docs/EVENT_REGISTRATION.md`).
+
+Discussed storage of the mailbox credentials before writing any code: the existing precedent in
+this codebase (SMSPortal) uses Firebase Secret Manager, set once via CLI. User wants this to stay
+usable by non-technical people on future forks of this template, so instead of Secret Manager (or
+a plain readable settings doc), credentials are split across two Firestore docs by sensitivity:
+
+- `/config/email` — host, port, `smtpSecure`, `fromName`, `fromEmail`, `replyTo`, plus
+  display-only `smtpConfigured`/`smtpUserMasked`/`credentialsUpdatedAt`/`credentialsUpdatedBy`.
+  Non-sensitive — readable/writable by superadmin like any other `/config` doc.
+- `/config/emailCredentials` — `smtpUser`, `smtpPassword`. `firestore.rules`' shared
+  `/config/{document}` rule now excludes this doc from both read and write entirely
+  (`document != 'emailCredentials'`), for every client including a superadmin's browser session —
+  the one place in this codebase a Firestore doc is used as a secret store walled off from the
+  client SDK, rather than a normal superadmin-gated doc. Only Cloud Functions (Admin SDK, which
+  bypasses rules) ever touch it.
+
+Implementation:
+
+- `functions/package.json` — added `nodemailer`; removed the unused `resend` dependency.
+- `functions/index.js`:
+  - `getSmtpTransporter()` — reads both config docs, builds a nodemailer transporter (465/SSL or
+    587/STARTTLS based on `smtpSecure`), or returns `{ transporter: null }` when not fully
+    configured.
+  - `sendEmail(to, subject, body)` — no longer a stub; sends via the transporter above.
+    Best-effort/silent on any failure or missing config, mirroring `sendSms()`'s posture — never
+    blocks a registration confirmation or connect-form alert.
+  - New `updateEmailCredentials` callable (superadmin only) — the only way
+    `/config/emailCredentials` is ever written. `smtpUser`/`smtpPassword` are each optional and
+    merged independently, so a superadmin can change just the password without retyping the
+    username (the admin page can never prefill either field, since the doc holding them is
+    unreadable by design). Writes a masked display hint (e.g. `co**********@egc.church`) and a
+    `smtpConfigured` flag back to `/config/email` so the UI can show status without ever exposing
+    the real values.
+  - New `sendTestEmail` callable (superadmin only) — unlike every other `sendEmail()` call site,
+    surfaces the real SMTP success/failure back to the caller, so a non-technical superadmin can
+    self-diagnose a wrong host/port/password from the admin page instead of reading Cloud
+    Functions logs.
+  - `onNewConnectForm`'s email alert switched from an unused Resend integration (never had an API
+    key configured) to `sendEmail()` — one working email system instead of one working + one
+    dead. Removed `resendApiKey`/`resendFromEmail` params and the `Resend` import.
+- `firestore.rules` — `/config/{document}` rule updated as described above.
+- `admin/settings.html` — new "Email (SMTP)" section: host, an Encryption dropdown (SSL 465 /
+  TLS 587 — deliberately not a free-form port field, to keep it foolproof for a non-technical
+  admin), From Name/Email, Reply-To (all saved directly like the rest of this page); a separate
+  "Mailbox Login" sub-section for username/password (calls `updateEmailCredentials`, password
+  field always blank on load, shows a masked "configured" status instead); and a "Send Test
+  Email" button (calls `sendTestEmail`, surfaces the real result inline).
+- `docs/EVENT_REGISTRATION.md` and `CLAUDE.md` updated — Phase B4 marked delivered, new
+  `/config/email` / `/config/emailCredentials` schema documented, new callables added to the
+  Cloud Functions Architecture list.
+
+### Tests
+
+3 new Firestore rules tests: superadmin can read/write the non-sensitive `/config/email`;
+superadmin CANNOT read or write `/config/emailCredentials` directly; member cannot either. Full
+suite run against the emulator — **218 passing** (215 previously + 3 new).
+
+### Deploy notes
+
+**Cloud Functions changed** (`sendEmail` rewritten, new `updateEmailCredentials`/`sendTestEmail`,
+`onNewConnectForm` updated) — after merge run `firebase deploy --only functions` manually.
+**Firestore rules changed** — after merge run `firebase deploy --only firestore:rules` manually.
+No Storage or index changes. No SW cache bump needed — `admin/settings.html` is network-first
+(HTML), not precached.
+
+After merge and functions deploy, the church still needs to: log into `/admin/settings.html` as
+superadmin, fill in host `mail.egc.church`, SSL/465, From Email `communications@egc.church`,
+username `communications@egc.church` + its mailbox password, save both sections, then use "Send
+Test Email" to confirm delivery before relying on it.
 
 ---
 

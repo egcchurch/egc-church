@@ -1542,6 +1542,33 @@ describe('Firestore Security Rules', () => {
       await assertSucceeds(setDoc(doc(db, 'config', 'notifications'), { connectAlertEmail: 'office@egc.church' }));
       await assertSucceeds(getDoc(doc(db, 'config', 'notifications')));
     });
+
+    it('superadmin can read and write the non-sensitive config/email doc', async () => {
+      await seedUser('admin-uid', { membership: 'public', isSuperadmin: true, roles: [] });
+      const db = superAdmin().firestore();
+      await assertSucceeds(setDoc(doc(db, 'config', 'email'), { smtpHost: 'mail.egc.church', smtpPort: 465 }));
+      await assertSucceeds(getDoc(doc(db, 'config', 'email')));
+    });
+
+    it('superadmin cannot read or write config/emailCredentials directly', async () => {
+      await seedUser('admin-uid', { membership: 'public', isSuperadmin: true, roles: [] });
+      const db = superAdmin().firestore();
+      await assertFails(setDoc(doc(db, 'config', 'emailCredentials'), { smtpUser: 'hack@egc.church', smtpPassword: 'hack' }));
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'config', 'emailCredentials'), { smtpUser: 'communications@egc.church', smtpPassword: 'secret' });
+      });
+      await assertFails(getDoc(doc(db, 'config', 'emailCredentials')));
+    });
+
+    it('member cannot read or write config/emailCredentials', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      const db = memberUser().firestore();
+      await assertFails(setDoc(doc(db, 'config', 'emailCredentials'), { smtpUser: 'hack@egc.church', smtpPassword: 'hack' }));
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'config', 'emailCredentials'), { smtpUser: 'communications@egc.church', smtpPassword: 'secret' });
+      });
+      await assertFails(getDoc(doc(db, 'config', 'emailCredentials')));
+    });
   });
 
   describe('Site Media collection', () => {

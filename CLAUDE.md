@@ -94,7 +94,8 @@ church-website-pwa/
 │   ├── notifications.html      ← Send broadcasts and notifications
 │   ├── roles.html              ← Define and manage permission roles (Phase 6)
 │   ├── settings.html           ← superadmin only — church info, branding, notification routing,
-│   │                              feature flags (Phase 8, see docs/PHASE8.md)
+│   │                              feature flags (Phase 8, see docs/PHASE8.md), email/SMTP setup
+│   │                              (Session 192)
 │   ├── pages.html              ← superadmin only — toggle/reorder sections on homepage, about,
 │   │                              members dashboard (Phase 9, see docs/PHASE9.md)
 │   └── media.html              ← superadmin only — Media Library: upload general files (with a
@@ -259,7 +260,7 @@ church-website-pwa/
 | Send notifications       | /admin/notifications | `notifications.send`       |
 | User management          | /admin/users         | `users.approve`            |
 | Manage roles             | /admin/roles         | `users.assign_roles`; superadmin for create/edit/delete |
-| Site settings            | /admin/settings      | superadmin only (Phase 8 — church info, branding, notification routing, feature flags) |
+| Site settings            | /admin/settings      | superadmin only (Phase 8 — church info, branding, notification routing, feature flags, email/SMTP) |
 | Page layout              | /admin/pages         | superadmin only (Phase 9 — toggle/reorder sections on homepage, about, members dashboard) |
 | Media Library            | /admin/media         | superadmin only — upload + site-wide browsable/searchable media aggregate + orphan scan |
 
@@ -469,8 +470,8 @@ Functions are organised by trigger type:
   unlimited). Moderation (Phase C2): if `registration.requiresApproval` is set, the new doc's
   `status` starts `"pending"` (still reserves seats) instead of `"approved"`, and the SMS/email
   sent is a holding message with no reference code — the real confirmation is deferred to
-  `setRegistrationStatus`. Email confirmation is provisioned (`sendEmail()`) but no-ops until a
-  real provider is wired in (Phase B4, blocked on the church's own comms mailbox existing).
+  `setRegistrationStatus`. Email confirmation sends via `sendEmail()` (Phase B4, Session 192 —
+  see "Email (SMTP)" below).
 - `attachRegistrationProof` — callable from the same registration modal (Phase B3) — the
   registrant uploads a proof-of-payment file directly to Storage client-side
   (`js/storage-upload.js`), then calls this to persist the resulting URL on their registration
@@ -500,6 +501,42 @@ Functions are organised by trigger type:
 ### Media Library
 
 - `scanOrphanedMedia` — callable, superadmin only — used by the "Orphaned" tab on `/admin/media.html`. Lists every file actually in the Storage bucket (`bucket.getFiles()`) and cross-references each against every URL/URL-array field across `/siteMedia`, `/gallery`, `/music`, `/sermons` (incl. `materials[]`), `/series`, `/events`, `/blog` (incl. `galleryUrls[]`/`videos[]`), `/team`, and `/config/branding` — anything in Storage but referenced nowhere comes back as an "orphan" candidate. Always excludes `users/{uid}/photo` paths, even if genuinely orphaned (this tool is for site content, not personal data). Run on-demand from the UI, not scheduled — a full bucket listing on every page load isn't worth it at church scale.
+
+### Email (SMTP) — Session 192
+
+Real outgoing email, sent via SMTP (`nodemailer`) using a mailbox on the church's own domain
+(e.g. `communications@egc.church`, hosted on a registrar like domains.co.za) — not a third-party
+email API. Configured entirely at runtime from `/admin/settings.html`'s "Email (SMTP)" section,
+**not** Secret Manager (unlike the YouTube/SMSPortal secrets above) — a deliberate choice so a
+non-technical superadmin on a forked instance of this template can set up or change the mailbox
+from a form, no CLI required. Split across two Firestore docs by sensitivity:
+
+- `/config/email` — host, port, `smtpSecure` (true = 465/SSL, false = 587/STARTTLS), `fromName`,
+  `fromEmail`, `replyTo`, plus display-only `smtpConfigured`/`smtpUserMasked`/
+  `credentialsUpdatedAt`/`credentialsUpdatedBy`. Readable/writable by superadmin like any other
+  `/config` doc — nothing on it is sensitive. Written directly by `/admin/settings.html` (the
+  non-credential fields) and by `updateEmailCredentials` (the display-only fields).
+- `/config/emailCredentials` — `smtpUser`, `smtpPassword`. **`firestore.rules` denies read AND
+  write to every client, always** (`document != 'emailCredentials'` guards the shared
+  `/config/{document}` rule) — this is the one place in this codebase a Firestore doc is used
+  as a secret store walled off from the client SDK entirely, rather than relying on
+  Secret-Manager-only or a normal superadmin-gated doc. Only Cloud Functions (Admin SDK, which
+  bypasses rules) ever read or write it.
+- `updateEmailCredentials` — callable, superadmin only — the ONLY way `/config/emailCredentials`
+  is ever written. `smtpUser`/`smtpPassword` are each optional and merged independently, so a
+  superadmin can change just the password without retyping the username (the admin page can
+  never prefill either field, since the doc holding them can't be read back) — a "configured"
+  status plus a masked hint (e.g. `co**********@egc.church`) is written to `/config/email` for
+  display, without ever exposing the real values.
+- `sendTestEmail` — callable, superadmin only — "Send test email" button on
+  `/admin/settings.html`. Unlike every other `sendEmail()` call site (best-effort, silent), this
+  one surfaces the real SMTP success/failure back to the admin, so a non-technical superadmin can
+  self-diagnose a wrong host/port/password without reading Cloud Functions logs.
+- `sendEmail(to, subject, body)` — shared helper (not exported), used by `registerForEvent`,
+  `setRegistrationStatus` (Event Registration confirmations), and `onNewConnectForm` (connect-form
+  alert — previously routed through an unused Resend integration, removed this session). No-ops
+  and logs, never throws, when SMTP isn't fully configured yet — same posture as `sendSms()` when
+  its secrets are unset.
 
 ---
 
@@ -735,6 +772,18 @@ Functions are organised by trigger type:
 
 /config/notifications                       ← singleton doc (Phase 8)
   connectAlertEmail (nullable)               ← destination for connect form email alerts
+
+/config/email                               ← singleton doc (Session 192 — SMTP)
+  smtpHost, smtpPort (number), smtpSecure (bool — true=465/SSL, false=587/STARTTLS)
+  fromName, fromEmail, replyTo (nullable)
+  smtpConfigured (bool), smtpUserMasked (nullable string)  ← display-only, set by updateEmailCredentials
+  credentialsUpdatedAt, credentialsUpdatedBy (nullable)
+  ← non-sensitive; readable/writable by superadmin like any other /config doc
+
+/config/emailCredentials                    ← singleton doc (Session 192 — SMTP)
+  smtpUser, smtpPassword
+  ← allow read, write: if false always — no client (not even superadmin) can ever touch this
+    doc; only Cloud Functions (Admin SDK) via updateEmailCredentials / sendEmail() / sendTestEmail
 
 /config/features                            ← singleton doc (Phase 8)
   music, gallery, liveStream, messaging, groups, devotional, youthGallery: true | false
@@ -1274,8 +1323,7 @@ The agentic-style local workflow:
 All 9 phases (Foundation through Page Composition) are complete and deployed. Design docs in `docs/`.
 
 **Active / pending:**
-- **Event Registration** — per-event RSVP toggle + dynamic registration forms for camps/special
-  events, in progress (`docs/EVENT_REGISTRATION.md`); Phase B4 (real email) blocked on the
-  church's own domain/comms mailbox existing post-launch
+- **Event Registration** — all planned phases delivered, including Phase B4 real email
+  (`docs/EVENT_REGISTRATION.md`)
 - **WhatsApp Stage 2** — blocked on church obtaining a WhatsApp Business sender number (`docs/WHATSAPP.md`)
 - **Serving Teams Phase 2** — Equipment Register + Moves (future; `docs/SERVING_TEAMS.md`)
