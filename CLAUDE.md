@@ -762,6 +762,10 @@ from a form, no CLI required. Split across two Firestore docs by sensitivity:
 
 /config/church                              ← singleton doc (Phase 8 — Multi-Church Template)
   displayName, tagline, address, phone (nullable), email (nullable)
+  secondAddressLabel, secondAddress (nullable — Session 194) ← optional occasional-use
+    second location (e.g. camp grounds); shown in the footer alongside the main
+    address only when secondAddress is set; secondAddressLabel defaults to
+    "Second Location" if left blank
   socialLinks: { facebook, youtube, instagram }  ← any may be null if not set
   ← managed from admin/settings.html (superadmin only); see docs/PHASE8.md
 
