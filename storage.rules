@@ -7,11 +7,6 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function isMember() {
-      return isSignedIn() &&
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.membership == 'member';
-    }
-
     function hasPermission(p) {
       return isSignedIn() &&
         (request.auth.token.superadmin == true ||
