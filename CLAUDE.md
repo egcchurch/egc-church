@@ -1325,5 +1325,5 @@ All 9 phases (Foundation through Page Composition) are complete and deployed. De
 **Active / pending:**
 - **Event Registration** — all planned phases delivered, including Phase B4 real email
   (`docs/EVENT_REGISTRATION.md`)
-- **WhatsApp Stage 2** — blocked on church obtaining a WhatsApp Business sender number (`docs/WHATSAPP.md`)
+- **WhatsApp Stage 2** — on hold while the church sets up a prepaid SIM + Meta Business/developer account (`docs/WHATSAPP.md` — see "Getting started" for the exact steps); no code changes until the `WHATSAPP_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` secrets are ready
 - **Serving Teams Phase 2** — Equipment Register + Moves (future; `docs/SERVING_TEAMS.md`)

@@ -10,7 +10,13 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-07
-**Current milestone:** Session 192 — real outgoing email via SMTP (nodemailer), configured from a new "Email (SMTP)" section on `/admin/settings.html`. Closes out Event Registration Phase B4 (was the last deferred item on that initiative) and switches the connect-form alert off its unused Resend integration onto the same sender. Pending features: WhatsApp Stage 2 (blocked on number); Serving Teams Phase 2 (Equipment Register + Moves, future).
+**Current milestone:** Session 193 — docs-only: corrected `docs/WHATSAPP.md`'s pricing model (Meta
+moved to per-delivered-template-message billing in mid-2025, not per-conversation) and added a
+concrete Meta/business account setup checklist, since the church is now getting a prepaid SIM and
+setting up the Meta developer account for WhatsApp Stage 2. No code changes — on hold until the
+`WHATSAPP_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` secrets exist. Session 192 (previous): real outgoing
+email via SMTP, closing out Event Registration Phase B4. Pending: Serving Teams Phase 2 (Equipment
+Register + Moves, future).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -38,6 +44,46 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: docs — WhatsApp pricing correction + Meta setup checklist (Session 193)
+
+**Date:** 2026-07-07
+**PR:** #322 (pending)
+**Status:** Open
+
+### What was done
+
+Discussion-only follow-up to the previous session's suggestion to tackle WhatsApp next: user
+confirmed they can get a prepaid SIM for the sender number and asked for next steps. Researched
+current (2026) Meta WhatsApp Business Platform onboarding, since `docs/WHATSAPP.md` was written
+before the church had a number and its pricing description had gone stale — Meta restructured
+WhatsApp billing twice since, most recently moving off per-24h-conversation billing in favour of
+per-delivered-template-message billing (effective 2025-07-01).
+
+User explicitly wants to put the actual Stage 2 build on hold until the Meta developer/business
+account exists — this session is docs-only, no functions/rules/admin changes.
+
+- `docs/WHATSAPP.md`:
+  - "Status" section updated — Stage 2 is "on hold" (business account setup in progress) rather
+    than "blocked" (number doesn't exist) — the original blocker is being resolved.
+  - New "Getting started (Meta/business side)" section — the concrete 8-step checklist (SIM must
+    have no existing WhatsApp account, Meta Business Account, business verification, Meta App +
+    WhatsApp product, add/verify the number, System User + permanent token, template submission,
+    billing) so whoever resumes this doesn't have to re-derive it.
+  - "Per-broadcast channel selection" section corrected — was "billed per conversation" (no longer
+    true); now describes per-delivered-template-message billing, notes the Utility category
+    (which this project's template already uses) is priced well below Marketing and free within a
+    24h customer-service window, and points at Meta's live rate card rather than hardcoding a
+    number that will drift again.
+- `CLAUDE.md` — "Current Phase" WhatsApp Stage 2 bullet updated to match (on hold pending the two
+  secrets, not blocked on a number).
+- No functions/rules/HTML changes — nothing to test, no deploy steps.
+
+### Deploy notes
+
+Docs-only — no deploy required.
 
 ---
 
