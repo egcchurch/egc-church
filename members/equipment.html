@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0A3D62">
+  <title>Equipment | Emmanuel Gospel Centre</title>
+
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="stylesheet" href="/assets/css/tailwind.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="/js/member-auth.js"></script>
+</head>
+<body class="bg-zinc-50 font-sans">
+
+  <div id="nav-placeholder" class="contents"></div>
+
+  <!-- PAGE HEADER -->
+  <div class="bg-[#0A3D62] text-white py-10 px-6">
+    <div class="max-w-6xl mx-auto">
+      <a href="/members/serving-teams.html" class="text-blue-200 hover:text-white text-sm mb-2 inline-flex items-center gap-1.5">
+        <i class="fas fa-arrow-left"></i> Serving Teams
+      </a>
+      <h1 class="text-3xl font-bold tracking-tight" id="page-title">Equipment</h1>
+      <p class="text-blue-200 mt-1" id="page-subtitle">Track what you have and where it currently is</p>
+    </div>
+  </div>
+
+  <!-- NOT PART OF THIS TEAM -->
+  <div id="not-authorized" class="hidden max-w-md mx-auto px-6 py-20 text-center">
+    <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+      <i class="fas fa-lock text-amber-600 text-2xl"></i>
+    </div>
+    <h2 class="text-xl font-bold text-zinc-900 mb-2">Not part of this team</h2>
+    <p class="text-zinc-500 mb-6">You need to be a member or leader of this team to view its equipment.</p>
+    <a href="/members/serving-teams.html" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+      Back to Serving Teams
+    </a>
+  </div>
+
+  <div id="loading" class="text-center py-16 text-zinc-400">
+    <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+    <p>Loading...</p>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <main id="main-content" class="hidden max-w-6xl mx-auto px-6 py-8">
+
+    <!-- TABS -->
+    <div class="flex gap-2 mb-6">
+      <button id="tab-equipment-btn" onclick="switchTab('equipment')"
+              class="px-5 py-2.5 rounded-full text-sm font-medium transition-all bg-[#0A3D62] text-white">
+        <i class="fas fa-boxes-stacked mr-1.5"></i>Equipment
+      </button>
+      <button id="tab-moves-btn" onclick="switchTab('moves')"
+              class="px-5 py-2.5 rounded-full text-sm font-medium transition-all border border-zinc-200 text-zinc-600 hover:border-zinc-300">
+        <i class="fas fa-dolly mr-1.5"></i>Moves
+      </button>
+    </div>
+
+    <!-- EQUIPMENT TAB -->
+    <div id="tab-equipment">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <label class="flex items-center gap-2 text-sm text-zinc-600 cursor-pointer select-none">
+          <input type="checkbox" id="show-retired" class="w-4 h-4 accent-amber-500" onchange="renderEquipment()">
+          Show retired items
+        </label>
+        <button id="add-equipment-btn" onclick="openEquipmentModal()"
+                class="hidden bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all">
+          <i class="fas fa-plus mr-1.5"></i>Add Equipment
+        </button>
+      </div>
+      <div id="equipment-empty" class="hidden text-center py-16 text-zinc-400">
+        <i class="fas fa-boxes-stacked text-5xl mb-4 opacity-30"></i>
+        <p class="text-lg font-medium">No equipment tracked yet</p>
+      </div>
+      <div id="equipment-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- MOVES TAB -->
+    <div id="tab-moves" class="hidden">
+      <div class="flex flex-wrap items-center justify-end gap-3 mb-5">
+        <button onclick="openMoveStartModal()"
+                class="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all">
+          <i class="fas fa-plus mr-1.5"></i>Start a Move
+        </button>
+      </div>
+      <div id="moves-empty" class="hidden text-center py-16 text-zinc-400">
+        <i class="fas fa-dolly text-5xl mb-4 opacity-30"></i>
+        <p class="text-lg font-medium">No moves yet</p>
+      </div>
+      <div id="moves-list" class="space-y-3"></div>
+    </div>
+
+  </main>
+
+  <!-- EQUIPMENT MODAL (add/edit — leader view) -->
+  <div id="equipment-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-[#0A3D62]" id="equipment-modal-title">Add Equipment</h3>
+        <button onclick="closeEquipmentModal()" class="text-zinc-400 hover:text-zinc-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <datalist id="equipment-category-datalist"></datalist>
+      <datalist id="equipment-location-datalist"></datalist>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Photo (optional)</label>
+          <div id="equipment-photo-preview" class="hidden mb-2">
+            <img id="equipment-photo-current" src="" alt="" class="h-24 rounded-xl border border-zinc-100 object-cover">
+          </div>
+          <input id="equipment-photo" type="file" accept="image/*"
+                 class="w-full text-sm text-zinc-500 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-medium file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100 cursor-pointer">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Name *</label>
+          <input id="equipment-name" type="text" placeholder="e.g. Main Projector"
+                 class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-zinc-700 mb-1">Category</label>
+            <input id="equipment-category" type="text" list="equipment-category-datalist" placeholder="e.g. Projector"
+                   class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-zinc-700 mb-1">Condition</label>
+            <select id="equipment-condition" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400">
+              <option value="good">Good</option>
+              <option value="fair">Fair</option>
+              <option value="needs repair">Needs repair</option>
+              <option value="retired">Retired</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Current location</label>
+          <input id="equipment-location" type="text" list="equipment-location-datalist" placeholder="e.g. Elands"
+                 class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-zinc-700 mb-1">Purchase date (optional)</label>
+            <input id="equipment-purchase-date" type="date" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-zinc-700 mb-1">Cost (optional, R)</label>
+            <input id="equipment-cost" type="number" min="0" step="0.01" placeholder="e.g. 1250.00"
+                   class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Description (optional)</label>
+          <input id="equipment-description" type="text" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Notes (optional)</label>
+          <input id="equipment-notes" type="text" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+      </div>
+      <div class="mt-6 flex gap-3">
+        <button onclick="saveEquipment()" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">Save</button>
+        <button onclick="closeEquipmentModal()" class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-6 py-2.5 rounded-full text-sm font-medium transition-all">Cancel</button>
+        <button id="equipment-delete-btn" onclick="deleteEquipment()" class="hidden ml-auto text-red-500 hover:text-red-600 text-sm font-medium">
+          <i class="fas fa-trash mr-1"></i>Delete
+        </button>
+      </div>
+      <p id="equipment-form-msg" class="hidden mt-3 text-sm font-medium text-red-500"></p>
+    </div>
+  </div>
+
+  <!-- START MOVE MODAL -->
+  <div id="move-start-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-[#0A3D62]">Start a Move</h3>
+        <button onclick="closeMoveStartModal()" class="text-zinc-400 hover:text-zinc-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <div class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-zinc-700 mb-1">From (optional)</label>
+            <input id="move-from" type="text" list="equipment-location-datalist" placeholder="e.g. Elands"
+                   class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-zinc-700 mb-1">To *</label>
+            <input id="move-to" type="text" list="equipment-location-datalist" placeholder="e.g. Nestpark"
+                   class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Scheduled for (optional)</label>
+          <input id="move-scheduled-for" type="date" class="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Items to move *</label>
+          <div id="move-item-checkboxes" class="space-y-2 max-h-56 overflow-y-auto border border-zinc-100 rounded-xl p-3"></div>
+        </div>
+      </div>
+      <div class="mt-6 flex gap-3">
+        <button onclick="startMove()" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">Start Move</button>
+        <button onclick="closeMoveStartModal()" class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-6 py-2.5 rounded-full text-sm font-medium transition-all">Cancel</button>
+      </div>
+      <p id="move-start-form-msg" class="hidden mt-3 text-sm font-medium text-red-500"></p>
+    </div>
+  </div>
+
+  <!-- MOVE DETAIL MODAL -->
+  <div id="move-detail-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="text-lg font-bold text-[#0A3D62]" id="move-detail-title">Move</h3>
+        <button onclick="closeMoveDetailModal()" class="text-zinc-400 hover:text-zinc-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <p class="text-xs text-zinc-400 mb-4">Check off items as they're packed. Completing the move updates each packed item's known location — unpacked items are left as-is.</p>
+      <div id="move-detail-checkboxes" class="space-y-2 max-h-64 overflow-y-auto"></div>
+      <div class="mt-6 flex flex-wrap gap-3">
+        <button id="move-complete-btn" onclick="completeMove()" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all">
+          <i class="fas fa-check mr-1.5"></i>Complete Move
+        </button>
+        <button onclick="closeMoveDetailModal()" class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-6 py-2.5 rounded-full text-sm font-medium transition-all">Close</button>
+        <button id="move-cancel-btn" onclick="cancelMove()" class="ml-auto text-red-500 hover:text-red-600 text-sm font-medium">
+          <i class="fas fa-trash mr-1"></i>Cancel Move
+        </button>
+      </div>
+      <p id="move-detail-form-msg" class="hidden mt-3 text-sm font-medium text-red-500"></p>
+    </div>
+  </div>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/main.js"></script>
+  <script src="/js/storage-upload.js"></script>
+  <script>
+    const db = firebase.firestore();
+    let currentUser = null;
+    let teamId = new URLSearchParams(window.location.search).get('team');
+    let team = null;
+    let isLeader = false;
+    let equipmentCache = [];
+    let movesCache = [];
+    let editingEquipmentId = null;
+    let editingEquipmentPhotoUrl = null;
+    let openMoveId = null;
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function formatCost(cost) {
+      if (cost === null || cost === undefined) return '';
+      return 'R ' + Number(cost).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    const CONDITION_STYLES = {
+      good: 'bg-green-100 text-green-700',
+      fair: 'bg-amber-100 text-amber-700',
+      'needs repair': 'bg-red-100 text-red-700',
+      retired: 'bg-zinc-100 text-zinc-600',
+    };
+    function conditionLabel(c) { return (c || 'good').replace(/^\w/, (m) => m.toUpperCase()); }
+
+    auth.onAuthStateChanged((user) => {
+      currentUser = user;
+      if (user && teamId) init();
+    });
+
+    async function init() {
+      if (!teamId) {
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('not-authorized').classList.remove('hidden');
+        return;
+      }
+      try {
+        const snap = await db.collection('servingTeams').doc(teamId).get();
+        if (!snap.exists) throw new Error('Team not found');
+        team = { id: snap.id, ...snap.data() };
+        const uid = currentUser.uid;
+        isLeader = (team.leaders || []).includes(uid);
+        const isMemberOf = (team.members || []).includes(uid);
+        if (!isLeader && !isMemberOf) {
+          document.getElementById('loading').classList.add('hidden');
+          document.getElementById('not-authorized').classList.remove('hidden');
+          return;
+        }
+
+        document.getElementById('page-title').textContent = 'Equipment — ' + team.name;
+        if (isLeader) document.getElementById('add-equipment-btn').classList.remove('hidden');
+
+        await Promise.all([loadEquipment(), loadMoves()]);
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('main-content').classList.remove('hidden');
+      } catch (err) {
+        console.error('Failed to load team:', err);
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('not-authorized').classList.remove('hidden');
+      }
+    }
+
+    function switchTab(tab) {
+      const isEquip = tab === 'equipment';
+      document.getElementById('tab-equipment').classList.toggle('hidden', !isEquip);
+      document.getElementById('tab-moves').classList.toggle('hidden', isEquip);
+      document.getElementById('tab-equipment-btn').className = 'px-5 py-2.5 rounded-full text-sm font-medium transition-all ' +
+        (isEquip ? 'bg-[#0A3D62] text-white' : 'border border-zinc-200 text-zinc-600 hover:border-zinc-300');
+      document.getElementById('tab-moves-btn').className = 'px-5 py-2.5 rounded-full text-sm font-medium transition-all ' +
+        (!isEquip ? 'bg-[#0A3D62] text-white' : 'border border-zinc-200 text-zinc-600 hover:border-zinc-300');
+    }
+
+    // ── Equipment ────────────────────────────────────────────────────────────
+
+    async function loadEquipment() {
+      const snap = await db.collection('servingTeams').doc(teamId).collection('equipment')
+        .orderBy('name').get();
+      equipmentCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      populateEquipmentDatalists();
+      renderEquipment();
+    }
+
+    function populateEquipmentDatalists() {
+      const categories = [...new Set(equipmentCache.map((e) => e.category).filter(Boolean))];
+      const locations = [...new Set(equipmentCache.map((e) => e.currentLocation).filter(Boolean))];
+      document.getElementById('equipment-category-datalist').innerHTML =
+        categories.map((c) => `<option value="${escapeHtml(c)}">`).join('');
+      document.getElementById('equipment-location-datalist').innerHTML =
+        locations.map((l) => `<option value="${escapeHtml(l)}">`).join('');
+    }
+
+    function renderEquipment() {
+      const showRetired = document.getElementById('show-retired').checked;
+      const items = equipmentCache.filter((e) => showRetired || e.condition !== 'retired');
+      const grid = document.getElementById('equipment-grid');
+      const empty = document.getElementById('equipment-empty');
+      if (!items.length) {
+        grid.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+      grid.innerHTML = items.map((e) => {
+        const style = CONDITION_STYLES[e.condition] || CONDITION_STYLES.good;
+        const photo = e.photoUrl
+          ? `<img src="${escapeHtml(e.photoUrl)}" alt="" class="h-32 w-full object-cover rounded-t-2xl">`
+          : `<div class="h-32 w-full bg-[#0A3D62]/5 rounded-t-2xl flex items-center justify-center"><i class="fas fa-box text-3xl text-[#0A3D62]/20"></i></div>`;
+        return `
+          <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden ${isLeader ? 'cursor-pointer hover:shadow-md transition-all' : ''}"
+               ${isLeader ? `onclick="openEquipmentModal('${e.id}')"` : ''}>
+            ${photo}
+            <div class="p-4">
+              <div class="flex items-start justify-between gap-2 mb-1">
+                <p class="font-bold text-[#0A3D62] text-sm leading-tight">${escapeHtml(e.name)}</p>
+                <span class="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${style}">${conditionLabel(e.condition)}</span>
+              </div>
+              ${e.category ? `<p class="text-xs text-zinc-400 mb-2">${escapeHtml(e.category)}</p>` : ''}
+              <div class="text-xs text-zinc-500 space-y-1">
+                ${e.currentLocation ? `<p><i class="fas fa-location-dot w-4 text-zinc-300"></i> ${escapeHtml(e.currentLocation)}</p>` : ''}
+                ${e.purchaseCost != null ? `<p><i class="fas fa-tag w-4 text-zinc-300"></i> ${formatCost(e.purchaseCost)}</p>` : ''}
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function openEquipmentModal(itemId) {
+      editingEquipmentId = itemId || null;
+      editingEquipmentPhotoUrl = null;
+      document.getElementById('equipment-form-msg').classList.add('hidden');
+      document.getElementById('equipment-photo').value = '';
+      document.getElementById('equipment-delete-btn').classList.toggle('hidden', !itemId);
+
+      const item = itemId ? equipmentCache.find((e) => e.id === itemId) : {};
+      document.getElementById('equipment-modal-title').textContent = itemId ? 'Edit Equipment' : 'Add Equipment';
+      document.getElementById('equipment-name').value = item.name || '';
+      document.getElementById('equipment-category').value = item.category || '';
+      document.getElementById('equipment-condition').value = item.condition || 'good';
+      document.getElementById('equipment-location').value = item.currentLocation || '';
+      document.getElementById('equipment-purchase-date').value = item.purchaseDate || '';
+      document.getElementById('equipment-cost').value = item.purchaseCost != null ? item.purchaseCost : '';
+      document.getElementById('equipment-description').value = item.description || '';
+      document.getElementById('equipment-notes').value = item.notes || '';
+      editingEquipmentPhotoUrl = item.photoUrl || null;
+      if (item.photoUrl) {
+        document.getElementById('equipment-photo-current').src = item.photoUrl;
+        document.getElementById('equipment-photo-preview').classList.remove('hidden');
+      } else {
+        document.getElementById('equipment-photo-preview').classList.add('hidden');
+      }
+      document.getElementById('equipment-modal').classList.remove('hidden');
+    }
+
+    function closeEquipmentModal() {
+      document.getElementById('equipment-modal').classList.add('hidden');
+      editingEquipmentId = null;
+    }
+
+    async function saveEquipment() {
+      const name = document.getElementById('equipment-name').value.trim();
+      const msg = document.getElementById('equipment-form-msg');
+      if (!name) {
+        msg.textContent = 'Name is required.';
+        msg.classList.remove('hidden');
+        return;
+      }
+      const costRaw = document.getElementById('equipment-cost').value;
+      const data = {
+        name,
+        category: document.getElementById('equipment-category').value.trim() || null,
+        condition: document.getElementById('equipment-condition').value,
+        currentLocation: document.getElementById('equipment-location').value.trim() || null,
+        purchaseDate: document.getElementById('equipment-purchase-date').value || null,
+        purchaseCost: costRaw !== '' ? parseFloat(costRaw) : null,
+        description: document.getElementById('equipment-description').value.trim() || null,
+        notes: document.getElementById('equipment-notes').value.trim() || null,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      };
+
+      try {
+        const photoFile = document.getElementById('equipment-photo').files[0];
+        const itemId = editingEquipmentId || db.collection('servingTeams').doc(teamId).collection('equipment').doc().id;
+        if (photoFile) {
+          const compressed = await compressImage(photoFile);
+          data.photoUrl = await uploadMedia(`servingTeams/${teamId}/equipment/${itemId}/photo.jpg`, compressed);
+        }
+
+        const ref = db.collection('servingTeams').doc(teamId).collection('equipment').doc(itemId);
+        if (editingEquipmentId) {
+          await ref.update(data);
+        } else {
+          data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+          data.createdBy = currentUser.uid;
+          await ref.set(data);
+        }
+        closeEquipmentModal();
+        await loadEquipment();
+      } catch (err) {
+        console.error('Failed to save equipment:', err);
+        msg.textContent = 'Failed to save. Please try again.';
+        msg.classList.remove('hidden');
+      }
+    }
+
+    async function deleteEquipment() {
+      if (!editingEquipmentId) return;
+      // completeMove()'s batch update would fail outright (NOT_FOUND) if it tried
+      // to relocate an item that no longer exists — block the delete at the
+      // source instead of letting an in-progress move silently become uncompletable.
+      const referencedInMove = movesCache.some((m) =>
+        m.status === 'in-progress' && (m.items || []).some((i) => i.equipmentId === editingEquipmentId));
+      if (referencedInMove) {
+        alert('This item is part of an in-progress move. Cancel or complete that move first, then delete.');
+        return;
+      }
+      if (!confirm('Delete this equipment item? This cannot be undone.')) return;
+      try {
+        if (editingEquipmentPhotoUrl) await deleteMedia(editingEquipmentPhotoUrl);
+        await db.collection('servingTeams').doc(teamId).collection('equipment').doc(editingEquipmentId).delete();
+        closeEquipmentModal();
+        await loadEquipment();
+      } catch (err) {
+        console.error('Failed to delete equipment:', err);
+        alert('Failed to delete. Please try again.');
+      }
+    }
+
+    // ── Moves ────────────────────────────────────────────────────────────────
+
+    async function loadMoves() {
+      const snap = await db.collection('servingTeams').doc(teamId).collection('moves')
+        .orderBy('createdAt', 'desc').get();
+      movesCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderMoves();
+    }
+
+    function renderMoves() {
+      const list = document.getElementById('moves-list');
+      const empty = document.getElementById('moves-empty');
+      if (!movesCache.length) {
+        list.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+      list.innerHTML = movesCache.map((m) => {
+        const packedCount = (m.items || []).filter((i) => i.packed).length;
+        const total = (m.items || []).length;
+        const statusBadge = m.status === 'complete'
+          ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700">Complete</span>'
+          : '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">In Progress</span>';
+        return `
+          <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 cursor-pointer hover:shadow-md transition-all" onclick="openMoveDetailModal('${m.id}')">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <div class="flex items-center gap-2 text-sm font-medium text-[#0A3D62]">
+                ${m.fromLocation ? `<span>${escapeHtml(m.fromLocation)}</span><i class="fas fa-arrow-right text-zinc-300 text-xs"></i>` : ''}
+                <span>${escapeHtml(m.toLocation)}</span>
+              </div>
+              ${statusBadge}
+            </div>
+            <div class="flex items-center gap-4 text-xs text-zinc-400 mt-2">
+              ${m.scheduledFor ? `<span><i class="fas fa-calendar mr-1"></i>${escapeHtml(m.scheduledFor)}</span>` : ''}
+              <span><i class="fas fa-boxes-stacked mr-1"></i>${packedCount}/${total} packed</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function openMoveStartModal() {
+      document.getElementById('move-start-form-msg').classList.add('hidden');
+      document.getElementById('move-from').value = '';
+      document.getElementById('move-to').value = '';
+      document.getElementById('move-scheduled-for').value = '';
+      const activeItems = equipmentCache.filter((e) => e.condition !== 'retired');
+      document.getElementById('move-item-checkboxes').innerHTML = activeItems.length
+        ? activeItems.map((e) => `
+            <label class="flex items-center gap-2 text-sm text-zinc-700 cursor-pointer select-none">
+              <input type="checkbox" class="move-item-checkbox w-4 h-4 accent-amber-500" value="${e.id}">
+              ${escapeHtml(e.name)} ${e.currentLocation ? `<span class="text-xs text-zinc-400">(${escapeHtml(e.currentLocation)})</span>` : ''}
+            </label>`).join('')
+        : '<p class="text-sm text-zinc-400">No equipment to select — add some first.</p>';
+      document.getElementById('move-start-modal').classList.remove('hidden');
+    }
+
+    function closeMoveStartModal() {
+      document.getElementById('move-start-modal').classList.add('hidden');
+    }
+
+    async function startMove() {
+      const to = document.getElementById('move-to').value.trim();
+      const msg = document.getElementById('move-start-form-msg');
+      const selected = [...document.querySelectorAll('.move-item-checkbox:checked')].map((cb) => cb.value);
+      if (!to) {
+        msg.textContent = 'Destination is required.';
+        msg.classList.remove('hidden');
+        return;
+      }
+      if (!selected.length) {
+        msg.textContent = 'Select at least one item to move.';
+        msg.classList.remove('hidden');
+        return;
+      }
+      const items = selected.map((id) => ({
+        equipmentId: id,
+        name: (equipmentCache.find((e) => e.id === id) || {}).name || '',
+        packed: false,
+      }));
+      try {
+        await db.collection('servingTeams').doc(teamId).collection('moves').add({
+          fromLocation: document.getElementById('move-from').value.trim() || null,
+          toLocation: to,
+          scheduledFor: document.getElementById('move-scheduled-for').value || null,
+          status: 'in-progress',
+          items,
+          createdBy: currentUser.uid,
+          createdByName: currentUser.displayName || 'Member',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          completedAt: null,
+        });
+        closeMoveStartModal();
+        await loadMoves();
+        switchTab('moves');
+      } catch (err) {
+        console.error('Failed to start move:', err);
+        msg.textContent = 'Failed to start move. Please try again.';
+        msg.classList.remove('hidden');
+      }
+    }
+
+    function openMoveDetailModal(moveId) {
+      openMoveId = moveId;
+      const move = movesCache.find((m) => m.id === moveId);
+      if (!move) return;
+      document.getElementById('move-detail-form-msg').classList.add('hidden');
+      document.getElementById('move-detail-title').textContent =
+        (move.fromLocation ? move.fromLocation + ' → ' : '') + move.toLocation;
+      const isComplete = move.status === 'complete';
+      document.getElementById('move-detail-checkboxes').innerHTML = (move.items || []).map((item, idx) => `
+        <label class="flex items-center gap-2 text-sm text-zinc-700 ${isComplete ? '' : 'cursor-pointer'} select-none">
+          <input type="checkbox" class="move-detail-checkbox w-4 h-4 accent-amber-500" data-idx="${idx}"
+                 ${item.packed ? 'checked' : ''} ${isComplete ? 'disabled' : ''} onchange="toggleMoveItemPacked(${idx})">
+          ${escapeHtml(item.name)}
+        </label>`).join('');
+      const canCancel = isLeader || move.createdBy === currentUser.uid;
+      document.getElementById('move-complete-btn').classList.toggle('hidden', isComplete);
+      document.getElementById('move-cancel-btn').classList.toggle('hidden', isComplete || !canCancel);
+      document.getElementById('move-detail-modal').classList.remove('hidden');
+    }
+
+    function closeMoveDetailModal() {
+      document.getElementById('move-detail-modal').classList.add('hidden');
+      openMoveId = null;
+    }
+
+    // Runs as a transaction, not a plain update from the local cache — this is a
+    // collaborative checklist, so two members toggling different items on the
+    // same move around the same time must not clobber each other. The
+    // transaction re-reads the move fresh and only flips the one index it was
+    // asked to, so Firestore's automatic retry-on-conflict keeps both toggles.
+    async function toggleMoveItemPacked(idx) {
+      const moveRef = db.collection('servingTeams').doc(teamId).collection('moves').doc(openMoveId);
+      try {
+        await db.runTransaction(async (tx) => {
+          const snap = await tx.get(moveRef);
+          const items = (snap.data().items || []).map((item, i) => i === idx ? { ...item, packed: !item.packed } : item);
+          tx.update(moveRef, { items });
+        });
+        await loadMoves();
+        openMoveDetailModal(openMoveId);
+      } catch (err) {
+        console.error('Failed to update item:', err);
+        alert('Failed to update. Please try again.');
+      }
+    }
+
+    async function completeMove() {
+      const move = movesCache.find((m) => m.id === openMoveId);
+      if (!move) return;
+      const packedItems = (move.items || []).filter((i) => i.packed);
+      if (!packedItems.length && !confirm('No items are checked as packed — complete anyway without moving anything?')) return;
+
+      try {
+        const batch = db.batch();
+        const moveRef = db.collection('servingTeams').doc(teamId).collection('moves').doc(openMoveId);
+        batch.update(moveRef, { status: 'complete', completedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        packedItems.forEach((item) => {
+          const itemRef = db.collection('servingTeams').doc(teamId).collection('equipment').doc(item.equipmentId);
+          batch.update(itemRef, {
+            currentLocation: move.toLocation,
+            lastMovedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            lastMovedBy: currentUser.uid,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+        });
+        await batch.commit();
+        closeMoveDetailModal();
+        await Promise.all([loadEquipment(), loadMoves()]);
+      } catch (err) {
+        console.error('Failed to complete move:', err);
+        const msgEl = document.getElementById('move-detail-form-msg');
+        msgEl.textContent = 'Failed to complete move. Please try again.';
+        msgEl.classList.remove('hidden');
+      }
+    }
+
+    async function cancelMove() {
+      if (!openMoveId) return;
+      if (!confirm('Cancel this move? Nothing will be marked as moved.')) return;
+      try {
+        await db.collection('servingTeams').doc(teamId).collection('moves').doc(openMoveId).delete();
+        closeMoveDetailModal();
+        await loadMoves();
+      } catch (err) {
+        console.error('Failed to cancel move:', err);
+        alert('Failed to cancel move. Please try again.');
+      }
+    }
+  </script>
+</body>
+</html>

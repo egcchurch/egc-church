@@ -1,5 +1,5 @@
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
-const { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField } = require('firebase/firestore');
+const { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp } = require('firebase/firestore');
 
 let testEnv;
 
@@ -663,6 +663,173 @@ describe('Firestore Security Rules', () => {
       const db = servingTeamsManagerUser().firestore();
       await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1', 'schedules', 'sched1'), { name: 'Renamed' }));
       await assertSucceeds(deleteDoc(doc(db, 'servingTeams', 'team1', 'schedules', 'sched1')));
+    });
+  });
+
+  describe('Serving Teams equipment subcollection', () => {
+    async function seedTeamAndEquipment({ leaders = [], members = [] } = {}) {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders, members, pendingMembers: [], memberTiers: {}, functions: [],
+        });
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1', 'equipment', 'item1'), {
+          name: 'Main Projector', category: 'Projector', condition: 'good', currentLocation: 'Elands',
+          purchaseDate: null, purchaseCost: null, description: null, notes: null, photoUrl: null,
+          lastMovedAt: null, lastMovedBy: null,
+        });
+      });
+    }
+
+    it('team member can read equipment; an outsider cannot', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedUser('outsider-uid', { membership: 'member' });
+      await seedTeamAndEquipment({ members: ['member-uid'] });
+      const memberDb = testEnv.authenticatedContext('member-uid', {}).firestore();
+      const outsiderDb = testEnv.authenticatedContext('outsider-uid', {}).firestore();
+      await assertSucceeds(getDoc(doc(memberDb, 'servingTeams', 'team1', 'equipment', 'item1')));
+      await assertFails(getDoc(doc(outsiderDb, 'servingTeams', 'team1', 'equipment', 'item1')));
+    });
+
+    it('leader can create an equipment item; a non-leader member cannot', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: ['leader-uid'], members: ['member-uid'], pendingMembers: [], memberTiers: {}, functions: [],
+        });
+      });
+      const leaderDb = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      const memberDb = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertSucceeds(setDoc(doc(leaderDb, 'servingTeams', 'team1', 'equipment', 'item1'), {
+        name: 'Mixer', category: 'Mixer', condition: 'good', currentLocation: null,
+      }));
+      await assertFails(setDoc(doc(memberDb, 'servingTeams', 'team1', 'equipment', 'item2'), {
+        name: 'Hack Item', category: null, condition: 'good', currentLocation: null,
+      }));
+    });
+
+    it('leader can fully edit an equipment item (name, cost, condition)', async () => {
+      await seedTeamAndEquipment({ leaders: ['leader-uid'] });
+      const db = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1', 'equipment', 'item1'), {
+        name: 'Main Projector (renamed)', purchaseCost: 1250, condition: 'fair',
+      }));
+    });
+
+    it('non-leader member cannot edit arbitrary fields on an equipment item', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndEquipment({ members: ['member-uid'] });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertFails(updateDoc(doc(db, 'servingTeams', 'team1', 'equipment', 'item1'), {
+        name: 'Hacked', purchaseCost: 1,
+      }));
+    });
+
+    it('non-leader member CAN update only location fields (what completing a move writes)', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndEquipment({ members: ['member-uid'] });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1', 'equipment', 'item1'), {
+        currentLocation: 'Nestpark', lastMovedAt: serverTimestamp(), lastMovedBy: 'member-uid', updatedAt: serverTimestamp(),
+      }));
+    });
+
+    it('leader can delete an equipment item; a non-leader member cannot', async () => {
+      await seedTeamAndEquipment({ leaders: ['leader-uid'] });
+      const leaderDb = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      await assertSucceeds(deleteDoc(doc(leaderDb, 'servingTeams', 'team1', 'equipment', 'item1')));
+
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndEquipment({ members: ['member-uid'] });
+      const memberDb = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertFails(deleteDoc(doc(memberDb, 'servingTeams', 'team1', 'equipment', 'item1')));
+    });
+
+    it('servingTeams.manage holder can create/update/delete equipment without being a leader', async () => {
+      await seedTeamAndEquipment({});
+      const db = servingTeamsManagerUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1', 'equipment', 'item1'), { name: 'Renamed' }));
+      await assertSucceeds(deleteDoc(doc(db, 'servingTeams', 'team1', 'equipment', 'item1')));
+    });
+  });
+
+  describe('Serving Teams moves subcollection', () => {
+    async function seedTeamAndMove({ leaders = [], members = [], createdBy = 'leader-uid' } = {}) {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders, members, pendingMembers: [], memberTiers: {}, functions: [],
+        });
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1', 'moves', 'move1'), {
+          fromLocation: 'Elands', toLocation: 'Nestpark', scheduledFor: null, status: 'in-progress',
+          items: [{ equipmentId: 'item1', name: 'Main Projector', packed: false }],
+          createdBy, createdByName: 'Someone', completedAt: null,
+        });
+      });
+    }
+
+    it('team member can read moves; an outsider cannot', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedUser('outsider-uid', { membership: 'member' });
+      await seedTeamAndMove({ members: ['member-uid'] });
+      const memberDb = testEnv.authenticatedContext('member-uid', {}).firestore();
+      const outsiderDb = testEnv.authenticatedContext('outsider-uid', {}).firestore();
+      await assertSucceeds(getDoc(doc(memberDb, 'servingTeams', 'team1', 'moves', 'move1')));
+      await assertFails(getDoc(doc(outsiderDb, 'servingTeams', 'team1', 'moves', 'move1')));
+    });
+
+    it('any team member (not just leaders) can start a move; an outsider cannot', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedUser('outsider-uid', { membership: 'member' });
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'servingTeams', 'team1'), {
+          name: 'Equipment Team', leaders: [], members: ['member-uid'], pendingMembers: [], memberTiers: {}, functions: [],
+        });
+      });
+      const memberDb = testEnv.authenticatedContext('member-uid', {}).firestore();
+      const outsiderDb = testEnv.authenticatedContext('outsider-uid', {}).firestore();
+      await assertSucceeds(setDoc(doc(memberDb, 'servingTeams', 'team1', 'moves', 'move1'), {
+        fromLocation: null, toLocation: 'Nestpark', scheduledFor: null, status: 'in-progress',
+        items: [], createdBy: 'member-uid', createdByName: 'Member', completedAt: null,
+      }));
+      await assertFails(setDoc(doc(outsiderDb, 'servingTeams', 'team1', 'moves', 'move2'), {
+        fromLocation: null, toLocation: 'Nestpark', scheduledFor: null, status: 'in-progress',
+        items: [], createdBy: 'outsider-uid', createdByName: 'Outsider', completedAt: null,
+      }));
+    });
+
+    it('any team member can update a move (check off items, mark complete)', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndMove({ members: ['member-uid'], createdBy: 'someone-else' });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1', 'moves', 'move1'), {
+        items: [{ equipmentId: 'item1', name: 'Main Projector', packed: true }],
+      }));
+    });
+
+    it('the move creator (even a non-leader) can delete/cancel their own move', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndMove({ members: ['member-uid'], createdBy: 'member-uid' });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertSucceeds(deleteDoc(doc(db, 'servingTeams', 'team1', 'moves', 'move1')));
+    });
+
+    it('a non-creator, non-leader member cannot delete someone else\'s move', async () => {
+      await seedUser('member-uid', { membership: 'member' });
+      await seedTeamAndMove({ members: ['member-uid'], createdBy: 'someone-else' });
+      const db = testEnv.authenticatedContext('member-uid', {}).firestore();
+      await assertFails(deleteDoc(doc(db, 'servingTeams', 'team1', 'moves', 'move1')));
+    });
+
+    it('a leader can delete a move they did not create', async () => {
+      await seedTeamAndMove({ leaders: ['leader-uid'], createdBy: 'someone-else' });
+      const db = testEnv.authenticatedContext('leader-uid', {}).firestore();
+      await assertSucceeds(deleteDoc(doc(db, 'servingTeams', 'team1', 'moves', 'move1')));
+    });
+
+    it('servingTeams.manage holder can create/update/delete moves without being a member', async () => {
+      await seedTeamAndMove({ createdBy: 'someone-else' });
+      const db = servingTeamsManagerUser().firestore();
+      await assertSucceeds(updateDoc(doc(db, 'servingTeams', 'team1', 'moves', 'move1'), { status: 'complete' }));
+      await assertSucceeds(deleteDoc(doc(db, 'servingTeams', 'team1', 'moves', 'move1')));
     });
   });
 
