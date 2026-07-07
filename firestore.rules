@@ -368,9 +368,15 @@ service cloud.firestore {
     // /config/{document} holds runtime site settings: church info, branding,
     // feature flags, notification routing. Written only by superadmins.
     match /config/{document} {
-      // 'pages' is publicly readable — section order is not sensitive
-      allow read: if isSignedIn() || document == 'pages';
-      allow write: if isSuperadmin();
+      // 'pages' is publicly readable — section order is not sensitive.
+      // 'emailCredentials' holds the raw SMTP username/password (Session 192) —
+      // must never be readable OR writable by any client, even a superadmin's
+      // browser session, as defense in depth against a rules bug or compromised
+      // session. Only Cloud Functions (Admin SDK, which bypasses rules) touch
+      // it, via updateEmailCredentials. Everything else on /config (including
+      // the non-sensitive host/port/from fields on 'email') behaves as before.
+      allow read: if document != 'emailCredentials' && (isSignedIn() || document == 'pages');
+      allow write: if document != 'emailCredentials' && isSuperadmin();
     }
 
     // ── Site Media ───────────────────────────────────────────────────────────
