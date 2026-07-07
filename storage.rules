@@ -22,6 +22,12 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isServingTeamLeader(teamId) {
+      return isSignedIn() &&
+        request.auth.uid in
+          firestore.get(/databases/(default)/documents/servingTeams/$(teamId)).data.leaders;
+    }
+
     function isValidImage() {
       return request.resource.contentType.matches('image/.*')
         && request.resource.size < 5 * 1024 * 1024; // 5MB max
@@ -137,6 +143,13 @@ service firebase.storage {
       allow read: if true;
       allow create, update: if hasPermission('team.manage') && isValidImage();
       allow delete: if hasPermission('team.manage');
+    }
+
+    // ── Serving Teams equipment photos (Phase 2, Session 195) ──────────────
+    match /servingTeams/{teamId}/equipment/{itemId}/{fileName} {
+      allow read: if true;
+      allow create, update: if (hasPermission('servingTeams.manage') || isServingTeamLeader(teamId)) && isValidImage();
+      allow delete: if hasPermission('servingTeams.manage') || isServingTeamLeader(teamId);
     }
 
     // ── Site branding (logo) ──────────────────────────────────────────────

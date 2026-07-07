@@ -70,6 +70,7 @@ church-website-pwa/
 │   ├── groups.html             ← Small groups (browse + join + leader management for own group)
 │   ├── cottage.html            ← Cottage meetings (register with party size; capacity-limited)
 │   ├── serving-teams.html      ← Rostered volunteer teams (Equipment, Worship, Youth Helpers...)
+│   ├── equipment.html          ← Equipment register + moves for a team (?team= param), Phase 2
 │   ├── prayer.html             ← Prayer requests
 │   ├── devotional.html         ← Daily devotional
 │   ├── gallery.html            ← Members + youth galleries
@@ -234,6 +235,7 @@ church-website-pwa/
 | Small groups            | /members/groups     |
 | Cottage meetings        | /members/cottage    |
 | Serving teams           | /members/serving-teams |
+| Equipment register      | /members/equipment?team={teamId} |
 | Prayer requests         | /members/prayer     |
 | Daily devotional        | /members/devotional |
 | Members & youth gallery | /members/gallery    |
@@ -885,6 +887,27 @@ from a form, no CLI required. Split across two Firestore docs by sensitivity:
   status: "open" | "filled"                  ← derived from assignedUid, stored for query convenience
   notes (nullable)
   createdAt, updatedAt, createdBy (uid)
+
+/servingTeams/{teamId}/equipment/{itemId}    ← Phase 2 (Session 195) — not a booking calendar,
+                                                just "where is this currently"; see docs/SERVING_TEAMS.md
+  name, category (nullable), description (nullable), notes (nullable)
+  condition: "good" | "fair" | "needs repair" | "retired"   ← default "good"
+  currentLocation (nullable string)          ← free text; only written by a leader directly, OR by
+                                                any team member completing a move (rules restrict a
+                                                non-leader's write to exactly this + the two fields below)
+  purchaseDate (nullable, YYYY-MM-DD), purchaseCost (nullable number)
+  photoUrl (nullable — Firebase Storage)
+  lastMovedAt, lastMovedBy (nullable timestamp, nullable uid)
+  createdAt, updatedAt, createdBy (uid)
+
+/servingTeams/{teamId}/moves/{moveId}        ← Phase 2 (Session 195)
+  fromLocation (nullable string), toLocation (string, required)
+  scheduledFor (nullable, YYYY-MM-DD)
+  status: "in-progress" | "complete"
+  items: [{ equipmentId, name, packed: true | false }]   ← name denormalized for the checklist UI
+  createdBy (uid), createdByName, createdAt, completedAt (nullable)
+  ← any team member can create/update (collaborative packing checklist); delete is leader/admin
+    or the move's own creator only — see firestore.rules
   ← claim/release done client-side via db.runTransaction() for race-safety — no Cloud Function needed
   ← bulk-created by a /schedules doc (members/serving-teams.html), chunked into Firestore batches
     of <=450 writes (limit is 500) to handle a 6-month, 3-services/week roster
@@ -1092,6 +1115,9 @@ Firestore rules for `/groups/{groupId}` updates:
 /gallery/{galleryId}/{imageId}.jpg
 /music/{trackId}/audio.mp3
 /music/{trackId}/cover.jpg       ← optional cover art
+/servingTeams/{teamId}/equipment/{itemId}/photo.jpg  ← Phase 2 (Session 195); create/update/delete
+                                       gated to that team's leaders or servingTeams.manage (a
+                                       Firestore lookup via firestore.get(), same idiom as isMember())
 /site-media/{timestamp}_{filename}  ← admin/media.html general uploads (superadmin only);
                                        images/audio/documents, 150MB max for audio
 ```
@@ -1330,4 +1356,4 @@ All 9 phases (Foundation through Page Composition) are complete and deployed. De
 - **Event Registration** — all planned phases delivered, including Phase B4 real email
   (`docs/EVENT_REGISTRATION.md`)
 - **WhatsApp Stage 2** — on hold while the church sets up a prepaid SIM + Meta Business/developer account (`docs/WHATSAPP.md` — see "Getting started" for the exact steps); no code changes until the `WHATSAPP_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` secrets are ready
-- **Serving Teams Phase 2** — Equipment Register + Moves (future; `docs/SERVING_TEAMS.md`)
+- **Serving Teams Phase 2** — Equipment Register + Moves, delivered (`docs/SERVING_TEAMS.md`)

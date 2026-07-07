@@ -10,12 +10,14 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-07
-**Current milestone:** Session 194 — optional second address (e.g. camp grounds/Nestpark) on
-`/admin/settings.html`, shown in the footer alongside the main address when set. Session 193
-(previous, docs-only): corrected `docs/WHATSAPP.md`'s pricing model and added a Meta/business
-account setup checklist — WhatsApp Stage 2 stays on hold until the `WHATSAPP_TOKEN`/
-`WHATSAPP_PHONE_NUMBER_ID` secrets exist. Session 192: real outgoing email via SMTP, closing out
-Event Registration Phase B4. Pending: Serving Teams Phase 2 (Equipment Register + Moves, future).
+**Current milestone:** Session 195 — Serving Teams Phase 2 (Equipment Register + Moves) delivered:
+new `/members/equipment.html?team=` page, location tracking plus purchase date/cost/condition/
+photo per item, collaborative move checklists. Closes out the last "future" item in
+`docs/SERVING_TEAMS.md`. Session 194 (previous): optional second address (camp grounds/Nestpark)
+on `/admin/settings.html`. Session 193 (docs-only): corrected `docs/WHATSAPP.md`'s pricing model —
+WhatsApp Stage 2 stays on hold until the `WHATSAPP_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` secrets exist.
+No further pending feature phases — remaining work is ad-hoc backlog items (see PROGRESS.md's
+top-of-file "To do" sections and `docs/ROADMAP.md`).
 
 ### To do — old-site comparison follow-ups (Session 168)
 
@@ -43,6 +45,105 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: feat — Serving Teams Phase 2: Equipment Register + Moves (Session 195)
+
+**Date:** 2026-07-07
+**PR:** #324 (pending)
+**Status:** Open
+
+### What was done
+
+Discussed scope before building: user wants this usable "like a bit of an asset register."
+Settled on "location tracking + basic asset details" (purchase date, cost, condition, photo — not
+full asset-management software with maintenance history/depreciation/custodian assignment), scoped
+to Equipment Team gear (AV: screens, projectors, mixers), matching the original design doc's intent.
+
+Entirely client-side (Firestore rules + a new page) — no Cloud Functions, consistent with how the
+rest of Serving Teams (slots, schedules) already works.
+
+- `firestore.rules` — two new match blocks under `/servingTeams/{teamId}/`:
+  - `equipment/{itemId}` — any team member reads; only a leader (or `servingTeams.manage`) can
+    create/delete or fully edit a field set; any team member may additionally update ONLY
+    `currentLocation`/`lastMovedAt`/`lastMovedBy`/`updatedAt` — exactly what completing a move
+    writes, nothing else.
+  - `moves/{moveId}` — any team member can read/create/update (a collaborative packing checklist,
+    not leader-gated); delete is restricted to a leader/admin or the move's own creator.
+  - Available to any team (general-purpose, like schedules/slots already are), not hardcoded to
+    one team ID — matches this module's existing "no per-team special-casing" philosophy.
+- `storage.rules` — new `isServingTeamLeader()` helper (mirrors the one in `firestore.rules`,
+  via `firestore.get()`, same idiom as the existing `isMember()`) and a new
+  `/servingTeams/{teamId}/equipment/{itemId}/{fileName}` path, leader/admin gated, following the
+  established create+update/delete split (`request.resource` doesn't exist on delete).
+- `members/equipment.html` (new) — reached via `?team={teamId}` from a new "Equipment" link on
+  each team's card in `members/serving-teams.html`. Two tabs:
+  - **Equipment** — leader-only add/edit/retire; card grid with photo, category, condition badge
+    (good/fair/needs repair/retired), current location, cost. Category/location fields are free
+    text with a `<datalist>` autocomplete sourced from whatever's already on that team's existing
+    items (no separate "manage categories" screen — same philosophy as the existing `functions`
+    autocomplete).
+  - **Moves** — any member starts a move (From optional/To required + a checklist of items to
+    include), checks items off as packed, completes the move. Completing runs a single Firestore
+    batch: the move doc → `status: "complete"`, each *packed* item → its `currentLocation` updates
+    to the move's destination (unpacked items are left alone, so a partial pack doesn't wrongly
+    relocate things that never actually moved).
+- `members/serving-teams.html` — new "Equipment" button in `renderActionButton()`, visible to any
+  team member/leader.
+- `service-worker.js` — cache bumped to v94; `/members/equipment.html` added to the precache list.
+- `docs/SERVING_TEAMS.md` and `CLAUDE.md` — Phase 2 marked delivered, full data model documented,
+  new page added to the Site Map / Storage Paths lists.
+
+### Code review fixes (medium-effort review, 8 finder angles)
+
+Two real issues found and fixed before merging:
+
+- **`toggleMoveItemPacked()` had a lost-update race** — it rewrote the whole `items` array from a
+  client-side cache rather than a fresh read, so two members checking off different items on the
+  same move near-simultaneously could silently clobber each other's change. Fixed by wrapping it
+  in `db.runTransaction()`, re-reading the move fresh and only flipping the one requested index —
+  Firestore's automatic retry-on-conflict means concurrent toggles now both apply correctly instead
+  of racing.
+- **Deleting an equipment item referenced by an in-progress move would make that move permanently
+  uncompletable** — `completeMove()`'s batch update targets the item by ref with no existence
+  check, so it would throw `NOT_FOUND` and reject the whole batch atomically. Fixed by blocking the
+  delete at the source: `deleteEquipment()` now checks `movesCache` for any in-progress move
+  referencing the item first, and tells the user to resolve that move before deleting.
+- Also simplified `openEquipmentModal()`'s add-vs-edit branches (previously two field lists that
+  had to be kept in sync manually) into one shared path driven by `item || {}`.
+
+### Tests
+
+14 new Firestore rules tests (6 equipment: member read/outsider denied, leader create, non-leader
+denied, leader full-edit, non-leader location-only-edit succeeds/other-fields-denied, leader
+delete/non-leader denied, `servingTeams.manage` bypass; 8 moves: member read/outsider denied,
+any-member create/outsider denied, any-member update, creator-can-delete-own,
+non-creator-cannot-delete-others, leader-can-delete-any, `servingTeams.manage` bypass) — **232
+passing** against the emulator (218 previously + 14 new). No Storage rules tests added for the new
+equipment-photo path — `tests/storage.rules.test.js`'s `initializeTestEnvironment` only wires up a
+`storage` emulator context (no `firestore()` access from that test file), so exercising the new
+`firestore.get()`-based leader check would need restructuring shared test infrastructure; deferred
+as a known gap rather than risking existing test coverage for one photo-upload path.
+
+### Verification
+
+No live superadmin/leader credentials in this session, and this codebase has no local
+Firestore-emulator wiring in its client code (`firebase serve`/Live Server both hit live Firebase
+per CLAUDE.md) — so the authenticated flows couldn't be exercised end-to-end against real data.
+Verified what's safely testable: `firebase serve --only hosting` locally, confirmed no console
+errors and the member-auth gate behaves correctly for an anonymous visit; then, without touching
+Firestore, injected fake `equipmentCache`/`movesCache` state directly via the browser console to
+exercise `renderEquipment()`/`renderMoves()`/modal open-close/pre-fill logic and the two review
+fixes (transaction-based toggle wiring, delete-guard) — all behaved as expected (correct HTML,
+correct South African Rand formatting, correct show/hide of leader-only and move-status-dependent
+buttons, delete blocked with the right message when a move referenced the item).
+
+### Deploy notes
+
+Hosting-only — deploys via CI on merge. No Cloud Functions changes. **Firestore rules and Storage
+rules both changed** — after merge run `firebase deploy --only firestore:rules` and
+`firebase deploy --only storage` manually.
 
 ---
 
