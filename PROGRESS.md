@@ -64,8 +64,8 @@ Google login) — not required.
 ## Session: fix — Equipment entry point moved off the main members nav (Session 200)
 
 **Date:** 2026-07-08
-**PR:** #329 (pending)
-**Status:** Open
+**PR:** #329 (merged)
+**Status:** Merged, deployed (hosting via CI — no functions/rules changes)
 
 ### What was done
 
@@ -127,8 +127,8 @@ model itself is unchanged from Session 197, only where the link to it lives.
 ## Session: fix — Members dashboard section list completeness (Session 199)
 
 **Date:** 2026-07-08
-**PR:** #328 (pending)
-**Status:** Open
+**PR:** #328 (merged)
+**Status:** Merged, deployed (hosting via CI — no functions/rules changes)
 
 ### What was done
 
@@ -204,8 +204,8 @@ the live dashboard. Until that happens, the new cards sit wherever `applySection
 ## Session: fix — Allow deleting a completed move (Session 198)
 
 **Date:** 2026-07-08
-**PR:** #327 (pending)
-**Status:** Open
+**PR:** #327 (merged)
+**Status:** Merged, deployed (hosting via CI — no functions/rules changes)
 
 ### What was done
 
@@ -243,8 +243,8 @@ deploy manually.
 ## Session: feat — Equipment Register restructured church-wide (Session 197)
 
 **Date:** 2026-07-07
-**PR:** #326 (pending)
-**Status:** Open
+**PR:** #326 (merged)
+**Status:** Merged, deployed (hosting via CI; Firestore rules + Storage rules deployed manually)
 
 ### What was done
 
@@ -328,8 +328,8 @@ on superadmin), then add equipment users from the page's Users tab.
 ## Session: chore — Remove dead isMember() from storage.rules (Session 196)
 
 **Date:** 2026-07-07
-**PR:** #325 (pending)
-**Status:** Open
+**PR:** #325 (merged)
+**Status:** Merged, deployed (hosting via CI; Storage rules deployed manually — confirmed warning-free)
 
 ### What was done
 
@@ -352,8 +352,8 @@ should now be warning-free). No hosting, functions, or Firestore rules changes.
 ## Session: feat — Serving Teams Phase 2: Equipment Register + Moves (Session 195)
 
 **Date:** 2026-07-07
-**PR:** #324 (pending)
-**Status:** Open
+**PR:** #324 (merged)
+**Status:** Merged, deployed (hosting via CI; Firestore rules + Storage rules deployed manually — superseded by Session 197's church-wide restructure)
 
 ### What was done
 
@@ -451,8 +451,8 @@ rules both changed** — after merge run `firebase deploy --only firestore:rules
 ## Session: feat — Optional second address (camp grounds) in footer (Session 194)
 
 **Date:** 2026-07-07
-**PR:** #323 (pending)
-**Status:** Open
+**PR:** #323 (merged)
+**Status:** Merged, deployed (hosting via CI — no functions/rules changes)
 
 ### What was done
 
@@ -500,8 +500,8 @@ deploy, a superadmin fills in the two new fields on `/admin/settings.html` to ma
 ## Session: docs — WhatsApp pricing correction + Meta setup checklist (Session 193)
 
 **Date:** 2026-07-07
-**PR:** #322 (pending)
-**Status:** Open
+**PR:** #322 (merged)
+**Status:** Merged, deployed (docs-only, no deploy required)
 
 ### What was done
 
@@ -540,8 +540,8 @@ Docs-only — no deploy required.
 ## Session: feat — Real outgoing email via SMTP (Session 192)
 
 **Date:** 2026-07-07
-**PR:** #321 (pending)
-**Status:** Open
+**PR:** #321 (merged)
+**Status:** Merged, deployed (hosting via CI; Firestore rules deployed manually — SMTP sending confirmed working by the user)
 
 ### What was done
 
@@ -623,8 +623,8 @@ Test Email" to confirm delivery before relying on it.
 ## Session: feat — Homepage event registration shortcut (Session 191)
 
 **Date:** 2026-07-07
-**PR:** #320
-**Status:** Open
+**PR:** #320 (merged)
+**Status:** Merged, deployed
 
 ### What was done
 
@@ -657,8 +657,8 @@ Hosting-only — deploys via CI on merge. No Cloud Functions, rules, or Storage 
 ## Session: feat — Homepage announcement expiry date (Session 190)
 
 **Date:** 2026-07-07
-**PR:** #319
-**Status:** Open
+**PR:** #319 (merged)
+**Status:** Merged, deployed
 
 ### What was done
 
@@ -696,8 +696,8 @@ Hosting-only — deploys via CI on merge. No Cloud Functions, rules, or Storage 
 ## Session: feat — Custom registration confirmation message (Session 189)
 
 **Date:** 2026-07-06
-**PR:** #318
-**Status:** Open
+**PR:** #318 (merged)
+**Status:** Merged, deployed
 
 ### What was done
 
@@ -734,8 +734,8 @@ Follow-up idea from that discussion, scoped and built: a per-event custom confir
 ## Session: feat — Admin delete registration (Session 188)
 
 **Date:** 2026-07-06
-**PR:** #317
-**Status:** Open
+**PR:** #317 (merged)
+**Status:** Merged, deployed
 
 ### What was done
 
@@ -2577,8 +2577,9 @@ PR #189 added a Firestore + Storage rules change — **not auto-deployed by CI.*
 ## Session: feat — William Branham content + homepage welcome carousel (Session 125)
 
 **Date:** 2026-06-24
-**Branch:** `feat/william-branham-and-welcome-carousel` (PR pending)
-**Status:** Open
+**Branch:** `feat/william-branham-and-welcome-carousel`
+**PR:** #189 (merged)
+**Status:** Merged, deployed
 
 ### Context
 User asked me to confirm I could browse `www.egc.church` (the old site this one replaces), then asked
@@ -2811,8 +2812,9 @@ Hosting-only — no rules/functions change, auto-deployed on merge.
 ## Session: feat — per-member function eligibility for Serving Teams (Session 120)
 
 **Date:** 2026-06-23
-**Branch:** `feat/serving-teams-member-functions` (PR pending)
-**Status:** Open
+**Branch:** `feat/serving-teams-member-functions`
+**PR:** #179 (merged)
+**Status:** Merged, deployed
 
 ### Context
 Asked how to manually allocate a user to a slot (already possible — the slot editor's
