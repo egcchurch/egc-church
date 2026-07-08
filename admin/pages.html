@@ -99,12 +99,16 @@
       members: {
         label: 'Members Dashboard',
         sections: [
-          { id: 'directory',  label: 'Member Directory', desc: 'Directory of approved members',   hideable: true, editUrl: null                      },
-          { id: 'groups',     label: 'Small Groups',     desc: 'Browse and join small groups',    hideable: true, editUrl: '/admin/groups.html'       },
-          { id: 'prayer',     label: 'Prayer Requests',  desc: 'Submit and view prayer requests', hideable: true, editUrl: '/admin/prayer.html'       },
-          { id: 'devotional', label: 'Daily Devotional', desc: 'Daily devotional messages',       hideable: true, editUrl: '/admin/devotional.html'   },
-          { id: 'gallery',    label: 'Members Gallery',  desc: 'Members and youth galleries',     hideable: true, editUrl: '/admin/gallery.html'      },
-          { id: 'liveStream', label: 'Live Stream',      desc: 'Live service streaming page',     hideable: true, editUrl: '/admin/homepage.html'     },
+          { id: 'directory',    label: 'Member Directory', desc: 'Directory of approved members',              hideable: true, editUrl: null                       },
+          { id: 'groups',       label: 'Small Groups',     desc: 'Browse and join small groups',               hideable: true, editUrl: '/admin/groups.html'       },
+          { id: 'cottage',      label: 'Cottage Meetings', desc: 'Register for a cottage meeting',              hideable: true, editUrl: '/admin/cottage.html'      },
+          { id: 'servingTeams', label: 'Serving Teams',    desc: 'Rostered volunteer teams',                   hideable: true, editUrl: '/admin/serving-teams.html'},
+          { id: 'equipment',    label: 'Equipment',        desc: 'Church equipment register',                  hideable: true, editUrl: null                       },
+          { id: 'prayer',       label: 'Prayer Requests',  desc: 'Submit and view prayer requests',            hideable: true, editUrl: '/admin/prayer.html'       },
+          { id: 'devotional',   label: 'Daily Devotional', desc: 'Daily devotional messages',                  hideable: true, editUrl: '/admin/devotional.html'   },
+          { id: 'gallery',      label: 'Members Gallery',  desc: 'Members and youth galleries',                hideable: true, editUrl: '/admin/gallery.html'      },
+          { id: 'liveStream',   label: 'Live Stream',      desc: 'Live service streaming page',                hideable: true, editUrl: '/admin/homepage.html'     },
+          { id: 'messages',     label: 'Messages',         desc: 'Group and serving-team messaging',           hideable: true, editUrl: null                       },
         ]
       }
     };
@@ -158,7 +162,10 @@
     }
 
     // Build a merged, sorted sections array from saved Firestore data + defaults.
-    // New sections (not in Firestore) are appended at the end, enabled by default.
+    // New sections (not in Firestore) are appended at the end, enabled by default —
+    // genuinely after every saved order value, not just their raw position in
+    // PAGE_DEFS, which could collide with an order a superadmin already customised
+    // (e.g. adding a new section at defs index 2 while order:3 is already taken).
     function mergeWithDefaults(pageId, saved) {
       var defs = PAGE_DEFS[pageId].sections;
       var savedList = (saved && Array.isArray(saved.sections)) ? saved.sections : [];
@@ -167,12 +174,14 @@
       var savedById = {};
       savedList.forEach(function (s) { savedById[s.id] = s; });
 
-      var result = defs.map(function (def, i) {
+      var nextOrder = savedList.reduce(function (max, s) { return Math.max(max, s.order || 0); }, 0) + 1;
+
+      var result = defs.map(function (def) {
         var s = savedById[def.id];
         return {
           id:      def.id,
           enabled: s ? (s.enabled !== false) : true,
-          order:   s ? (s.order || i + 1) : i + 1,
+          order:   s && s.order ? s.order : nextOrder++,
         };
       });
 
