@@ -2,7 +2,8 @@
 
 > Design doc for the church-wide equipment register. Originally built as Serving Teams
 > Phase 2 (Session 195, nested under a team); restructured as its own church-wide section
-> in Session 197 — see "History" at the bottom for why.
+> in Session 197; Session 200 kept the data model but moved the *entry point* back next to
+> Serving Teams — see "History" at the bottom for the full reasoning.
 
 ---
 
@@ -21,8 +22,9 @@ Not a booking/reservation calendar. The register answers two questions:
    wrongly relocate things that never actually moved. The move *is* the checklist — no
    separate data-entry step beyond what a move naturally produces.
 
-Lives at `/members/equipment.html`, linked from the members nav. Designed to be used from
-a phone mid-move.
+Lives at `/members/equipment.html`. **Not** linked from the main members nav or dashboard —
+reached via an access-gated banner on `/members/serving-teams.html` (Session 200; see
+"History"). Designed to be used from a phone mid-move.
 
 ---
 
@@ -109,3 +111,19 @@ holders. The privilege is rules-enforced, not cosmetic.
   that could be renamed/dissolved. The per-team version was removed in the same PR that
   added this one; the only data lost was test data. Also added in the restructure, on user
   request: costs became a rules-enforced privilege rather than visible to every viewer.
+- **Session 199 (PR #328):** added dashboard cards for every members-nav destination that
+  was missing one, including Equipment — briefly making it a top-level card/nav item like
+  Directory or Prayer.
+- **Session 200:** reconsidered almost immediately — Equipment isn't relevant to most
+  members the way Directory/Prayer/Groups are, and every member was seeing a nav link most
+  of them would hit an access-denied wall on (the exact gap flagged, not yet fixed, at the
+  end of Session 199's discussion). Removed the Equipment link/card from the main members
+  nav and dashboard entirely. The *data* stayed exactly as Session 197 left it — still
+  church-wide, still gated by `equipment.manage` + the equipment-users list, not
+  re-fragmented back under a team — only the entry point moved, to an access-gated banner on
+  `/members/serving-teams.html` (hidden entirely for anyone who isn't an equipment manager
+  or listed equipment user, so members who can't use it never see a dead link). Distilled
+  the lesson: "does this belong under Serving Teams" had two different possible meanings —
+  *who owns the data* (settled in Session 197, church-wide is right) vs. *where members find
+  it* (this session's question) — worth telling apart explicitly next time a similar
+  question comes up for another feature.

@@ -30,6 +30,24 @@
     </div>
   </div>
 
+  <!-- EQUIPMENT ENTRY POINT — shown only to equipment users/managers; the
+       equipment register itself is church-wide, not team data, but this is
+       the most relevant place for the people who'd actually use it to find
+       it (see docs/EQUIPMENT.md "History"). -->
+  <div id="equipment-link-banner" class="hidden max-w-7xl mx-auto px-6 pt-6">
+    <a href="/members/equipment.html"
+       class="flex items-center gap-3 bg-white rounded-2xl border border-zinc-200 shadow-sm p-4 hover:shadow-md hover:border-amber-300 transition-all">
+      <div class="w-10 h-10 bg-[#0A3D62]/10 rounded-xl flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-boxes-stacked text-amber-500"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="font-bold text-sm text-[#0A3D62]">Equipment Register</p>
+        <p class="text-xs text-zinc-500">Track church equipment and help pack for a move</p>
+      </div>
+      <i class="fas fa-chevron-right text-zinc-300"></i>
+    </a>
+  </div>
+
   <!-- TEAMS LIST -->
   <main class="max-w-7xl mx-auto px-6 py-8">
     <div id="loading" class="text-center py-16 text-zinc-400">
@@ -216,7 +234,31 @@
     let addMemberRoster = null;   // cached list of directory-visible members for search
     let addMemberSearchTimer = null;
 
-    auth.onAuthStateChanged((user) => { currentUser = user; });
+    auth.onAuthStateChanged((user) => {
+      currentUser = user;
+      if (user) checkEquipmentAccess(user);
+    });
+
+    // Shows the Equipment Register banner only to people who can actually use
+    // it: equipment.manage holders (cheap — already-fetched token claims) or
+    // listed equipment users. There's no cheap way to check the latter —
+    // /equipmentAccess/users is manager-only, so a plain user can't read the
+    // list to see if they're on it — so this attempts the same lightweight
+    // read members/equipment.html itself relies on for access detection;
+    // isEquipmentUser()/hasPermission() don't depend on document content, so
+    // Firestore correctly allows/denies the whole query regardless of
+    // whether the equipment collection is empty.
+    async function checkEquipmentAccess(user) {
+      try {
+        const token = await user.getIdTokenResult();
+        const isManager = token.claims.superadmin === true ||
+          (Array.isArray(token.claims.perms) && token.claims.perms.includes('equipment.manage'));
+        if (!isManager) await db.collection('equipment').limit(1).get();
+        document.getElementById('equipment-link-banner').classList.remove('hidden');
+      } catch (_) {
+        // Not an equipment user — leave the banner hidden.
+      }
+    }
 
     async function fetchDisplayName(uid) {
       if (userNames[uid]) return userNames[uid];
