@@ -254,7 +254,7 @@
         </button>
         <button onclick="closeMoveDetailModal()" class="border border-zinc-200 hover:border-zinc-300 text-zinc-600 px-6 py-2.5 rounded-full text-sm font-medium transition-all">Close</button>
         <button id="move-cancel-btn" onclick="cancelMove()" class="ml-auto text-red-500 hover:text-red-600 text-sm font-medium">
-          <i class="fas fa-trash mr-1"></i>Cancel Move
+          <i class="fas fa-trash mr-1"></i><span id="move-cancel-btn-label">Cancel Move</span>
         </button>
       </div>
       <p id="move-detail-form-msg" class="hidden mt-3 text-sm font-medium text-red-500"></p>
@@ -631,9 +631,15 @@
                  ${item.packed ? 'checked' : ''} ${isComplete ? 'disabled' : ''} onchange="toggleMoveItemPacked(${idx})">
           ${escapeHtml(item.name)}
         </label>`).join('');
+      // Same people who can cancel an in-progress move can also delete a
+      // completed one (a manager, or the move's own creator) — matches
+      // firestore.rules exactly, which doesn't gate delete on status either.
+      // "Cancel" only makes sense before anything moved; once complete this
+      // is a real delete, so it's relabeled (and confirm() worded) accordingly.
       const canCancel = isManager || move.createdBy === currentUser.uid;
       document.getElementById('move-complete-btn').classList.toggle('hidden', isComplete);
-      document.getElementById('move-cancel-btn').classList.toggle('hidden', isComplete || !canCancel);
+      document.getElementById('move-cancel-btn').classList.toggle('hidden', !canCancel);
+      document.getElementById('move-cancel-btn-label').textContent = isComplete ? 'Delete Move' : 'Cancel Move';
       document.getElementById('move-detail-modal').classList.remove('hidden');
     }
 
@@ -695,7 +701,11 @@
 
     async function cancelMove() {
       if (!openMoveId) return;
-      if (!confirm('Cancel this move? Nothing will be marked as moved.')) return;
+      const move = movesCache.find((m) => m.id === openMoveId);
+      const confirmMsg = move && move.status === 'complete'
+        ? 'Delete this move? This only removes the move record from history — it does not undo the location changes it already made.'
+        : 'Cancel this move? Nothing will be marked as moved.';
+      if (!confirm(confirmMsg)) return;
       try {
         await db.collection('equipmentMoves').doc(openMoveId).delete();
         closeMoveDetailModal();
