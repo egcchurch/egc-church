@@ -10,11 +10,16 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-08
-**Current milestone:** Session 198 — fixed: a completed move had no delete affordance at all in
-the UI (button hidden unconditionally once `status === 'complete'`), even though
-`firestore.rules` already allowed a manager/superadmin (or the move's own creator) to delete a
-move regardless of status. Now shown, relabeled "Delete Move" with matching confirm-dialog
-wording. Session 197 (previous) — Equipment Register restructured church-wide (was per-team
+**Current milestone:** Session 199 — members dashboard now has a card for every Serving Teams,
+Equipment, and Messages nav destination (previously missing entirely) plus Cottage Meetings
+(previously present but untracked by `/admin/pages.html`), and a `mergeWithDefaults()` bug that
+could collide new sections' auto-assigned order with an already-customized site's saved order is
+fixed. Nav-bar configurability itself deliberately deferred — discussed, decided to ship the
+admin-controlled (dashboard) half first. Session 198 (previous) — fixed: a completed move had no
+delete affordance at all in the UI (button hidden unconditionally once `status === 'complete'`),
+even though `firestore.rules` already allowed a manager/superadmin (or the move's own creator) to
+delete a move regardless of status. Now shown, relabeled "Delete Move" with matching confirm-dialog
+wording. Session 197 — Equipment Register restructured church-wide (was per-team
 under Serving Teams, Session 195): top-level `/equipment` + `/equipmentMoves` collections, new
 `equipment.manage` permission key (18 keys now), an equipment-users access list
 (`/equipmentAccess/users`, managed from the page's Users tab), and rules-enforced cost privacy
@@ -50,6 +55,83 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: fix — Members dashboard section list completeness (Session 199)
+
+**Date:** 2026-07-08
+**PR:** #328 (pending)
+**Status:** Open
+
+### What was done
+
+Follow-up discussion after Session 197/198's equipment work: user wanted the members homepage
+and nav bar more tightly configured by `/admin/pages.html`'s Page Layout screen, and specifically
+noted the members homepage was missing nav-bar items and that reordering wasn't translating.
+
+Investigated (not assumed) before proposing anything — found two separable asks bundled
+together: (1) completing/fixing the existing admin-controlled dashboard-section management, and
+(2) making the nav bar itself config-driven (currently 100% static markup, `nav.js` just injects
+it, zero toggle/reorder logic exists for it at all). Discussed the trade-offs and a design
+(per-section `showInNav`/`showOnPage` toggles, shared order, "Home" permanently pinned like the
+homepage hero) for (2), but user chose to ship (1) first and reassess (2) afterward. Also
+surfaced, while checking "do nav items reflect actual access," a real independent bug: the
+Equipment nav link shows to every member regardless of whether they're an equipment user —
+flagged, not fixed here (belongs with the nav-bar work if/when that's picked up).
+
+Root cause of (1): `members/index.html` had only 7 of 10 nav destinations as dashboard cards
+(missing Serving Teams, Equipment, Messages entirely), and `/admin/pages.html`'s tracked
+`PAGE_DEFS.members.sections` list only knew about 6 of even those 7 (Cottage Meetings had a
+`data-section` marker in the HTML but was never added to the admin tool, so it was invisible in
+the Page Layout screen and untouched by reordering). Traced `applySections()`'s reorder logic
+(`container.appendChild()` in configured order) and confirmed it actually works correctly for
+tracked sections — the "reordering doesn't translate" symptom was really the untracked Cottage
+card getting shoved to an unpredictable leftover position while the 6 tracked ones reordered
+correctly around it. Confirmed live against production's actual `/config/pages` doc during
+verification — production already has a real saved 6-item order from prior use, so the new cards
+today are exactly as scrambled as this diagnosis predicted.
+
+- `members/index.html` — added Serving Teams (`fa-people-carry-box`, matching the icon already
+  established on `members/serving-teams.html`), Equipment (`fa-boxes-stacked`, matching
+  `members/equipment.html`), and Messages (`fa-comments`, matching `members/messages.html`) cards,
+  each with a `data-section` marker following the existing card pattern exactly. Nav order:
+  Directory, Groups, Cottage, Serving Teams, Equipment, Prayer, Devotional, Gallery, Live Stream,
+  Messages (Home excluded — stays nav-only, matching the homepage hero's "always shown, not a
+  manageable section" precedent).
+- `admin/pages.html` — `PAGE_DEFS.members.sections` extended from 6 to all 10 tracked ids
+  (added `cottage`, `servingTeams`, `equipment`, `messages`), each with a label/description and an
+  `editUrl` pointing at the relevant admin page (`null` for Directory/Equipment/Messages, which
+  have no separate admin content-management page — Equipment's content lives on the members page
+  itself, gated to managers).
+- `admin/pages.html` — fixed `mergeWithDefaults()`: previously assigned a newly-added (not-yet-
+  saved) section's default `order` from its raw index in `PAGE_DEFS`, which could collide with an
+  order value a superadmin had already customized on an existing section (e.g. a new section at
+  defs-index 2 landing on `order: 3`, the same value already claimed by a manually-reordered
+  section). Now computes the actual max saved order first and assigns new sections sequential
+  values starting above it — genuinely appended, matching what the function's own comment already
+  claimed it did. This was directly load-bearing for this change (adding 4 new tracked sections to
+  a site that already has a real customized order saved), not unrelated cleanup.
+
+### Verification
+
+No superadmin credentials in this session, so couldn't drive `/admin/pages.html`'s UI directly
+(admin-auth.js redirects an unauthenticated visit). Verified what's possible: confirmed via
+`firebase serve --only hosting` that the raw HTML source order of the 10 cards is correct;
+observed `applySections()` actually reorder the live dashboard against production's real
+`/config/pages` data (confirming the diagnosis); extracted and ran `mergeWithDefaults()`'s exact
+logic standalone against a simulated saved config resembling production's plausible state (6
+items, one custom-reordered) — new sections landed at orders 7-10 with zero collisions, as
+intended.
+
+### Deploy notes
+
+Hosting-only via CI — no Cloud Functions, Firestore rules, or Storage rules changes. **After
+deploy, a superadmin should open `/admin/pages.html` → Members tab and toggle or reorder any one
+item** (even toggling something off then on) — this forces a fresh save of the complete 10-item
+list via the fixed `mergeWithDefaults()`, which is what actually fixes the new cards' positions on
+the live dashboard. Until that happens, the new cards sit wherever `applySections()`'s existing
+(untracked-item) behavior leaves them, per the diagnosis above.
 
 ---
 
