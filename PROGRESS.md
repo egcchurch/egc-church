@@ -10,12 +10,15 @@
 
 **Status:** `Active`
 **Last worked on:** 2026-07-08
-**Current milestone:** Session 199 — members dashboard now has a card for every Serving Teams,
-Equipment, and Messages nav destination (previously missing entirely) plus Cottage Meetings
-(previously present but untracked by `/admin/pages.html`), and a `mergeWithDefaults()` bug that
-could collide new sections' auto-assigned order with an already-customized site's saved order is
-fixed. Nav-bar configurability itself deliberately deferred — discussed, decided to ship the
-admin-controlled (dashboard) half first. Session 198 (previous) — fixed: a completed move had no
+**Current milestone:** Session 200 — reconsidered Session 199 almost immediately: Equipment's
+data model stays exactly as Session 197 left it (church-wide, not team-scoped), but its entry
+point moved off the main members nav/dashboard onto an access-gated banner on
+`/members/serving-teams.html` — most members would otherwise see a nav link they can't use.
+Session 199 (previous) — members dashboard gained a card for every Serving Teams, Equipment, and
+Messages nav destination (Equipment's has since been removed again per Session 200) plus Cottage
+Meetings (previously present but untracked by `/admin/pages.html`), and a `mergeWithDefaults()`
+ordering bug is fixed. Nav-bar configurability itself still deliberately deferred. Session 198 —
+fixed: a completed move had no
 delete affordance at all in the UI (button hidden unconditionally once `status === 'complete'`),
 even though `firestore.rules` already allowed a manager/superadmin (or the move's own creator) to
 delete a move regardless of status. Now shown, relabeled "Delete Move" with matching confirm-dialog
@@ -55,6 +58,69 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: fix — Equipment entry point moved off the main members nav (Session 200)
+
+**Date:** 2026-07-08
+**PR:** #329 (pending)
+**Status:** Open
+
+### What was done
+
+Follow-up discussion, prompted by having just shipped Session 199's dashboard-completeness fix
+(which gave Equipment a full top-level card/nav slot): user reconsidered whether Equipment
+belongs "directly in the members page" at all, and wondered about moving it back under Serving
+Teams. Distinguished two different things that could mean before doing anything (per
+`docs/EQUIPMENT.md`'s Session 197 history, re-fragmenting the *data* back under a team would
+reintroduce the exact problems that motivated that restructure): (a) moving the data back
+under `/servingTeams/{teamId}/equipment` — rejected — vs. (b) keeping the data exactly as
+Session 197 left it but changing only *where members find it*. User confirmed (b).
+
+Rationale: Directory/Prayer/Groups earn a permanent main-nav slot because they're relevant to
+every member. Equipment is a narrow tool for a handful of AV/equipment people — giving it the
+same slot meant most members saw a link that dead-ended at "No access yet," which is exactly the
+nav-doesn't-reflect-access gap flagged (not fixed) at the end of Session 199's discussion.
+Tucking the entry point under Serving Teams — itself already a page every member can browse —
+and gating the link's *visibility* (not just the destination page's access) on actual equipment
+access removes the dead-link problem without touching the data model at all.
+
+- `members-nav.html` — removed the Equipment link (desktop dropdown + mobile menu), added in
+  Session 197.
+- `members/index.html` — removed the Equipment dashboard card, added in Session 199.
+- `admin/pages.html` — removed `equipment` from `PAGE_DEFS.members.sections`; no migration
+  needed for the stale Firestore entry, since `savePageState()` only ever writes fields present
+  in the current `PAGE_DEFS` — it'll drop out automatically next time an admin saves that tab.
+- `members/serving-teams.html` — new access-gated banner ("Equipment Register — track church
+  equipment and help pack for a move") linking to `/members/equipment.html`, shown only to
+  `equipment.manage` holders (checked cheaply from already-fetched token claims) or listed
+  equipment users. There's no cheap way to check the latter directly — `/equipmentAccess/users`
+  is manager-only, so a plain user can't read the list to see if they're on it — so this
+  attempts the same lightweight `equipment` collection read `members/equipment.html` itself
+  already relies on for access detection; confirmed `isEquipmentUser()`/`hasPermission()` don't
+  depend on document content, so Firestore correctly allows/denies the whole query regardless of
+  whether the collection is empty.
+- `service-worker.js` — cache bumped to v96 (`members-nav.html` is a precached partial).
+- `docs/EQUIPMENT.md`, `CLAUDE.md` — updated to reflect the new entry point and recorded the
+  "data ownership vs. navigation placement" distinction in the History section for next time.
+
+### Verification
+
+Confirmed via `firebase serve --only hosting`: the pre-existing "Teams load failed: Missing or
+insufficient permissions" console message for an anonymous visit is unrelated to this change
+(unmodified `loadTeams()` behavior, unauthenticated). Verified the new access-gate function
+directly with injected fakes covering all four cases: banner starts hidden; a faked
+`equipment.manage` token shows it via claims alone (no Firestore call); a faked non-manager
+token with a stubbed denied read leaves it hidden; a faked non-manager token with a stubbed
+successful read shows it. Confirmed via fetched page source that `members-nav.html` no longer
+contains any Equipment reference and `members/index.html` no longer has a
+`data-section="equipment"` card (Serving Teams' card is untouched).
+
+### Deploy notes
+
+Hosting-only via CI. No Cloud Functions, Firestore rules, or Storage rules changes — the access
+model itself is unchanged from Session 197, only where the link to it lives.
 
 ---
 

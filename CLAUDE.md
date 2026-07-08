@@ -72,7 +72,9 @@ church-website-pwa/
 │   ├── serving-teams.html      ← Rostered volunteer teams (Equipment, Worship, Youth Helpers...)
 │   ├── equipment.html          ← Church-wide equipment register + moves (Session 197) — access
 │   │                              via /equipmentAccess/users list or equipment.manage permission,
-│   │                              NOT plain membership; see docs/EQUIPMENT.md
+│   │                              NOT plain membership. Reached from an access-gated banner on
+│   │                              serving-teams.html, NOT the main members nav/dashboard
+│   │                              (Session 200); see docs/EQUIPMENT.md
 │   ├── prayer.html             ← Prayer requests
 │   ├── devotional.html         ← Daily devotional
 │   ├── gallery.html            ← Members + youth galleries
@@ -237,7 +239,7 @@ church-website-pwa/
 | Small groups            | /members/groups     |
 | Cottage meetings        | /members/cottage    |
 | Serving teams           | /members/serving-teams |
-| Equipment register      | /members/equipment (equipment users / equipment.manage only) |
+| Equipment register      | /members/equipment (equipment users / equipment.manage only; reached via a banner on Serving Teams, not the main nav) |
 | Prayer requests         | /members/prayer     |
 | Daily devotional        | /members/devotional |
 | Members & youth gallery | /members/gallery    |
