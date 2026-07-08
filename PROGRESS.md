@@ -9,13 +9,17 @@
 ## Current Status
 
 **Status:** `Active`
-**Last worked on:** 2026-07-07
-**Current milestone:** Session 197 — Equipment Register restructured church-wide (was per-team
+**Last worked on:** 2026-07-08
+**Current milestone:** Session 198 — fixed: a completed move had no delete affordance at all in
+the UI (button hidden unconditionally once `status === 'complete'`), even though
+`firestore.rules` already allowed a manager/superadmin (or the move's own creator) to delete a
+move regardless of status. Now shown, relabeled "Delete Move" with matching confirm-dialog
+wording. Session 197 (previous) — Equipment Register restructured church-wide (was per-team
 under Serving Teams, Session 195): top-level `/equipment` + `/equipmentMoves` collections, new
 `equipment.manage` permission key (18 keys now), an equipment-users access list
 (`/equipmentAccess/users`, managed from the page's Users tab), and rules-enforced cost privacy
-(costs on a manager-only `/private/finance` subdoc). See `docs/EQUIPMENT.md`. Session 196
-(previous): removed the dead `isMember()` helper from `storage.rules`. Session 195: Equipment
+(costs on a manager-only `/private/finance` subdoc). See `docs/EQUIPMENT.md`. Session 196:
+removed the dead `isMember()` helper from `storage.rules`. Session 195: Equipment
 Register + Moves first built (per-team). No further pending feature phases — remaining work is
 ad-hoc backlog items (see the "To do" sections below and `docs/ROADMAP.md`), plus WhatsApp
 Stage 2 once the church's Meta account and secrets exist.
@@ -46,6 +50,45 @@ Google login) — not required.
 - **`docs/PERMISSIONS.md`** — an illustrative code snippet (admin nav/dashboard filter pattern,
   around line 203-205) still shows example labels `'Events'`/`'Blog'`. Design doc only, not live
   code — low priority, flagged but not fixed.
+
+---
+
+## Session: fix — Allow deleting a completed move (Session 198)
+
+**Date:** 2026-07-08
+**PR:** #327 (pending)
+**Status:** Open
+
+### What was done
+
+User asked for superadmin to be able to delete a move. Checked `firestore.rules` first —
+`equipmentMoves`'s delete rule (`hasPermission('equipment.manage') || (isEquipmentUser() &&
+resource.data.createdBy == request.auth.uid)`) already allows this regardless of move status; a
+superadmin has `equipment.manage` implicitly via `hasPermission()`'s superadmin bypass. The actual
+gap was client-side: `members/equipment.html`'s move-detail modal hid the delete/cancel button
+entirely once `move.status === 'complete'`, for every user including managers — there was no way
+to remove a finished move from history at all, only to cancel one still in progress.
+
+- `members/equipment.html` — the button now shows whenever the existing `canCancel` check passes
+  (manager, or the move's own creator), independent of status. Relabeled "Delete Move" (was
+  "Cancel Move") when the move is already complete, since cancelling implies nothing happened yet
+  — deleting a completed move just removes the history record, without undoing the location
+  changes that move already made to the affected equipment. `cancelMove()`'s `confirm()` wording
+  now matches: the completed-move phrasing says explicitly the location changes are NOT undone,
+  so a manager clearing out test/duplicate moves doesn't mistake it for an "undo".
+- No rules changes — this was purely a client-side gap against an already-correct rule.
+
+### Verification
+
+Purely client-side, no rules touched, so no rules-suite re-run needed. Verified in the browser
+with injected state across all four combinations (manager/non-manager × in-progress/complete):
+button visibility and label match the intended matrix exactly, and both `confirm()` message
+variants read correctly.
+
+### Deploy notes
+
+Hosting-only via CI. No Cloud Functions, Firestore rules, or Storage rules changes — nothing to
+deploy manually.
 
 ---
 
